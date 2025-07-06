@@ -296,7 +296,7 @@ router.get('/',
   query('to_date').optional().isISO8601(),
   query('sortBy').optional().isString(),
   query('sortOrder').optional().isIn(['asc', 'desc']),
-  notificationController.getUserNotifications.bind(notificationController)
+  notificationController.getUserNotifications.bind(notificationController) as any
 );
 
 /**
@@ -331,7 +331,7 @@ router.get('/',
  */
 router.get('/unread-count', 
   authenticateToken,
-  notificationController.getUnreadCount.bind(notificationController)
+  notificationController.getUnreadCount.bind(notificationController) as any
 );
 
 /**
@@ -368,7 +368,7 @@ router.get('/unread-count',
  */
 router.get('/unread', 
   authenticateToken,
-  notificationController.getUnreadNotifications.bind(notificationController)
+  notificationController.getUnreadNotifications.bind(notificationController) as any
 );
 
 /**
@@ -409,7 +409,7 @@ router.get('/unread',
  */
 router.get('/stats', 
   authenticateToken,
-  notificationController.getStats.bind(notificationController)
+  notificationController.getStats.bind(notificationController) as any
 );
 
 /**
@@ -449,7 +449,7 @@ router.get('/stats',
 router.patch('/:notificationId/read', 
   authenticateToken,
   param('notificationId').isUUID(),
-  notificationController.markAsRead.bind(notificationController)
+  notificationController.markAsRead.bind(notificationController) as any
 );
 
 /**
@@ -501,7 +501,7 @@ router.patch('/mark-multiple-read',
   authenticateToken,
   body('notificationIds').isArray().notEmpty(),
   body('notificationIds.*').isUUID(),
-  notificationController.markMultipleAsRead.bind(notificationController)
+  notificationController.markMultipleAsRead.bind(notificationController) as any
 );
 
 /**
@@ -536,7 +536,7 @@ router.patch('/mark-multiple-read',
  */
 router.patch('/mark-all-read', 
   authenticateToken,
-  notificationController.markAllAsRead.bind(notificationController)
+  notificationController.markAllAsRead.bind(notificationController) as any
 );
 
 /**
@@ -576,7 +576,7 @@ router.patch('/mark-all-read',
 router.delete('/:notificationId', 
   authenticateToken,
   param('notificationId').isUUID(),
-  notificationController.deleteNotification.bind(notificationController)
+  notificationController.deleteNotification.bind(notificationController) as any
 );
 
 // Admin routes
@@ -637,7 +637,7 @@ router.post('/admin/create',
   body('action_url').optional().isURL(),
   body('expires_at').optional().isISO8601(),
   body('metadata').optional().isObject(),
-  notificationController.createNotification.bind(notificationController)
+  notificationController.createNotification.bind(notificationController) as any
 );
 
 /**
@@ -702,7 +702,7 @@ router.post('/admin/bulk',
   body('action_url').optional().isURL(),
   body('expires_at').optional().isISO8601(),
   body('metadata').optional().isObject(),
-  notificationController.createBulkNotifications.bind(notificationController)
+  notificationController.createBulkNotifications.bind(notificationController) as any
 );
 
 /**
@@ -771,7 +771,7 @@ router.get('/admin/templates',
   requireRole(['admin', 'super_admin']),
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
-  notificationController.getTemplates.bind(notificationController)
+  notificationController.getTemplates.bind(notificationController) as any
 );
 
 /**
@@ -834,7 +834,7 @@ router.post('/admin/templates',
   body('variables').optional().isArray(),
   body('variables.*').optional().isString(),
   body('is_active').optional().isBoolean(),
-  notificationController.saveTemplate.bind(notificationController)
+  notificationController.saveTemplate.bind(notificationController) as any
 );
 
 /**
@@ -905,7 +905,7 @@ router.put('/admin/templates/:templateId',
   body('variables').optional().isArray(),
   body('variables.*').optional().isString(),
   body('is_active').optional().isBoolean(),
-  notificationController.saveTemplate.bind(notificationController)
+  notificationController.saveTemplate.bind(notificationController) as any
 );
 
 /**
@@ -958,7 +958,7 @@ router.get('/admin/delivery-stats',
   authenticateToken,
   requireRole(['admin', 'super_admin']),
   query('notificationId').optional().isUUID(),
-  notificationController.getDeliveryStats.bind(notificationController)
+  notificationController.getDeliveryStats.bind(notificationController) as any
 );
 
 /**
@@ -1009,7 +1009,7 @@ router.get('/admin/delivery-stats',
 router.post('/admin/test-providers', 
   authenticateToken,
   requireRole(['admin', 'super_admin']),
-  notificationController.testProviders.bind(notificationController)
+  notificationController.testProviders.bind(notificationController) as any
 );
 
 /**
@@ -1042,7 +1042,7 @@ router.post('/admin/test-providers',
 router.post('/admin/retry-failed', 
   authenticateToken,
   requireRole(['admin', 'super_admin']),
-  notificationController.retryFailedDeliveries.bind(notificationController)
+  notificationController.retryFailedDeliveries.bind(notificationController) as any
 );
 
 export default router;

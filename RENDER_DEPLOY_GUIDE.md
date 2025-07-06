@@ -171,6 +171,58 @@ Test endpoints:
 - Check database URL format
 - Verify database is running
 
+## 🔧 Troubleshooting Docker Build Errors
+
+### Issue: "failed to compute cache key" or "/logs not found"
+
+If you see Docker-related errors during build, **Render might be incorrectly detecting your app as a Docker app**. Here's how to fix it:
+
+#### Solution 1: Force Native Node.js Build
+1. **In your Render Web Service settings:**
+   - Go to "Settings" tab
+   - Under "Build & Deploy"
+   - Set **Environment**: `Node`
+   - Ensure **Build Command**: `npm install && npm run build`
+   - Ensure **Start Command**: `npm start`
+   - **DO NOT** select Docker environment
+
+#### Solution 2: Temporarily Rename/Remove Dockerfile
+1. **Rename Dockerfile temporarily:**
+   ```bash
+   git mv Dockerfile Dockerfile.backup
+   git commit -m "temp: disable Docker for Render native build"
+   git push
+   ```
+
+2. **Redeploy on Render** - it should now use native Node.js
+
+3. **Restore Dockerfile later:**
+   ```bash
+   git mv Dockerfile.backup Dockerfile
+   git commit -m "restore: Dockerfile for local development"
+   git push
+   ```
+
+#### Solution 3: Use .renderignore
+Create a `.renderignore` file to exclude Docker files:
+```
+Dockerfile
+docker-compose*.yml
+.dockerignore
+```
+
+### Expected Build Process (Native Node.js)
+```
+[INFO] Installing dependencies...
+[INFO] npm install
+[INFO] Building application...
+[INFO] npm run build
+[INFO] Starting application...
+[INFO] npm start
+```
+
+**If you see Docker commands in the build log, Render is using the wrong build method!**
+
 ### Need Help?
 - Check deployment logs in Render dashboard
 - Test locally first with `npm run build && npm start`

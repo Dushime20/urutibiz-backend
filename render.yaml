@@ -7,14 +7,16 @@ services:
     databaseName: urutibiz_backend
     user: urutibiz_user
 
-  # Web Service
+  # Web Service (Native Node.js, NOT Docker)
   - type: web
     name: urutibiz-backend
     env: node
     plan: free
+    region: oregon
     buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /health
+    numInstances: 1
     envVars:
       - key: NODE_ENV
         value: production

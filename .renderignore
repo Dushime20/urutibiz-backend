@@ -1,0 +1,13 @@
+# Render should ignore Docker files and use native Node.js build
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+.dockerignore
+docker/
+
+# Also ignore development files
+.env.local
+.env.development
+*.log
+coverage/
+.nyc_output/

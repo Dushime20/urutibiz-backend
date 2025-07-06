@@ -41,10 +41,9 @@ COPY --from=builder --chown=urutibiz:nodejs /app/dist ./dist
 
 # Copy other necessary files
 COPY --chown=urutibiz:nodejs database ./database
-COPY --chown=urutibiz:nodejs logs ./logs
 
-# Create uploads directory
-RUN mkdir -p uploads && chown urutibiz:nodejs uploads
+# Create necessary directories
+RUN mkdir -p logs uploads && chown urutibiz:nodejs logs uploads
 
 # Switch to non-root user
 USER urutibiz

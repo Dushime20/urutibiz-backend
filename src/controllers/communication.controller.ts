@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { CommunicationService } from '@/services/communication.service';
-import { validationResult } from 'express-validator';
 import logger from '@/utils/logger';
 
 export class CommunicationController {
@@ -15,10 +14,13 @@ export class CommunicationController {
     }
   }
 
-  async getConversation(req: Request, res: Response) {
+  async getConversation(req: Request, res: Response): Promise<void> {
     try {
       const conversation = await CommunicationService.getConversation(req.params.id);
-      if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
+      if (!conversation) {
+        res.status(404).json({ success: false, message: 'Conversation not found' });
+        return;
+      }
       res.json({ success: true, data: conversation });
     } catch (error) {
       logger.error('Error getting conversation:', error);
@@ -67,10 +69,13 @@ export class CommunicationController {
     }
   }
 
-  async getMessage(req: Request, res: Response) {
+  async getMessage(req: Request, res: Response): Promise<void> {
     try {
       const message = await CommunicationService.getMessage(req.params.id);
-      if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+      if (!message) {
+        res.status(404).json({ success: false, message: 'Message not found' });
+        return;
+      }
       res.json({ success: true, data: message });
     } catch (error) {
       logger.error('Error getting message:', error);
@@ -129,10 +134,13 @@ export class CommunicationController {
     }
   }
 
-  async getTicket(req: Request, res: Response) {
+  async getTicket(req: Request, res: Response): Promise<void> {
     try {
       const ticket = await CommunicationService.getTicket(req.params.id);
-      if (!ticket) return res.status(404).json({ success: false, message: 'Ticket not found' });
+      if (!ticket) {
+        res.status(404).json({ success: false, message: 'Ticket not found' });
+        return;
+      }
       res.json({ success: true, data: ticket });
     } catch (error) {
       logger.error('Error getting ticket:', error);

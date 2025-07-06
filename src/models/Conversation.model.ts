@@ -1,4 +1,3 @@
-import { Knex } from 'knex';
 import { Conversation } from '@/types/communication.types';
 import { getDatabase } from '@/config/database';
 

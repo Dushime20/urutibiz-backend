@@ -5,7 +5,6 @@
 
 import { Request, Response, NextFunction } from 'express';
 import logger from '../utils/logger';
-import { ResponseHelper } from '../utils/response';
 import { globalErrorHandler } from '../utils/ErrorHandler';
 
 export interface CustomError extends Error {

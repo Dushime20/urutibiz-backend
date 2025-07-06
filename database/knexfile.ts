@@ -16,11 +16,11 @@ const knexConfig: { [key: string]: Knex.Config } = {
       max: 10,
     },
     migrations: {
-      directory: './migrations',
+      directory: './database/migrations',
       tableName: 'knex_migrations',
     },
     seeds: {
-      directory: './seeds',
+      directory: './database/seeds',
     },
   },
 
@@ -41,11 +41,11 @@ const knexConfig: { [key: string]: Knex.Config } = {
       max: 10,
     },
     migrations: {
-      directory: './migrations',
+      directory: './database/migrations',
       tableName: 'knex_migrations',
     },
     seeds: {
-      directory: './seeds',
+      directory: './database/seeds',
     },
   },
 
@@ -63,11 +63,11 @@ const knexConfig: { [key: string]: Knex.Config } = {
       max: 5,
     },
     migrations: {
-      directory: './migrations',
+      directory: './database/migrations',
       tableName: 'knex_migrations',
     },
     seeds: {
-      directory: './seeds',
+      directory: './database/seeds',
     },
   },
 };

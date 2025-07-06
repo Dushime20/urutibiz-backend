@@ -18,13 +18,23 @@ export interface BookingData {
   productId: string;
   status: BookingStatus;
   paymentStatus: PaymentStatus;
+  paymentMethodId?: string; // Reference to payment method used
+  
+  // Payment transaction IDs for tracking
+  paymentTransactionId?: string; // Main payment transaction
+  depositTransactionId?: string; // Security deposit transaction
+  refundTransactionId?: string; // Refund transaction if applicable
+  
   insuranceType?: InsuranceType;
   
   // Dates and times
   startDate: Date;
   endDate: Date;
+  totalDays?: number; // Generated in database
   checkInTime?: Date;
   checkOutTime?: Date;
+  pickupTime?: Date;
+  returnTime?: Date;
   
   // Pickup and delivery information
   pickupMethod: PickupMethod;
@@ -33,20 +43,29 @@ export interface BookingData {
   pickupCoordinates?: { lat: number; lng: number };
   deliveryCoordinates?: { lat: number; lng: number };
   
+  // Pricing breakdown (matching database schema)
+  baseAmount?: number;
+  deliveryFee?: number;
+  serviceFee?: number;
+  insuranceFee?: number;
+  taxAmount?: number;
+  discountAmount?: number;
+  totalAmount: number;
+  securityDeposit?: number;
+  currency?: string;
+  
   // Insurance information
   insurancePolicyNumber?: string;
   insurancePremium?: number;
   insuranceDetails?: Record<string, any>;
   
-  // Financial information
-  pricing: ProductPricing;
-  totalAmount: number;
-  securityDeposit?: number;
+  // Legacy pricing structure (for backward compatibility)
+  pricing?: ProductPricing;
   platformFee?: number;
-  taxAmount?: number;
   
   // AI and risk assessment
   aiRiskScore?: number;
+  aiCompatibilityScore?: number;
   aiAssessment?: Record<string, any>;
   
   // Notes and instructions
@@ -66,6 +85,10 @@ export interface BookingData {
   lastModifiedBy?: string;
   createdAt: Date;
   updatedAt: Date;
+  confirmedAt?: Date;
+  startedAt?: Date;
+  completedAt?: Date;
+  cancelledAt?: Date;
   
   // Additional metadata
   metadata?: Record<string, any>;
@@ -80,28 +103,44 @@ export interface CreateBookingData {
   pickupMethod: PickupMethod;
   pickupAddress?: string;
   deliveryAddress?: string;
+  pickupCoordinates?: { lat: number; lng: number };
+  deliveryCoordinates?: { lat: number; lng: number };
+  checkInTime?: string;
+  checkOutTime?: string;
   specialInstructions?: string;
   renterNotes?: string;
   insuranceType?: InsuranceType;
   securityDeposit?: number;
   metadata?: Record<string, any>;
+  parentBookingId?: string; // For repeat bookings
 }
 
 export interface UpdateBookingData {
   status?: BookingStatus;
   paymentStatus?: PaymentStatus;
+  paymentMethodId?: string; // Reference to payment method
   checkInTime?: Date;
   checkOutTime?: Date;
+  pickupTime?: Date;
+  returnTime?: Date;
   specialInstructions?: string;
   renterNotes?: string;
   ownerNotes?: string;
   adminNotes?: string;
   aiRiskScore?: number;
+  aiCompatibilityScore?: number;
   initialCondition?: ConditionType;
   finalCondition?: ConditionType;
   damageReport?: string;
   damagePhotos?: string[];
+  insuranceType?: InsuranceType;
+  insurancePolicyNumber?: string;
+  insuranceDetails?: Record<string, any>;
   lastModifiedBy?: string;
+  confirmedAt?: Date;
+  startedAt?: Date;
+  completedAt?: Date;
+  cancelledAt?: Date;
   metadata?: Record<string, any>;
 }
 

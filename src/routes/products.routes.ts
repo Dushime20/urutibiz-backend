@@ -20,9 +20,18 @@ import { Router } from 'express';
 import { ProductsController } from '../controllers/products.controller';
 import UserVerificationService from '@/services/userVerification.service';
 import { requireAuth } from '../middleware/auth.middleware';
+import { cacheMiddleware, cacheInvalidationMiddleware } from '../middleware/cache.middleware';
 
 const router = Router();
 const controller = new ProductsController();
+
+// Cache configuration for products
+const productCacheOptions = {
+  duration: 600, // 10 minutes for product data
+  keyPrefix: 'products',
+  varyBy: ['accept-language', 'x-country-code'],
+  excludeParams: ['_t', 'timestamp']
+};
 
 // Public routes (no authentication required)
 
@@ -84,7 +93,7 @@ const controller = new ProductsController();
  *       500:
  *         description: Server error
  */
-router.get('/', controller.getProducts);
+router.get('/', cacheMiddleware(productCacheOptions), controller.getProducts);
 
 /**
  * @swagger
@@ -135,7 +144,7 @@ router.get('/', controller.getProducts);
  *       500:
  *         description: Server error
  */
-router.get('/search', controller.searchProducts);
+router.get('/search', cacheMiddleware({ ...productCacheOptions, duration: 180 }), controller.searchProducts);
 
 /**
  * @swagger
@@ -166,7 +175,7 @@ router.get('/search', controller.searchProducts);
  *       500:
  *         description: Server error
  */
-router.get('/:id', controller.getProduct);
+router.get('/:id', cacheMiddleware({ ...productCacheOptions, duration: 300 }), controller.getProduct);
 
 /**
  * @swagger
@@ -206,7 +215,7 @@ router.get('/:id', controller.getProduct);
  *       404:
  *         description: Product not found
  */
-router.get('/:id/availability', controller.checkAvailability);
+router.get('/:id/availability', cacheMiddleware({ ...productCacheOptions, duration: 60 }), controller.checkAvailability);
 
 /**
  * @swagger
@@ -242,7 +251,7 @@ router.get('/:id/availability', controller.checkAvailability);
  *       404:
  *         description: Product not found
  */
-router.get('/:id/reviews', controller.getProductReviews);
+router.get('/:id/reviews', cacheMiddleware({ ...productCacheOptions, duration: 300 }), controller.getProductReviews);
 
 // Protected routes (authentication required)
 
@@ -424,7 +433,7 @@ router.get('/:id/reviews', controller.getProductReviews);
  *       500:
  *         description: Server error
  */
-router.post('/', requireAuth, async (req, res, next) => {
+router.post('/', requireAuth, cacheInvalidationMiddleware(['products:*', 'api:GET:*products*']), async (req, res, next) => {
   try {
     const user = req.user as { id: string; role: string }; // Ensure user has 'id' and 'role'
     // Only allow verified users, admin, or moderator
@@ -498,7 +507,7 @@ router.post('/', requireAuth, async (req, res, next) => {
  *       500:
  *         description: Server error
  */
-router.put('/:id', controller.updateProduct);
+router.put('/:id', cacheInvalidationMiddleware(['products:*', 'api:GET:*products*']), controller.updateProduct);
 
 /**
  * @swagger
@@ -529,7 +538,7 @@ router.put('/:id', controller.updateProduct);
  *       500:
  *         description: Server error
  */
-router.delete('/:id', controller.deleteProduct);
+router.delete('/:id', cacheInvalidationMiddleware(['products:*', 'api:GET:*products*']), controller.deleteProduct);
 
 /**
  * @swagger
@@ -616,7 +625,7 @@ router.get('/my/products', controller.getUserProducts);
  *       500:
  *         description: Server error
  */
-router.post('/:id/images', controller.uploadImages);
+router.post('/:id/images', cacheInvalidationMiddleware(['products:*', 'api:GET:*products*']), controller.uploadImages);
 
 /**
  * @swagger

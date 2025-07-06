@@ -172,10 +172,10 @@
  */
 
 import { Router } from 'express';
-import { BookingsController } from '../controllers/bookings.controller';
+import controller from '../controllers/bookings.controller';
+import { requireAuth } from '../middleware/auth.middleware';
 
 const router = Router();
-const controller = new BookingsController();
 
 /**
  * @swagger
@@ -236,8 +236,7 @@ const controller = new BookingsController();
  *         description: Server error
  */
 // Protected routes (authentication required)
-// Note: In a real implementation, these would have authentication middleware
-router.get('/', controller.getUserBookings);
+router.get('/', requireAuth, controller.getUserBookings);
 
 /**
  * @swagger
@@ -300,7 +299,7 @@ router.get('/', controller.getUserBookings);
  *       500:
  *         description: Server error
  */
-router.post('/', controller.createBooking);
+router.post('/', requireAuth, controller.createBooking); // POST /bookings
 
 /**
  * @swagger
@@ -338,7 +337,7 @@ router.post('/', controller.createBooking);
  *         description: Server error
  */
 // router.get('/analytics', controller.getBookingAnalytics); // Not implemented
-router.get('/:id', controller.getBooking);
+router.get('/:id', requireAuth, controller.getBooking);
 
 /**
  * @swagger
@@ -399,7 +398,7 @@ router.get('/:id', controller.getBooking);
  *       500:
  *         description: Server error
  */
-router.put('/:id', controller.updateBooking);
+router.put('/:id', requireAuth, controller.updateBooking); // PUT /bookings/:id
 
 /**
  * @swagger
@@ -472,7 +471,7 @@ router.put('/:id', controller.updateBooking);
  *       500:
  *         description: Server error
  */
-router.post('/:id/cancel', controller.cancelBooking);
+router.post('/:id/cancel', requireAuth, controller.cancelBooking);
 
 /**
  * @swagger
@@ -523,7 +522,7 @@ router.post('/:id/cancel', controller.cancelBooking);
  *       500:
  *         description: Server error
  */
-router.post('/:id/confirm', controller.confirmBooking);
+router.post('/:id/confirm', requireAuth, controller.confirmBooking);
 
 /**
  * @swagger
@@ -602,7 +601,7 @@ router.post('/:id/confirm', controller.confirmBooking);
  *       500:
  *         description: Server error
  */
-router.post('/:id/checkin', controller.checkIn);
+router.post('/:id/checkin', requireAuth, controller.checkIn);
 
 /**
  * @swagger
@@ -683,7 +682,7 @@ router.post('/:id/checkin', controller.checkIn);
  *       500:
  *         description: Server error
  */
-router.post('/:id/checkout', controller.checkOut);
+router.post('/:id/checkout', requireAuth, controller.checkOut);
 
 /**
  * @swagger
@@ -737,7 +736,7 @@ router.post('/:id/checkout', controller.checkOut);
  *       500:
  *         description: Server error
  */
-router.get('/:id/timeline', controller.getBookingTimeline);
+router.get('/:id/timeline', requireAuth, controller.getBookingTimeline); // GET /bookings/:id/timeline
 // router.get('/:id/messages', controller.getBookingMessages); // Not implemented
 // Remove or comment out sendBookingMessage route until implemented
 // router.post('/:id/messages', controller.sendBookingMessage); // Not implemented
@@ -805,6 +804,48 @@ router.get('/:id/timeline', controller.getBookingTimeline);
  *       500:
  *         description: Server error
  */
-router.get('/:id/status-history', controller.getBookingStatusHistory);
+router.get('/:id/status-history', requireAuth, controller.getBookingStatusHistory);
+
+/**
+ * @swagger
+ * /bookings/{id}:
+ *   delete:
+ *     summary: Delete a booking (hard delete)
+ *     description: Permanently delete a booking from the system. Use with caution - prefer cancellation for most cases.
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Booking ID
+ *     responses:
+ *       200:
+ *         description: Booking deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Booking deleted successfully"
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not authorized to delete this booking
+ *       404:
+ *         description: Booking not found
+ *       500:
+ *         description: Server error
+ */
+router.delete('/:id', requireAuth, controller.deleteBooking); // DELETE /bookings/:id
 
 export default router;

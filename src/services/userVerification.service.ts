@@ -267,4 +267,104 @@ export default class UserVerificationService {
       aiProfileScore: row.ai_profile_score
     };
   }
+
+  /**
+   * Submit verification without AI processing (for async mode)
+   */
+  static async submitVerificationInitial(userId: string, data: SubmitVerificationRequest): Promise<UserVerification> {
+    const db = getDatabase();
+    
+    const [row] = await db('user_verifications')
+      .insert({
+        id: uuidv4(),
+        user_id: userId,
+        verification_type: data.verificationType,
+        document_number: data.documentNumber,
+        document_image_url: data.documentImageUrl,
+        address_line: data.addressLine,
+        city: data.city,
+        district: data.district,
+        country: data.country,
+        selfie_image_url: data.selfieImageUrl,
+        verification_status: 'pending',
+        ai_processing_status: 'queued',
+        created_at: new Date(),
+        updated_at: new Date(),
+      })
+      .returning('*');
+
+    return row;
+  }
+
+  /**
+   * Update verification with AI processing results
+   */
+  static async updateVerificationWithAI(verificationId: string, aiResults: {
+    ocrData?: any;
+    livenessScore?: number;
+    profileScore?: number;
+  }): Promise<void> {
+    const db = getDatabase();
+    
+    const updateData: any = {
+      updated_at: new Date(),
+    };
+    
+    if (aiResults.ocrData) {
+      updateData.ocr_data = JSON.stringify(aiResults.ocrData);
+    }
+    
+    if (aiResults.livenessScore !== undefined) {
+      updateData.liveness_score = aiResults.livenessScore;
+    }
+    
+    if (aiResults.profileScore !== undefined) {
+      updateData.ai_profile_score = aiResults.profileScore;
+    }
+    
+    // Determine verification status based on AI results
+    const allScoresGood = 
+      (!aiResults.livenessScore || aiResults.livenessScore > 0.7) &&
+      (!aiResults.profileScore || aiResults.profileScore > 0.8) &&
+      (!aiResults.ocrData || aiResults.ocrData.confidence > 0.85);
+    
+    updateData.verification_status = allScoresGood ? 'verified' : 'pending';
+    updateData.ai_processing_status = 'completed';
+    
+    await db('user_verifications')
+      .where('id', verificationId)
+      .update(updateData);
+  }
+
+  /**
+   * Get verification by ID
+   */
+  static async getVerificationById(verificationId: string): Promise<UserVerification> {
+    const db = getDatabase();
+    
+    const verification = await db('user_verifications')
+      .where('id', verificationId)
+      .first();
+    
+    if (!verification) {
+      throw new Error('Verification not found');
+    }
+    
+    return verification;
+  }
+
+  /**
+   * Cancel verification processing
+   */
+  static async cancelVerification(verificationId: string): Promise<void> {
+    const db = getDatabase();
+    
+    await db('user_verifications')
+      .where('id', verificationId)
+      .update({
+        verification_status: 'cancelled',
+        ai_processing_status: 'cancelled',
+        updated_at: new Date()
+      });
+  }
 }

@@ -106,11 +106,28 @@ The API will be available at `http://localhost:3000`
 
 ## 📖 API Documentation
 
-Once the server is running, access the interactive API documentation:
+Once the server is running, access the comprehensive API documentation:
 - **Swagger UI:** `http://localhost:3000/api-docs`
 - **API Base URL:** `http://localhost:3000/api/v1`
+- **OpenAPI JSON:** `http://localhost:3000/api-docs.json`
 
-### Key Endpoints
+### Documentation Files
+- **`docs/API_SUMMARY.md`** - Complete API overview and features
+- **`docs/API_DOCUMENTATION_UPDATED.md`** - Comprehensive API documentation
+- **`docs/INSURANCE_PROVIDERS_ENDPOINTS.md`** - Detailed insurance provider API reference
+- **`docs/swagger.json`** - Generated OpenAPI specification
+
+### Key Modules
+
+#### Insurance Providers (New!)
+Complete CRUD system with advanced features:
+- `GET /insurance-providers` - List providers with filtering & pagination
+- `POST /insurance-providers` - Create new provider
+- `GET /insurance-providers/search` - Advanced search
+- `GET /insurance-providers/stats` - Analytics and statistics
+- `POST /insurance-providers/compare` - Compare providers
+- `GET /insurance-providers/coverage-analysis` - Coverage analysis
+- `POST /insurance-providers/bulk` - Bulk operations
 
 #### Authentication
 - `POST /auth/register` - User registration

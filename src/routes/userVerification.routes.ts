@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import UserVerificationController from '@/controllers/userVerification.controller';
+import { EnhancedUserVerificationController } from '@/controllers/userVerification.controller.enhanced';
 import { requireAuth, requireAdmin } from '@/middleware/auth.middleware';
+import { cacheMiddleware, cacheInvalidationMiddleware } from '@/middleware/cache.middleware';
 
 /**
  * @swagger
@@ -111,6 +113,14 @@ import { requireAuth, requireAdmin } from '@/middleware/auth.middleware';
 
 const router = Router();
 
+// Cache configuration for user verification
+const verificationCacheOptions = {
+  duration: 60, // Short cache for verification data (1 minute)
+  keyPrefix: 'verification',
+  varyBy: ['authorization'], // Vary by user
+  excludeParams: ['_t', 'timestamp']
+};
+
 /**
  * @swagger
  * /api/v1/user-verification/submit-documents:
@@ -146,7 +156,8 @@ const router = Router();
  *       500:
  *         description: Internal server error
  */
-router.post('/submit-documents', requireAuth, UserVerificationController.submitDocuments);
+router.post('/submit-documents', requireAuth, cacheInvalidationMiddleware(['verification:*']), 
+  EnhancedUserVerificationController.submitDocuments);
 
 /**
  * @swagger
@@ -188,7 +199,8 @@ router.post('/submit-documents', requireAuth, UserVerificationController.submitD
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  */
-router.get('/status', requireAuth, UserVerificationController.getVerificationStatus);
+router.get('/status', requireAuth, cacheMiddleware(verificationCacheOptions), 
+  EnhancedUserVerificationController.getVerificationStatus);
 
 /**
  * @swagger
@@ -283,7 +295,7 @@ router.put('/resubmit', requireAuth, UserVerificationController.resubmitVerifica
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  */
-router.get('/documents', requireAuth, UserVerificationController.getVerificationDocuments);
+router.get('/documents', requireAuth, cacheMiddleware(verificationCacheOptions), UserVerificationController.getVerificationDocuments);
 
 /**
  * @swagger
@@ -338,13 +350,17 @@ router.get('/documents', requireAuth, UserVerificationController.getVerification
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  */
-router.get('/history', requireAuth, UserVerificationController.getVerificationHistory);
+router.get('/history', requireAuth, cacheMiddleware(verificationCacheOptions), UserVerificationController.getVerificationHistory);
 
 // Legacy endpoints (for backwards compatibility)
-router.post('/user-verification', requireAuth, UserVerificationController.submitVerification);
-router.get('/user-verification', requireAuth, UserVerificationController.getUserVerifications);
+router.post('/user-verification', requireAuth, cacheInvalidationMiddleware(['verification:*']), UserVerificationController.submitVerification);
+router.get('/user-verification', requireAuth, cacheMiddleware(verificationCacheOptions), UserVerificationController.getUserVerifications);
 
 // Admin endpoints
-router.post('/user-verification/review', requireAuth, requireAdmin, UserVerificationController.reviewVerification);
+router.post('/user-verification/review', requireAuth, requireAdmin, cacheInvalidationMiddleware(['verification:*']), UserVerificationController.reviewVerification);
+
+// AI Processing routes
+router.get('/ai-metrics', requireAuth, requireAdmin, EnhancedUserVerificationController.getAIProcessingMetrics);
+router.post('/cancel/:verificationId', requireAuth, EnhancedUserVerificationController.cancelAIProcessing);
 
 export default router;

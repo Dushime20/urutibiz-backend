@@ -1,7 +1,7 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/src', '<rootDir>/tests'],
+  roots: ['<rootDir>/src', '<rootDir>/test'],
   testMatch: [
     '**/__tests__/**/*.ts',
     '**/*.(test|spec).ts',
@@ -22,9 +22,9 @@ module.exports = {
     'lcov',
     'html',
   ],
-  setupFilesAfterEnv: ['<rootDir>/tests/jest.setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
   testTimeout: 30000,
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@config/(.*)$': '<rootDir>/src/config/$1',
     '^@controllers/(.*)$': '<rootDir>/src/controllers/$1',
@@ -37,6 +37,6 @@ module.exports = {
     '^@types/(.*)$': '<rootDir>/src/types/$1',
     '^@interfaces/(.*)$': '<rootDir>/src/interfaces/$1',
   },
-  globalSetup: '<rootDir>/tests/globalSetup.ts',
-  globalTeardown: '<rootDir>/tests/globalTeardown.ts',
+  globalSetup: '<rootDir>/test/globalSetup.ts',
+  globalTeardown: '<rootDir>/test/globalTeardown.ts',
 };

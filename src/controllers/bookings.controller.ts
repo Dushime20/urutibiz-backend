@@ -16,12 +16,15 @@ import BookingService from '@/services/BookingService';
 import ProductService from '@/services/ProductService';
 import UserVerificationService from '@/services/userVerification.service';
 import Booking from '@/models/Booking.model';
+import BookingStatusHistoryService from '@/services/BookingStatusHistoryService';
+import paymentMethodService from '@/services/PaymentMethodService';
 import { 
   AuthenticatedRequest,
   CreateBookingData,
   BookingFilters,
   BookingData
 } from '@/types';
+import { InsuranceType } from '@/types/booking.types';
 import { ResponseHelper } from '@/utils/response';
 
 // Performance: Cache configuration
@@ -130,11 +133,16 @@ export class BookingsController extends BaseController {
       pickupMethod, 
       pickupAddress,
       deliveryAddress,
+      pickupCoordinates,
+      deliveryCoordinates,
       specialInstructions,
       renterNotes,
       insuranceType,
       securityDeposit,
-      metadata
+      metadata,
+      checkInTime,
+      checkOutTime,
+      parentBookingId // For repeat bookings
     }: CreateBookingData = req.body;
 
     // Performance: Concurrent booking prevention using lock
@@ -151,11 +159,16 @@ export class BookingsController extends BaseController {
       pickupMethod,
       pickupAddress,
       deliveryAddress,
+      pickupCoordinates,
+      deliveryCoordinates,
       specialInstructions,
       renterNotes,
       insuranceType,
       securityDeposit,
-      metadata
+      metadata,
+      checkInTime,
+      checkOutTime,
+      parentBookingId
     });
     bookingLocks.set(lockKey, bookingPromise);
 
@@ -270,11 +283,64 @@ export class BookingsController extends BaseController {
       return this.handleUnauthorized(res, 'Not authorized to view this booking status history');
     }
 
-    const statusHistory = await booking.getStatusHistory();
+    const result = await BookingStatusHistoryService.getByBookingId(id);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to fetch status history', 400);
+    }
 
     this.logAction('GET_BOOKING_STATUS_HISTORY', userId, id);
 
-    return ResponseHelper.success(res, 'Booking status history retrieved successfully', statusHistory);
+    return ResponseHelper.success(res, 'Booking status history retrieved successfully', result.data);
+  });
+
+  /**
+   * Get booking status analytics
+   * GET /api/v1/bookings/:id/status-analytics
+   */
+  public getBookingStatusAnalytics = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return this.handleNotFound(res, 'Booking');
+    }
+
+    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+      return this.handleUnauthorized(res, 'Not authorized to view this booking analytics');
+    }
+
+    const result = await BookingStatusHistoryService.getStatusAnalytics(id);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to fetch status analytics', 400);
+    }
+
+    this.logAction('GET_BOOKING_STATUS_ANALYTICS', userId, id);
+
+    return ResponseHelper.success(res, 'Booking status analytics retrieved successfully', result.data);
+  });
+
+  /**
+   * Get global booking status statistics (admin only)
+   * GET /api/v1/bookings/status-stats
+   */
+  public getGlobalStatusStats = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    // Fast authorization check
+    if (!['admin', 'super_admin'].includes(req.user.role)) {
+      return this.handleUnauthorized(res, 'Admin access required');
+    }
+
+    const result = await BookingStatusHistoryService.getGlobalStats();
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to fetch status statistics', 400);
+    }
+
+    this.logAction('GET_GLOBAL_STATUS_STATS', req.user.id);
+
+    return ResponseHelper.success(res, 'Global status statistics retrieved successfully', result.data);
   });
 
   /**
@@ -300,7 +366,22 @@ export class BookingsController extends BaseController {
     const updateData = await this.prepareBookingUpdateData(req.body);
     updateData.lastModifiedBy = userId;
 
+    // Track status change if status is being updated
+    const oldStatus = booking.status;
+    
     const updatedBooking = await booking.update(updateData);
+
+    // Record status change in audit trail if status changed
+    if (updateData.status && updateData.status !== oldStatus) {
+      await this.recordStatusChange(
+        id,
+        oldStatus,
+        updateData.status,
+        userId,
+        req.body.reason,
+        req.body.notes || 'Booking status updated'
+      );
+    }
 
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
@@ -337,6 +418,16 @@ export class BookingsController extends BaseController {
 
     const cancelledBooking = await booking.cancel(userId, reason);
 
+    // Record status change in audit trail
+    await this.recordStatusChange(
+      id,
+      booking.status,
+      'cancelled',
+      userId,
+      reason,
+      'Booking cancelled by user'
+    );
+
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
 
@@ -369,6 +460,16 @@ export class BookingsController extends BaseController {
 
     const confirmedBooking = await booking.updateStatus('confirmed', userId);
 
+    // Record status change in audit trail
+    await this.recordStatusChange(
+      id,
+      booking.status,
+      'confirmed',
+      userId,
+      undefined,
+      'Booking confirmed by owner'
+    );
+
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
 
@@ -400,6 +501,16 @@ export class BookingsController extends BaseController {
 
     const updatedBooking = await booking.checkIn(userId);
 
+    // Record status change in audit trail
+    await this.recordStatusChange(
+      id,
+      booking.status,
+      'in_progress',
+      userId,
+      undefined,
+      'Booking check-in completed'
+    );
+
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
 
@@ -430,6 +541,16 @@ export class BookingsController extends BaseController {
     }
 
     const updatedBooking = await booking.checkOut(userId);
+
+    // Record status change in audit trail
+    await this.recordStatusChange(
+      id,
+      booking.status,
+      'completed',
+      userId,
+      undefined,
+      'Booking check-out completed'
+    );
 
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
@@ -511,13 +632,277 @@ export class BookingsController extends BaseController {
     return ResponseHelper.success(res, 'Booking analytics retrieved successfully', analytics);
   });
 
+  /**
+   * Record product condition at check-in
+   * POST /api/v1/bookings/:id/record-condition
+   */
+  public recordCondition = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { 
+      conditionType, // 'initial' or 'final'
+      condition, 
+      notes, 
+      photos 
+    }: { 
+      conditionType: 'initial' | 'final';
+      condition: string;
+      notes?: string;
+      photos?: string[];
+    } = req.body;
+    const userId = req.user.id;
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return this.handleNotFound(res, 'Booking');
+    }
+
+    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+      return this.handleUnauthorized(res, 'Not authorized to record condition for this booking');
+    }
+
+    const updateData: any = {};
+    if (conditionType === 'initial') {
+      updateData.initialCondition = condition;
+      updateData.checkInTime = new Date();
+      updateData.startedAt = new Date();
+    } else {
+      updateData.finalCondition = condition;
+      updateData.checkOutTime = new Date();
+      updateData.completedAt = new Date();
+      if (notes) updateData.damageReport = notes;
+      if (photos) updateData.damagePhotos = photos;
+    }
+    
+    updateData.lastModifiedBy = userId;
+
+    const updatedBooking = await booking.update(updateData);
+
+    // Performance: Invalidate related caches
+    this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
+
+    this.logAction('RECORD_CONDITION', userId, id, { conditionType, condition });
+
+    return ResponseHelper.success(res, 'Product condition recorded successfully', updatedBooking.toJSON());
+  });
+
+  /**
+   * Update booking insurance details
+   * POST /api/v1/bookings/:id/insurance
+   */
+  public updateInsurance = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { 
+      insuranceType,
+      policyNumber,
+      insuranceDetails
+    }: { 
+      insuranceType: InsuranceType;
+      policyNumber?: string;
+      insuranceDetails?: Record<string, any>;
+    } = req.body;
+    const userId = req.user.id;
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return this.handleNotFound(res, 'Booking');
+    }
+
+    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+      return this.handleUnauthorized(res, 'Not authorized to update insurance for this booking');
+    }
+
+    // Can only update insurance before confirmation
+    if (!['pending'].includes(booking.status)) {
+      return this.handleBadRequest(res, 'Insurance can only be updated for pending bookings');
+    }
+
+    // Recalculate pricing with new insurance
+    const product = await ProductService.getById(booking.productId);
+    if (!product.success || !product.data) {
+      return ResponseHelper.error(res, 'Product not found', 404);
+    }
+
+    const newPricing = this.calculateBookingPricing(
+      product.data, 
+      booking.startDate.toISOString(), 
+      booking.endDate.toISOString(), 
+      insuranceType
+    );
+
+    const updateData = {
+      insuranceType,
+      insurancePolicyNumber: policyNumber,
+      insuranceDetails,
+      pricing: newPricing,
+      totalAmount: newPricing.totalAmount,
+      lastModifiedBy: userId
+    };
+
+    const updatedBooking = await booking.update(updateData);
+
+    // Performance: Invalidate related caches
+    this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
+
+    this.logAction('UPDATE_INSURANCE', userId, id, { insuranceType, policyNumber });
+
+    return ResponseHelper.success(res, 'Booking insurance updated successfully', updatedBooking.toJSON());
+  });
+
+  /**
+   * Set payment method for booking
+   * POST /api/v1/bookings/:id/payment-method
+   */
+  public setBookingPaymentMethod = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { paymentMethodId }: { paymentMethodId: string } = req.body;
+    const userId = req.user.id;
+
+    if (!paymentMethodId) {
+      return this.handleBadRequest(res, 'Payment method ID is required');
+    }
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return this.handleNotFound(res, 'Booking');
+    }
+
+    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+      return this.handleUnauthorized(res, 'Not authorized to modify this booking');
+    }
+
+    // Verify payment method belongs to the user
+    const paymentMethodResult = await paymentMethodService.getById(paymentMethodId);
+    if (!paymentMethodResult.success) {
+      return this.handleBadRequest(res, 'Payment method not found');
+    }
+
+    if (paymentMethodResult.data?.userId !== userId) {
+      return this.handleUnauthorized(res, 'Payment method does not belong to user');
+    }
+
+    if (!paymentMethodResult.data?.isVerified) {
+      return this.handleBadRequest(res, 'Payment method must be verified before use');
+    }
+
+    // Update booking with payment method
+    const updatedBooking = await booking.update({
+      paymentMethodId,
+      lastModifiedBy: userId
+    });
+
+    // Performance: Invalidate related caches
+    this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
+
+    this.logAction('SET_PAYMENT_METHOD', userId, id, { paymentMethodId });
+
+    return ResponseHelper.success(res, 'Payment method set successfully', updatedBooking.toJSON());
+  });
+
+  /**
+   * Get user's available payment methods for booking
+   * GET /api/v1/bookings/:id/payment-methods
+   */
+  public getBookingPaymentMethods = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return this.handleNotFound(res, 'Booking');
+    }
+
+    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+      return this.handleUnauthorized(res, 'Not authorized to view this booking');
+    }
+
+    // Get user's verified payment methods
+    const result = await paymentMethodService.getPaginated(
+      { userId, isVerified: true },
+      1,
+      50
+    );
+
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to fetch payment methods', 400);
+    }
+
+    this.logAction('GET_BOOKING_PAYMENT_METHODS', userId, id);
+
+    return ResponseHelper.success(res, 'Payment methods retrieved successfully', result.data);
+  });
+
+  /**
+   * Delete a booking (hard delete)
+   * Use with caution - prefer cancellation for most cases
+   */
+  public deleteBooking = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id: bookingId } = req.params;
+    const userId = req.user!.id;
+
+    // Get booking first to check permissions
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return ResponseHelper.error(res, 'Booking not found', 404);
+    }
+
+    // Check if user has permission to delete this booking
+    const canDelete = booking.renterId === userId || 
+                     booking.ownerId === userId || 
+                     req.user!.role === 'admin';
+
+    if (!canDelete) {
+      return ResponseHelper.error(res, 'Not authorized to delete this booking', 403);
+    }
+
+    // Only allow deletion of pending or cancelled bookings for safety
+    if (!['pending', 'cancelled'].includes(booking.status)) {
+      return ResponseHelper.error(res, 'Can only delete pending or cancelled bookings', 400);
+    }
+
+    // Delete the booking
+    await BookingService.delete(bookingId);
+
+    // Record status change for audit
+    await this.recordStatusChange(
+      bookingId,
+      booking.status,
+      'deleted',
+      userId,
+      'Hard deletion',
+      'Booking permanently removed from system'
+    );
+
+    ResponseHelper.success(res, null, 'Booking deleted successfully');
+  });
+
+  // Method aliases for test compatibility
+  public getBookings = this.getUserBookings;
+  public getBookingById = this.getBooking;
+
   // === PRIVATE HELPER METHODS ===
 
   /**
    * Process booking creation with optimizations
    */
   private async processBookingCreation(renterId: string, bookingData: Omit<CreateBookingData, 'renterId'>) {
-    const { productId, startDate, endDate, pickupMethod, specialInstructions } = bookingData;
+    const { 
+      productId, 
+      startDate, 
+      endDate, 
+      pickupMethod, 
+      pickupAddress,
+      deliveryAddress,
+      pickupCoordinates,
+      deliveryCoordinates,
+      specialInstructions,
+      renterNotes,
+      insuranceType,
+      securityDeposit,
+      metadata,
+      checkInTime,
+      checkOutTime,
+      parentBookingId
+    } = bookingData;
 
     // Performance: Parallel product fetch and KYC check
     const [productResult, isVerified] = await Promise.all([
@@ -540,22 +925,59 @@ export class BookingsController extends BaseController {
     }
 
     // Performance: Optimized pricing calculation
-    const pricing = this.calculateBookingPricing(product, startDate, endDate);
+    const pricing = this.calculateBookingPricing(product, startDate, endDate, insuranceType);
+
+    // Generate unique booking number
+    const bookingNumber = this.generateBookingNumber();
+
+    // Calculate AI risk score (placeholder implementation)
+    const aiRiskScore = await this.calculateAIRiskScore(renterId, productId, { startDate, endDate });
+
+    // Determine if this is a repeat booking
+    const isRepeatBooking = !!parentBookingId;
 
     const finalBookingData = {
       renterId,
       ownerId: product.ownerId,
       productId,
+      bookingNumber,
       startDate: new Date(startDate).toISOString(),
       endDate: new Date(endDate).toISOString(),
+      checkInTime: checkInTime ? new Date(checkInTime).toISOString() : undefined,
+      checkOutTime: checkOutTime ? new Date(checkOutTime).toISOString() : undefined,
       pickupMethod,
+      pickupAddress,
+      deliveryAddress,
+      pickupCoordinates,
+      deliveryCoordinates,
       specialInstructions,
-      pricing
+      renterNotes,
+      insuranceType: insuranceType || 'none',
+      securityDeposit,
+      aiRiskScore,
+      pricing,
+      metadata,
+      isRepeatBooking,
+      parentBookingId,
+      createdBy: renterId,
+      lastModifiedBy: renterId
     };
 
     const created = await BookingService.create(finalBookingData);
     if (!created.success || !created.data) {
       return ResponseHelper.error(null as any, created.error || 'Failed to create booking', 400);
+    }
+
+    // Record initial status in audit trail
+    if (created.data.id) {
+      await this.recordStatusChange(
+        created.data.id,
+        undefined,
+        'pending',
+        renterId,
+        undefined,
+        'Booking created'
+      );
     }
 
     // Performance: Invalidate related caches
@@ -566,9 +988,47 @@ export class BookingsController extends BaseController {
   }
 
   /**
-   * Calculate booking pricing efficiently
+   * Generate unique booking number
    */
-  private calculateBookingPricing(product: any, startDate: string, endDate: string) {
+  private generateBookingNumber(): string {
+    const prefix = 'BK';
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+    return `${prefix}${timestamp}${random}`;
+  }
+
+  /**
+   * Calculate AI risk score for booking
+   */
+  private async calculateAIRiskScore(_renterId: string, _productId: string, bookingData: { startDate: string; endDate: string }): Promise<number> {
+    // Placeholder implementation - in production this would use ML models
+    // Factors to consider: user history, product type, duration, seasonal patterns, etc.
+    
+    let riskScore = 0.5; // Base risk score (0-1 scale)
+    
+    // Adjust based on booking duration
+    const duration = new Date(bookingData.endDate).getTime() - new Date(bookingData.startDate).getTime();
+    const days = duration / (1000 * 60 * 60 * 24);
+    
+    if (days > 30) riskScore += 0.1; // Longer bookings slightly more risky
+    if (days < 1) riskScore += 0.15; // Very short bookings can be suspicious
+    
+    // In production, this would factor in:
+    // - User verification level and history (using renterId)
+    // - Product category and value (using productId)
+    // - Seasonal patterns
+    // - Geographic factors
+    // - Payment method
+    
+    // TODO: Implement actual ML-based risk assessment using renterId and productId
+    
+    return Math.min(1.0, Math.max(0.0, riskScore));
+  }
+
+  /**
+   * Calculate booking pricing with insurance considerations
+   */
+  private calculateBookingPricing(product: any, startDate: string, endDate: string, insuranceType?: InsuranceType) {
     const startDateObj = new Date(startDate);
     const endDateObj = new Date(endDate);
     const totalDays = Math.max(1, Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)));
@@ -576,18 +1036,31 @@ export class BookingsController extends BaseController {
     const subtotal = product.basePrice * totalDays;
     const platformFee = subtotal * 0.1; // 10% platform fee
     const taxAmount = subtotal * 0.08; // 8% tax
-    const insuranceFee = 0;
+    
+    // Calculate insurance fee based on type
+    let insuranceFee = 0;
+    if (insuranceType && insuranceType !== 'none') {
+      const insuranceRates: Record<string, number> = {
+        basic: 0.02,    // 2% of subtotal
+        standard: 0.04, // 4% of subtotal
+        premium: 0.06   // 6% of subtotal
+      };
+      insuranceFee = subtotal * (insuranceRates[insuranceType] || 0);
+    }
+    
     const totalAmount = subtotal + platformFee + taxAmount + insuranceFee;
 
     return {
       basePrice: product.basePrice,
-      currency: product.baseCurrency,
+      currency: product.currency || 'USD',
       totalDays,
       subtotal,
       platformFee,
       taxAmount,
       insuranceFee,
-      totalAmount
+      totalAmount,
+      securityDeposit: product.securityDeposit || 0,
+      discountAmount: 0 // Could be calculated based on promotions
     };
   }
 
@@ -613,6 +1086,47 @@ export class BookingsController extends BaseController {
     }
     if (body.paymentStatus !== undefined && VALID_PAYMENT_STATUSES.has(body.paymentStatus)) {
       updateData.paymentStatus = body.paymentStatus;
+    }
+    
+    // Additional fields from database schema
+    if (body.renterNotes !== undefined) {
+      updateData.renterNotes = body.renterNotes;
+    }
+    if (body.ownerNotes !== undefined) {
+      updateData.ownerNotes = body.ownerNotes;
+    }
+    if (body.pickupTime !== undefined) {
+      updateData.pickupTime = new Date(body.pickupTime);
+    }
+    if (body.returnTime !== undefined) {
+      updateData.returnTime = new Date(body.returnTime);
+    }
+    if (body.initialCondition !== undefined) {
+      updateData.initialCondition = body.initialCondition;
+    }
+    if (body.finalCondition !== undefined) {
+      updateData.finalCondition = body.finalCondition;
+    }
+    if (body.damageReport !== undefined) {
+      updateData.damageReport = body.damageReport;
+    }
+    if (body.damagePhotos !== undefined) {
+      updateData.damagePhotos = body.damagePhotos;
+    }
+    if (body.insurancePolicyNumber !== undefined) {
+      updateData.insurancePolicyNumber = body.insurancePolicyNumber;
+    }
+    if (body.confirmedAt !== undefined) {
+      updateData.confirmedAt = new Date(body.confirmedAt);
+    }
+    if (body.startedAt !== undefined) {
+      updateData.startedAt = new Date(body.startedAt);
+    }
+    if (body.completedAt !== undefined) {
+      updateData.completedAt = new Date(body.completedAt);
+    }
+    if (body.cancelledAt !== undefined) {
+      updateData.cancelledAt = new Date(body.cancelledAt);
     }
     
     return updateData;
@@ -678,6 +1192,32 @@ export class BookingsController extends BaseController {
     
     for (const key of expiredKeys) {
       cache.delete(key);
+    }
+  }
+
+  /**
+   * Record a status change in the audit trail
+   */
+  private async recordStatusChange(
+    bookingId: string,
+    oldStatus: string | undefined,
+    newStatus: string,
+    changedBy: string,
+    reason?: string,
+    notes?: string
+  ): Promise<void> {
+    try {
+      await BookingStatusHistoryService.recordStatusChange(
+        bookingId,
+        oldStatus,
+        newStatus,
+        changedBy,
+        reason,
+        notes
+      );
+    } catch (error) {
+      console.error('Failed to record status change:', error);
+      // Don't throw error as this is audit logging and shouldn't break the main flow
     }
   }
 }

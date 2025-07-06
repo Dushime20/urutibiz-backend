@@ -2,8 +2,8 @@ import dotenv from 'dotenv';
 import { AppConfig, Environment } from '../types/database.types';
 import logger from '../utils/logger';
 
-// Load environment variables first
-dotenv.config();
+// Load environment variables first (override system env vars)
+dotenv.config({ override: true });
 
 /**
  * Validates required environment variables

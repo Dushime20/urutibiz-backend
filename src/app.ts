@@ -22,8 +22,8 @@ import { securityMiddleware } from './middleware/security.middleware';
 import { rateLimitMiddleware } from './middleware/rateLimitMiddleware';
 import { loggingMiddleware } from './middleware/logging.middleware';
 
-// Import routes
-import routes from './routes';
+// Import routes - will be loaded after database initialization
+// import routes from './routes';
 
 // Import socket handlers
 import { initializeSocket } from './socket';
@@ -142,18 +142,33 @@ class App {
       });
     });
 
-    // API routes
-    this.app.use(this.config.apiPrefix, routes);
+    // API routes - will be loaded after database initialization
+    // this.app.use(this.config.apiPrefix, routes);
 
-    // 404 handler
-    this.app.use('*', (req, res) => {
-      res.status(404).json({
-        success: false,
-        message: 'Route not found',
-        path: req.originalUrl,
-        timestamp: new Date().toISOString(),
+    // 404 handler will be added after API routes are loaded
+  }
+
+  private async loadApiRoutes(): Promise<void> {
+    try {
+      const { default: routes } = await import('./routes');
+      console.log('🔧 [App] Mounting API routes at', this.config.apiPrefix);
+      this.app.use(this.config.apiPrefix, routes);
+      
+      // Add 404 handler AFTER API routes are mounted
+      this.app.use('*', (req, res) => {
+        res.status(404).json({
+          success: false,
+          message: 'Route not found',
+          path: req.originalUrl,
+          timestamp: new Date().toISOString(),
+        });
       });
-    });
+      
+      logger.info('✅ API routes loaded successfully');
+    } catch (error) {
+      logger.error('❌ Failed to load API routes:', error);
+      throw error;
+    }
   }
 
   private initializeErrorHandling(): void {
@@ -191,6 +206,9 @@ class App {
         logger.warn('⚠️ Failed to seed demo data:', seedError instanceof Error ? seedError.message : 'Unknown error');
       }
       
+      // Load API routes for demo mode
+      await this.loadApiRoutes();
+      
       this.isInitialized = true;
       return { success: true, message: 'Application initialized in demo mode (no external services)' };
     }
@@ -199,12 +217,28 @@ class App {
       // Connect to database
       await connectDatabase();
       logger.info('✅ Database connected successfully (before handling any requests)');
+      
+      // Load API routes after database is connected
+      await this.loadApiRoutes();
     } catch (error) {
       const errorMessage = `Database connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
       logger.error(`❌ ${errorMessage}`);
       errors.push({ service: 'database', error: errorMessage });
-      // Hard exit if DB connection fails
-      process.exit(1);
+      
+      if (isDevelopment) {
+        logger.warn('⚠️ Development mode: continuing without database connection');
+        // Load API routes even without database for testing
+        try {
+          await this.loadApiRoutes();
+          logger.info('✅ API routes loaded in development mode (without database)');
+        } catch (routeError) {
+          logger.error('❌ Failed to load API routes even without database:', routeError);
+          process.exit(1);
+        }
+      } else {
+        // Hard exit if DB connection fails in production
+        process.exit(1);
+      }
     }
 
     // Connect to Redis (optional, continue if it fails)

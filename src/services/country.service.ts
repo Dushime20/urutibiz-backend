@@ -10,7 +10,7 @@ import {
   CountryFilters, 
   CountryStats 
 } from '@/types/country.types';
-import { logger } from '@/utils/logger';
+import logger from '@/utils/logger';
 
 export class CountryService {
 
@@ -43,7 +43,7 @@ export class CountryService {
       
       return country;
     } catch (error) {
-      logger.error(`Error creating country: ${error.message}`);
+      logger.error(`Error creating country: ${(error as Error).message}`);
       throw error;
     }
   }
@@ -59,7 +59,8 @@ export class CountryService {
       }
       return country;
     } catch (error) {
-      logger.error(`Error getting country by ID ${id}: ${error.message}`);
+      const err = error as Error;
+      logger.error(`Error getting country by ID ${id}: ${err.message}`);
       throw error;
     }
   }
@@ -75,7 +76,8 @@ export class CountryService {
       }
       return country;
     } catch (error) {
-      logger.error(`Error getting country by code ${code}: ${error.message}`);
+      const err = error as Error;
+      logger.error(`Error getting country by code ${code}: ${err.message}`);
       throw error;
     }
   }
@@ -104,7 +106,8 @@ export class CountryService {
         }
       };
     } catch (error) {
-      logger.error(`Error getting countries: ${error.message}`);
+      const err = error as Error;
+      logger.error(`Error getting countries: ${err.message}`);
       throw error;
     }
   }
@@ -155,7 +158,8 @@ export class CountryService {
       logger.info(`Country updated: ${country.name} (${country.code})`);
       return country;
     } catch (error) {
-      logger.error(`Error updating country ${id}: ${error.message}`);
+      const err = error as Error;
+      logger.error(`Error updating country ${id}: ${err.message}`);
       throw error;
     }
   }
@@ -177,7 +181,8 @@ export class CountryService {
 
       logger.info(`Country soft deleted: ${country.name} (${country.code})`);
     } catch (error) {
-      logger.error(`Error deleting country ${id}: ${error.message}`);
+      const err = error as Error;
+      logger.error(`Error deleting country ${id}: ${err.message}`);
       throw error;
     }
   }
@@ -199,7 +204,8 @@ export class CountryService {
 
       logger.info(`Country permanently deleted: ${country.name} (${country.code})`);
     } catch (error) {
-      logger.error(`Error permanently deleting country ${id}: ${error.message}`);
+      const err = error as Error;
+      logger.error(`Error permanently deleting country ${id}: ${err.message}`);
       throw error;
     }
   }
@@ -211,7 +217,8 @@ export class CountryService {
     try {
       return await CountryModel.findActive();
     } catch (error) {
-      logger.error(`Error getting active countries: ${error.message}`);
+      const err = error as Error;
+      logger.error(`Error getting active countries: ${err.message}`);
       throw error;
     }
   }
@@ -223,7 +230,8 @@ export class CountryService {
     try {
       return await CountryModel.findByCurrency(currency_code);
     } catch (error) {
-      logger.error(`Error getting countries by currency ${currency_code}: ${error.message}`);
+      const err = error as Error;
+      logger.error(`Error getting countries by currency ${currency_code}: ${err.message}`);
       throw error;
     }
   }
@@ -235,7 +243,8 @@ export class CountryService {
     try {
       return await CountryModel.findByLanguage(language);
     } catch (error) {
-      logger.error(`Error getting countries by language ${language}: ${error.message}`);
+      const err = error as Error;
+      logger.error(`Error getting countries by language ${language}: ${err.message}`);
       throw error;
     }
   }
@@ -253,7 +262,8 @@ export class CountryService {
       logger.info(`Country status toggled: ${country.name} (${country.code}) - Active: ${country.is_active}`);
       return country;
     } catch (error) {
-      logger.error(`Error toggling country status ${id}: ${error.message}`);
+      const err = error as Error;
+      logger.error(`Error toggling country status ${id}: ${err.message}`);
       throw error;
     }
   }
@@ -265,7 +275,7 @@ export class CountryService {
     try {
       return await CountryModel.getStats();
     } catch (error) {
-      logger.error(`Error getting country statistics: ${error.message}`);
+      logger.error(`Error getting country statistics: ${(error as Error).message}`);
       throw error;
     }
   }
@@ -283,7 +293,8 @@ export class CountryService {
       });
       return countries;
     } catch (error) {
-      logger.error(`Error searching countries with term '${searchTerm}': ${error.message}`);
+      const err = error as Error;
+      logger.error(`Error searching countries with term '${searchTerm}': ${err.message}`);
       throw error;
     }
   }

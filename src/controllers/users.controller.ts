@@ -440,38 +440,6 @@ export class UsersController extends BaseController {
   });
 
   /**
-   * Get user statistics (for profile dashboard)
-   * GET /api/v1/users/:id/stats
-   */
-  public getUserStats = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { id } = req.params;
-
-    // Users can only view their own stats unless they're admin
-    if (!this.checkResourceOwnership(req, id)) {
-      return this.handleUnauthorized(res, 'Not authorized to view these statistics');
-    }
-
-    const userResult = await UserService.getById(id);
-    if (!userResult.success || !userResult.data) {
-      return this.handleNotFound(res, 'User');
-    }
-
-    // Mock user statistics for now
-    const stats = {
-      totalProducts: 0,
-      totalBookings: 0,
-      totalEarnings: 0,
-      averageRating: 0,
-      joinDate: userResult.data?.createdAt,
-      lastActivity: userResult.data?.updatedAt
-    };
-
-    this.logAction('GET_USER_STATS', req.user.id, id);
-
-    ResponseHelper.success(res, 'User statistics retrieved successfully', stats);
-  });
-
-  /**
    * Update user preferences
    * PUT /api/v1/users/:id/preferences
    */

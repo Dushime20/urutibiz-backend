@@ -30,6 +30,7 @@ export abstract class BaseNotificationProvider {
 
   abstract send(payload: NotificationPayload): Promise<DeliveryResult>;
   abstract isConfigured(): boolean;
+  abstract testConnection(): Promise<boolean>;
 
   protected abstract checkConfiguration(): boolean;
 

@@ -246,7 +246,7 @@ class PaymentMethodService {
   /**
    * Validate card data
    */
-  private validateCard(data: CardValidationData): { isValid: boolean; error?: string } {
+  private _validateCard(data: CardValidationData): { isValid: boolean; error?: string } {
     // Basic card number validation (Luhn algorithm)
     if (!this.isValidCardNumber(data.cardNumber)) {
       return { isValid: false, error: 'Invalid card number' };
@@ -276,7 +276,7 @@ class PaymentMethodService {
   /**
    * Validate mobile money data
    */
-  private validateMobileMoney(data: MobileMoneyValidationData): { isValid: boolean; error?: string } {
+  private _validateMobileMoney(data: MobileMoneyValidationData): { isValid: boolean; error?: string } {
     // Phone number validation
     if (!/^\+?[\d\s-()]{10,15}$/.test(data.phoneNumber)) {
       return { isValid: false, error: 'Invalid phone number format' };

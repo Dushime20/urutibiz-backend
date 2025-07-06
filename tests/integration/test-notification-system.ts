@@ -7,12 +7,12 @@
  * - Provider configurations
  */
 
-import { getDatabase } from './src/config/database';
-import { Notification } from './src/models/Notification.model';
-import { NotificationTemplate } from './src/models/NotificationTemplate.model';
-import NotificationService from './src/services/notification.service';
-import { NotificationDeliveryService } from './src/services/notificationDelivery.service';
-import logger from './src/utils/logger';
+import { getDatabase } from '../../src/config/database';
+import { Notification } from '../../src/models/Notification.model';
+import { NotificationTemplate } from '../../src/models/NotificationTemplate.model';
+import NotificationService from '../../src/services/notification.service';
+import { NotificationDeliveryService } from '../../src/services/notificationDelivery.service';
+import logger from '../../src/utils/logger';
 
 class NotificationSystemTester {
   private db: any;

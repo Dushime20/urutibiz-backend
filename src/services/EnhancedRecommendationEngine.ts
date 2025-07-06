@@ -566,8 +566,8 @@ export class EnhancedRecommendationEngine {
 
   private removeDuplicatesAndHybridScore(
     recommendations: CreateAIRecommendationRequest[],
-    _userProfile: UserProfile,
-    _context: RecommendationContext
+    userProfile: UserProfile,
+    context: RecommendationContext
   ): CreateAIRecommendationRequest[] {
     const seen = new Set<string>();
     const unique: CreateAIRecommendationRequest[] = [];

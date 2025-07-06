@@ -419,12 +419,12 @@ export class AIRecommendationService {
     }
   }
 
-  private generateCacheKey(request: GenerateRecommendationsRequest): string {
+  private _generateCacheKey(request: GenerateRecommendationsRequest): string {
     const key = `recs:${request.userId}:${(request.recommendationTypes || []).sort().join(',')}:${request.limit || this.config.defaultLimit}:${(request.excludeProductIds || []).sort().join(',')}`;
     return createHash('md5').update(key).digest('hex');
   }
 
-  private getFromCache(key: string): AIRecommendation[] | null {
+  private _getFromCache(key: string): AIRecommendation[] | null {
     const entry = this.cache.get(key);
     if (!entry) return null;
     
@@ -436,7 +436,7 @@ export class AIRecommendationService {
     return entry.data;
   }
 
-  private setCache(key: string, data: AIRecommendation[]): void {
+  private _setCache(key: string, data: AIRecommendation[]): void {
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
@@ -444,7 +444,7 @@ export class AIRecommendationService {
     });
   }
 
-  private async generateAllRecommendations(
+  private async _generateAllRecommendations(
     request: GenerateRecommendationsRequest,
     behaviorProfile: any
   ): Promise<CreateAIRecommendationRequest[]> {
@@ -531,7 +531,7 @@ export class AIRecommendationService {
   /**
    * Analyze user behavior patterns with better structure
    */
-  private analyzeUserBehavior(interactions: any[]): any {
+  private _analyzeUserBehavior(interactions: any[]): any {
     const profile: any = {
       totalInteractions: interactions.length,
       actionCounts: {},
@@ -727,7 +727,7 @@ export class AIRecommendationService {
 
   // Helper methods for improved recommendation algorithms
 
-  private async findSimilarUsers(userId: string, behaviorProfile: any): Promise<string[]> {
+  private async findSimilarUsers(userId: string, _behaviorProfile: any): Promise<string[]> {
     // Simplified implementation - in production, use proper ML algorithms
     try {
       const allUsers = await this.userInteractionRepo.findMany({

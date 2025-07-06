@@ -1,7 +1,7 @@
 import { FraudDetection } from '@/types/moderation.types';
-import logger from '@/utils/logger';
+
 export default class FraudDetectionService {
-  static async detectFraud(bookingId: string, bookingData: any): Promise<FraudDetection> {
+  static async detectFraud(bookingId: string, _bookingData: any): Promise<FraudDetection> {
     // Stub for now
     return {
       bookingId,

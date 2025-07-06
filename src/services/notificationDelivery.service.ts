@@ -1,8 +1,8 @@
-import { EmailProvider } from './EmailProvider';
-import { SMSProvider } from './SMSProvider';
-import { PushProvider } from './PushProvider';
-import { InAppProvider } from './InAppProvider';
-import { BaseNotificationProvider, DeliveryResult, NotificationPayload } from './BaseNotificationProvider';
+import { EmailProvider } from '../providers/EmailProvider';
+import { SMSProvider } from '../providers/SMSProvider';
+import { PushProvider } from '../providers/PushProvider';
+import { InAppProvider } from '../providers/InAppProvider';
+import { BaseNotificationProvider, DeliveryResult, NotificationPayload } from '../providers/BaseNotificationProvider';
 import { NotificationChannelType } from '@/types/notification.types';
 import { Notification } from '@/models/Notification.model';
 import { getDatabase } from '@/config/database';

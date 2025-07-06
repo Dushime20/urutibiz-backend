@@ -1,13 +1,45 @@
-# UrutiBiz Backend - Render Deployment
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: urutibiz-backend-db
+    env: postgresql
+    plan: free
+    databaseName: urutibiz_backend
+    user: urutibiz_user
 
-## Build Command
-npm install && npm run build
-
-## Start Command
-npm start
-
-## Environment
-Node
-
-## Health Check Path
-/api/v1/health
+  # Web Service
+  - type: web
+    name: urutibiz-backend
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_VERSION
+        value: v1
+      - key: PORT
+        value: 10000
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: CORS_CREDENTIALS
+        value: "true"
+      - key: UPLOAD_MAX_SIZE
+        value: "10485760"
+      - key: UPLOAD_ALLOWED_TYPES
+        value: "image/jpeg,image/png,image/gif,application/pdf"
+      - key: TESSERACT_WORKER_AMOUNT
+        value: "2"
+      - key: ENABLE_DEMO_MODE
+        value: "true"
+      - key: DEMO_ADMIN_EMAIL
+        value: "admin@urutibiz.com"
+      - key: DEMO_ADMIN_PASSWORD
+        value: "demo123"
+      # These need to be set manually or via sync:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false

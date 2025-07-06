@@ -23,16 +23,32 @@ Enterprise-grade booking and rental management system built with Node.js, TypeSc
 ## 🏗️ Architecture
 
 ```
-src/
-├── controllers/     # API endpoint handlers
-├── services/        # Business logic layer
-├── models/          # Data models and ORM
-├── repositories/    # Data access layer
-├── types/           # TypeScript type definitions
-├── routes/          # API route definitions
-├── middleware/      # Custom middleware
-├── config/          # Configuration management
-└── utils/           # Utility functions
+/
+├── src/                    # Source code
+│   ├── controllers/        # API endpoint handlers
+│   ├── services/          # Business logic layer
+│   ├── models/            # Data models and ORM
+│   ├── repositories/      # Data access layer
+│   ├── types/             # TypeScript type definitions
+│   ├── routes/            # API route definitions
+│   ├── middleware/        # Custom middleware
+│   ├── config/            # Configuration management
+│   ├── providers/         # Notification and service providers
+│   └── utils/             # Utility functions
+├── docs/                  # Documentation
+│   ├── api/              # API documentation
+│   ├── implementation/   # Implementation guides
+│   ├── testing/          # Testing documentation
+│   └── deployment/       # Deployment guides
+├── tests/                 # Test files
+│   ├── unit/             # Unit tests
+│   ├── integration/      # Integration tests
+│   ├── e2e/              # End-to-end tests
+│   └── utils/            # Test utilities
+├── scripts/              # Build, setup, and utility scripts
+├── examples/             # Code examples and demos
+├── database/             # Database migrations and seeds
+└── docker/               # Docker configuration files
 ```
 
 ## 📊 Database Schema

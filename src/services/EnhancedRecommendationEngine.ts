@@ -337,7 +337,7 @@ export class EnhancedRecommendationEngine {
 
   private async findSimilarUsersAdvanced(
     userId: string,
-    userProfile: UserProfile
+    _userProfile: UserProfile
   ): Promise<Array<{ userId: string; similarity: number }>> {
     // Simplified implementation - in production, use more sophisticated similarity measures
     const similarUsers = await this.db('user_interactions')
@@ -353,7 +353,7 @@ export class EnhancedRecommendationEngine {
   }
 
   private async getWeightedRecommendationsFromSimilarUsers(
-    userId: string,
+    _userId: string,
     similarUsers: Array<{ userId: string; similarity: number }>,
     excludeProductIds: string[]
   ): Promise<any[]> {
@@ -369,7 +369,7 @@ export class EnhancedRecommendationEngine {
     }));
   }
 
-  private calculateCollaborativeScore(product: any, userProfile: UserProfile): number {
+  private calculateCollaborativeScore(product: any, _userProfile: UserProfile): number {
     const baseScore = 0.7;
     const userCountBonus = Math.min(product.similarUserCount * 0.02, 0.2);
     const ratingBonus = (product.avgRating - 3) * 0.1;
@@ -396,7 +396,7 @@ export class EnhancedRecommendationEngine {
 
   private buildUserFeatureProfile(
     productFeatures: Record<string, any>,
-    userProfile: UserProfile
+    _userProfile: UserProfile
   ): Record<string, number> {
     const featureProfile: Record<string, number> = {};
     
@@ -410,7 +410,7 @@ export class EnhancedRecommendationEngine {
   }
 
   private async findSimilarProductsByContent(
-    userFeatureProfile: Record<string, number>,
+    _userFeatureProfile: Record<string, number>,
     excludeProductIds: string[],
     limit: number
   ): Promise<any[]> {
@@ -453,7 +453,7 @@ export class EnhancedRecommendationEngine {
     return { hourCounts };
   }
 
-  private extractSequencePatterns(interactions: any[]): any {
+  private extractSequencePatterns(_interactions: any[]): any {
     // Simplified sequence analysis
     return { 
       commonSequences: ['view->click', 'search->view->click'],
@@ -474,10 +474,10 @@ export class EnhancedRecommendationEngine {
   }
 
   private async getTimeBasedRecommendations(
-    userId: string,
+    _userId: string,
     currentTime: Date,
     patterns: any,
-    excludeProductIds: string[]
+    _excludeProductIds: string[]
   ): Promise<any[]> {
     const currentHour = currentTime.getHours();
     const isActiveHour = patterns.timePatterns.hourCounts[currentHour] > 0;
@@ -496,9 +496,9 @@ export class EnhancedRecommendationEngine {
   }
 
   private async getSequentialPatternRecommendations(
-    userId: string,
-    patterns: any,
-    excludeProductIds: string[]
+    _userId: string,
+    _patterns: any,
+    _excludeProductIds: string[]
   ): Promise<any[]> {
     return [{
       productId: 'prod-sequence-1',
@@ -510,15 +510,15 @@ export class EnhancedRecommendationEngine {
   }
 
   private async getContextAwareRecommendations(
-    userId: string,
-    context: RecommendationContext,
-    userProfile: UserProfile,
-    excludeProductIds: string[]
+    _userId: string,
+    _context: RecommendationContext,
+    _userProfile: UserProfile,
+    _excludeProductIds: string[]
   ): Promise<any[]> {
     return [{
       productId: 'prod-context-1',
       behaviorType: 'contextual',
-      reason: `Suitable for ${context.deviceType} usage`,
+      reason: `Suitable for ${_context.deviceType} usage`,
       patternStrength: 0.5,
       contextMatch: 0.9
     }];
@@ -526,8 +526,8 @@ export class EnhancedRecommendationEngine {
 
   private rankBehaviorRecommendations(
     recommendations: any[],
-    userProfile: UserProfile,
-    context: RecommendationContext
+    _userProfile: UserProfile,
+    _context: RecommendationContext
   ): any[] {
     return recommendations.sort((a, b) => {
       const scoreA = a.patternStrength * 0.6 + a.contextMatch * 0.4;
@@ -558,7 +558,7 @@ export class EnhancedRecommendationEngine {
 
   private async filterTrendingByUserPreferences(
     trendingProducts: any[],
-    userId: string
+    _userId: string
   ): Promise<any[]> {
     // Apply user preference filtering
     return trendingProducts; // Simplified
@@ -566,8 +566,8 @@ export class EnhancedRecommendationEngine {
 
   private removeDuplicatesAndHybridScore(
     recommendations: CreateAIRecommendationRequest[],
-    userProfile: UserProfile,
-    context: RecommendationContext
+    _userProfile: UserProfile,
+    _context: RecommendationContext
   ): CreateAIRecommendationRequest[] {
     const seen = new Set<string>();
     const unique: CreateAIRecommendationRequest[] = [];

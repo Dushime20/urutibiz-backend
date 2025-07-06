@@ -1,6 +1,4 @@
 // Communication system types for conversations, messages, support tickets, and AI chat logs
-import { User } from './user.types';
-import { Booking } from './booking.types';
 
 export type MessageType = 'text' | 'image' | 'file' | 'system' | 'ai' | 'other';
 export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';

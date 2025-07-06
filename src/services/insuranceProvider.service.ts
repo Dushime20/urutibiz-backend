@@ -458,8 +458,8 @@ export class InsuranceProviderService {
         countryStats,
         avgRating,
         avgProcessingTime,
-        coverageStats,
-        languageStats,
+        // coverageStats,
+        // languageStats,
       ] = await Promise.all([
         // Total providers
         InsuranceProvider.count({ where: whereClause }),

@@ -75,7 +75,9 @@
     "docker:build": "docker build -t urutibiz-backend .",
     "docker:run": "docker-compose up -d",
     "docker:stop": "docker-compose down",
-    "docs:generate": "swagger-jsdoc -d swaggerDef.js src/routes/*.ts -o docs/swagger.json"
+    "docs:generate": "swagger-jsdoc -d swaggerDef.js src/routes/*.ts -o docs/swagger.json",
+    "render-build": "npm ci && npm run build",
+    "render-start": "npm start"
   },
   "keywords": [
     "nodejs",

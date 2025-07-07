@@ -58,7 +58,7 @@ export class EnhancedRecommendationEngine {
   ): Promise<CreateAIRecommendationRequest[]> {
     try {
       // Get user-item interaction matrix
-      const userInteractions = await this.getUserItemMatrix(userId);
+      // const _userInteractions = await this._getUserItemMatrix(userId);
       
       // Find similar users using cosine similarity
       const similarUsers = await this.findSimilarUsersAdvanced(userId, userProfile);
@@ -304,7 +304,7 @@ export class EnhancedRecommendationEngine {
 
   // Private helper methods
 
-  private async getUserItemMatrix(userId: string): Promise<Record<string, number>> {
+  private async _getUserItemMatrix(userId: string): Promise<Record<string, number>> {
     const interactions = await this.db('user_interactions')
       .where('user_id', userId)
       .where('target_type', TargetType.PRODUCT);
@@ -511,14 +511,14 @@ export class EnhancedRecommendationEngine {
 
   private async getContextAwareRecommendations(
     _userId: string,
-    _context: RecommendationContext,
+    context: RecommendationContext,
     _userProfile: UserProfile,
     _excludeProductIds: string[]
   ): Promise<any[]> {
     return [{
       productId: 'prod-context-1',
       behaviorType: 'contextual',
-      reason: `Suitable for ${_context.deviceType} usage`,
+      reason: `Suitable for ${context.deviceType} usage`,
       patternStrength: 0.5,
       contextMatch: 0.9
     }];
@@ -566,8 +566,8 @@ export class EnhancedRecommendationEngine {
 
   private removeDuplicatesAndHybridScore(
     recommendations: CreateAIRecommendationRequest[],
-    userProfile: UserProfile,
-    context: RecommendationContext
+    _userProfile: UserProfile,
+    _context: RecommendationContext
   ): CreateAIRecommendationRequest[] {
     const seen = new Set<string>();
     const unique: CreateAIRecommendationRequest[] = [];
@@ -577,7 +577,7 @@ export class EnhancedRecommendationEngine {
         seen.add(rec.productId);
         
         // Apply hybrid scoring
-        const hybridScore = this.calculateHybridScore(rec, userProfile, context);
+        const hybridScore = this.calculateHybridScore(rec, _userProfile, _context);
         rec.confidenceScore = hybridScore;
         
         unique.push(rec);
@@ -590,7 +590,7 @@ export class EnhancedRecommendationEngine {
   private calculateHybridScore(
     recommendation: CreateAIRecommendationRequest,
     userProfile: UserProfile,
-    context: RecommendationContext
+    _context: RecommendationContext
   ): number {
     const baseScore = recommendation.confidenceScore;
     

@@ -4,7 +4,6 @@
  */
 
 import { Knex } from 'knex';
-import { createHash } from 'crypto';
 import {
   AIRecommendation,
   CreateAIRecommendationRequest,
@@ -34,19 +33,12 @@ interface AIRecommendationConfig {
   minConfidenceScore: number;
 }
 
-interface CacheEntry {
-  data: AIRecommendation[];
-  timestamp: number;
-  ttl: number;
-}
-
 export class AIRecommendationService {
   private aiRecommendationRepo: AIRecommendationRepository;
   private userInteractionRepo: UserInteractionRepository;
   private aiModelMetricRepo: AIModelMetricRepository;
   private enhancedEngine: EnhancedRecommendationEngine;
   private config: AIRecommendationConfig;
-  private cache: Map<string, CacheEntry> = new Map();
 
   constructor(db: Knex, config?: Partial<AIRecommendationConfig>) {
     this.aiRecommendationRepo = new AIRecommendationRepository(db);
@@ -419,72 +411,7 @@ export class AIRecommendationService {
     }
   }
 
-  private _generateCacheKey(request: GenerateRecommendationsRequest): string {
-    const key = `recs:${request.userId}:${(request.recommendationTypes || []).sort().join(',')}:${request.limit || this.config.defaultLimit}:${(request.excludeProductIds || []).sort().join(',')}`;
-    return createHash('md5').update(key).digest('hex');
-  }
 
-  private _getFromCache(key: string): AIRecommendation[] | null {
-    const entry = this.cache.get(key);
-    if (!entry) return null;
-    
-    if (Date.now() - entry.timestamp > entry.ttl) {
-      this.cache.delete(key);
-      return null;
-    }
-    
-    return entry.data;
-  }
-
-  private _setCache(key: string, data: AIRecommendation[]): void {
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      ttl: this.config.cacheTTL
-    });
-  }
-
-  private async _generateAllRecommendations(
-    request: GenerateRecommendationsRequest,
-    behaviorProfile: any
-  ): Promise<CreateAIRecommendationRequest[]> {
-    const recommendations: CreateAIRecommendationRequest[] = [];
-    const excludeProductIds = request.excludeProductIds || [];
-
-    // Generate different types of recommendations
-    const generators = [
-      {
-        type: RecommendationType.COLLABORATIVE_FILTERING,
-        method: () => this.generateCollaborativeFilteringRecommendations(request.userId, behaviorProfile, excludeProductIds)
-      },
-      {
-        type: RecommendationType.CONTENT_BASED,
-        method: () => this.generateContentBasedRecommendations(request.userId, behaviorProfile, excludeProductIds)
-      },
-      {
-        type: RecommendationType.BEHAVIOR_BASED,
-        method: () => this.generateBehaviorBasedRecommendations(request.userId, behaviorProfile, excludeProductIds)
-      },
-      {
-        type: RecommendationType.TRENDING,
-        method: () => this.generateTrendingRecommendations(request.userId, excludeProductIds)
-      }
-    ];
-
-    for (const generator of generators) {
-      if (!request.recommendationTypes || request.recommendationTypes.includes(generator.type)) {
-        try {
-          const typeRecs = await generator.method();
-          recommendations.push(...typeRecs);
-        } catch (error) {
-          console.error(`Error generating ${generator.type} recommendations:`, error);
-          // Continue with other types instead of failing completely
-        }
-      }
-    }
-
-    return recommendations;
-  }
 
   private processRecommendations(
     recommendations: CreateAIRecommendationRequest[],
@@ -528,90 +455,23 @@ export class AIRecommendationService {
     return createdRecommendations;
   }
 
-  /**
-   * Analyze user behavior patterns with better structure
-   */
-  private _analyzeUserBehavior(interactions: any[]): any {
-    const profile: any = {
-      totalInteractions: interactions.length,
-      actionCounts: {},
-      targetCounts: {},
-      recentTargets: [],
-      deviceTypes: {},
-      timePatterns: {},
-      preferences: {},
-      engagementScore: 0
-    };
-
-    if (interactions.length === 0) {
-      return profile;
-    }
-
-    interactions.forEach(interaction => {
-      // Count actions
-      profile.actionCounts[interaction.actionType] = 
-        (profile.actionCounts[interaction.actionType] || 0) + 1;
-
-      // Count targets
-      if (interaction.targetType && interaction.targetId) {
-        const targetKey = `${interaction.targetType}:${interaction.targetId}`;
-        profile.targetCounts[targetKey] = (profile.targetCounts[targetKey] || 0) + 1;
-        
-        // Track recent targets (avoid duplicates)
-        if (profile.recentTargets.length < 10 && 
-            !profile.recentTargets.some((t: any) => t.id === interaction.targetId)) {
-          profile.recentTargets.push({
-            id: interaction.targetId,
-            type: interaction.targetType,
-            count: 1
-          });
-        }
-      }
-
-      // Track device types
-      if (interaction.deviceType) {
-        profile.deviceTypes[interaction.deviceType] = 
-          (profile.deviceTypes[interaction.deviceType] || 0) + 1;
-      }
-
-      // Track time patterns
-      const hour = new Date(interaction.createdAt).getHours();
-      profile.timePatterns[hour] = (profile.timePatterns[hour] || 0) + 1;
-    });
-
-    // Calculate engagement score
-    profile.engagementScore = this.calculateEngagementScore(profile);
-
-    return profile;
-  }
-
-  private calculateEngagementScore(profile: any): number {
-    const bookings = profile.actionCounts['book'] || 0;
-    const clicks = profile.actionCounts['click'] || 0;
-    const views = profile.actionCounts['view'] || 0;
-    
-    // Weighted engagement score
-    return (bookings * 10 + clicks * 2 + views * 1) / Math.max(profile.totalInteractions, 1);
-  }
-
-  /**
-   * Improved collaborative filtering with better logic
-   */
-  private async generateCollaborativeFilteringRecommendations(
+  // Helper method for recording metrics
+  
+  private async _generateCollaborativeFilteringRecommendations(
     userId: string,
     behaviorProfile: any,
     excludeProductIds: string[]
   ): Promise<CreateAIRecommendationRequest[]> {
     try {
       // Get users with similar behavior patterns
-      const similarUsers = await this.findSimilarUsers(userId, behaviorProfile);
+      const similarUsers = await this._findSimilarUsers(userId, behaviorProfile);
       
       if (similarUsers.length === 0) {
-        return this.getFallbackRecommendations(userId, excludeProductIds, RecommendationType.COLLABORATIVE_FILTERING);
+        return this._getFallbackRecommendations(userId, excludeProductIds, RecommendationType.COLLABORATIVE_FILTERING);
       }
 
       // Get popular products among similar users
-      const recommendations = await this.getPopularProductsFromSimilarUsers(
+      const recommendations = await this._getPopularProductsFromSimilarUsers(
         userId,
         similarUsers,
         excludeProductIds
@@ -627,7 +487,7 @@ export class AIRecommendationService {
   /**
    * Improved content-based recommendations
    */
-  private async generateContentBasedRecommendations(
+  private async _generateContentBasedRecommendations(
     userId: string,
     behaviorProfile: any,
     excludeProductIds: string[]
@@ -637,7 +497,7 @@ export class AIRecommendationService {
       const productTargets = recentTargets.filter((t: any) => t.type === 'product');
 
       if (productTargets.length === 0) {
-        return this.getFallbackRecommendations(userId, excludeProductIds, RecommendationType.CONTENT_BASED);
+        return this._getFallbackRecommendations(userId, excludeProductIds, RecommendationType.CONTENT_BASED);
       }
 
       // In a real implementation, this would use product similarity algorithms
@@ -651,14 +511,14 @@ export class AIRecommendationService {
       return recommendations.slice(0, 2);
     } catch (error) {
       console.error('Error in content-based recommendations:', error);
-      return this.getFallbackRecommendations(userId, excludeProductIds, RecommendationType.CONTENT_BASED);
+      return this._getFallbackRecommendations(userId, excludeProductIds, RecommendationType.CONTENT_BASED);
     }
   }
 
   /**
    * Improved behavior-based recommendations
    */
-  private async generateBehaviorBasedRecommendations(
+  private async _generateBehaviorBasedRecommendations(
     userId: string,
     behaviorProfile: any,
     excludeProductIds: string[]
@@ -669,7 +529,7 @@ export class AIRecommendationService {
         .slice(0, 3);
 
       if (topActions.length === 0) {
-        return this.getFallbackRecommendations(userId, excludeProductIds, RecommendationType.BEHAVIOR_BASED);
+        return this._getFallbackRecommendations(userId, excludeProductIds, RecommendationType.BEHAVIOR_BASED);
       }
 
       // Generate recommendations based on behavior patterns
@@ -682,14 +542,14 @@ export class AIRecommendationService {
       return recommendations.slice(0, 2);
     } catch (error) {
       console.error('Error in behavior-based recommendations:', error);
-      return this.getFallbackRecommendations(userId, excludeProductIds, RecommendationType.BEHAVIOR_BASED);
+      return this._getFallbackRecommendations(userId, excludeProductIds, RecommendationType.BEHAVIOR_BASED);
     }
   }
 
   /**
    * Improved trending recommendations
    */
-  private async generateTrendingRecommendations(
+  private async _generateTrendingRecommendations(
     userId: string,
     excludeProductIds: string[]
   ): Promise<CreateAIRecommendationRequest[]> {
@@ -721,13 +581,13 @@ export class AIRecommendationService {
         }));
     } catch (error) {
       console.error('Error getting trending products:', error);
-      return this.getFallbackRecommendations(userId, excludeProductIds, RecommendationType.TRENDING);
+      return this._getFallbackRecommendations(userId, excludeProductIds, RecommendationType.TRENDING);
     }
   }
 
   // Helper methods for improved recommendation algorithms
 
-  private async findSimilarUsers(userId: string, _behaviorProfile: any): Promise<string[]> {
+  private async _findSimilarUsers(userId: string, _behaviorProfile: any): Promise<string[]> {
     // Simplified implementation - in production, use proper ML algorithms
     try {
       const allUsers = await this.userInteractionRepo.findMany({
@@ -747,7 +607,7 @@ export class AIRecommendationService {
     }
   }
 
-  private async getPopularProductsFromSimilarUsers(
+  private async _getPopularProductsFromSimilarUsers(
     userId: string,
     similarUsers: string[],
     excludeProductIds: string[]
@@ -820,7 +680,7 @@ export class AIRecommendationService {
       }));
   }
 
-  private getFallbackRecommendations(
+  private _getFallbackRecommendations(
     userId: string,
     excludeProductIds: string[],
     type: RecommendationType

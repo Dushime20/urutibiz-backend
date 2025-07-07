@@ -570,36 +570,6 @@ export class AdministrativeDivisionModel {
   }
 
   /**
-   * Method aliases for backwards compatibility and test consistency
-   */
-  static findByCountry = this.findByCountryId;
-  static findByParent = this.findChildren;
-  static getChildren = this.findChildren;
-
-  /**
-   * Find divisions by country ID (alias for clarity)
-   */
-  static async findByCountryId(countryId: string, level?: number): Promise<AdministrativeDivision[]> {
-    const db = getDatabase();
-    
-    let query = db('administrative_divisions')
-      .select('*')
-      .select(
-        db.raw('ST_AsText(coordinates) as coordinates_wkt'),
-        db.raw('ST_AsText(bounds) as bounds_wkt')
-      )
-      .where('country_id', countryId)
-      .where('is_active', true);
-
-    if (level !== undefined) {
-      query = query.where('level', level);
-    }
-
-    const divisions = await query.orderBy('level', 'asc').orderBy('name', 'asc');
-    return divisions.map(this.transformDivision);
-  }
-
-  /**
    * Transform database result to AdministrativeDivision
    */
   private static transformDivision(row: any): AdministrativeDivision {

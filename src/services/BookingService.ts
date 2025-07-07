@@ -49,15 +49,6 @@ class BookingService extends BaseService<BookingData, CreateBookingData, UpdateB
     // Add business logic for updates if needed
     return data;
   }
-
-  /**
-   * Delete a booking by ID
-   * @param id - Booking ID to delete
-   * @param options - Delete options
-   */
-  public async delete(id: string, options?: { hard?: boolean; userId?: string; cascade?: boolean }) {
-    return await super.delete(id, options);
-  }
 }
 
 export default new BookingService();

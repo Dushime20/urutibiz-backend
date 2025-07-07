@@ -4,34 +4,34 @@ import logger from '../utils/logger';
 
 const config = getConfig();
 
-// Build connection string for cloud databases like Neon
-const buildConnectionString = (): string => {
-  const { host, port, name, user, password, ssl } = config.database;
-  const sslMode = ssl ? 'require' : 'prefer';
-  return `postgresql://${user}:${password}@${host}:${port}/${name}?sslmode=${sslMode}`;
-};
-
 // Database configuration with graceful failure handling
 const dbConfig: Knex.Config = {
   client: 'postgresql',
-  connection: config.database.ssl ? 
-    buildConnectionString() : 
-    {
-      host: config.database.host,
-      port: config.database.port,
-      database: config.database.name,
-      user: config.database.user,
-      password: config.database.password,
-    },
+  connection: config.database.ssl ? {
+    host: config.database.host,
+    port: config.database.port,
+    database: config.database.name,
+    user: config.database.user,
+    password: config.database.password,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  } : {
+    host: config.database.host,
+    port: config.database.port,
+    database: config.database.name,
+    user: config.database.user,
+    password: config.database.password,
+  },
   pool: {
     // Dynamic pool sizing based on environment
     min: process.env.NODE_ENV === 'production' ? 5 : 2,
     max: config.database.maxConnections || (process.env.NODE_ENV === 'production' ? 25 : 10),
     
-    // Connection timeouts - much shorter for development
-    createTimeoutMillis: config.database.connectionTimeoutMs || 3000,
-    acquireTimeoutMillis: 5000,
-    idleTimeoutMillis: config.database.idleTimeoutMs || 10000,
+    // Connection timeouts
+    createTimeoutMillis: config.database.connectionTimeoutMs || 5000,
+    acquireTimeoutMillis: 30000,
+    idleTimeoutMillis: config.database.idleTimeoutMs || 30000,
     
     // Health check after connection creation
     afterCreate: (conn: any, done: any) => {
@@ -46,7 +46,7 @@ const dbConfig: Knex.Config = {
       });
     }
   },
-  acquireConnectionTimeout: 10000, // Reduced from 60 seconds
+  acquireConnectionTimeout: 60000,
   migrations: {
     directory: './database/migrations',
     tableName: 'knex_migrations',
@@ -66,30 +66,26 @@ export const connectDatabase = async (): Promise<void> => {
     // Set up pool monitoring
     setupPoolMonitoring();
     
-    // Test the connection with health check with timeout
+    // Test the connection with health check
     const healthCheckStart = Date.now();
-    
-    // Create a promise that rejects after 5 seconds
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Database connection timeout after 5 seconds')), 5000);
-    });
-    
-    // Race between the health check and timeout
-    await Promise.race([
-      database.raw('SELECT 1+1 as result, NOW() as timestamp'),
-      timeoutPromise
-    ]);
-    
+    await database.raw('SELECT 1+1 as result, NOW() as timestamp');
     const healthCheckTime = Date.now() - healthCheckStart;
     
     dbMetrics.lastHealthCheck = new Date();
     dbMetrics.avgQueryTime = healthCheckTime;
     
-    logger.info(`Database connected successfully (health check: ${healthCheckTime}ms)`);
+    logger.info(`✅ Database connected successfully (health check: ${healthCheckTime}ms)`);
   } catch (error) {
     dbMetrics.connectionErrors++;
-    logger.error('Failed to connect to database:', error);
-    throw error;
+    logger.error('❌ Failed to connect to database:', error);
+    
+    // In demo mode, continue without database for testing
+    if (process.env.NODE_ENV === 'demo') {
+      logger.warn('⚠️ Running in demo mode without database connection');
+      database = undefined;
+    } else {
+      throw error;
+    }
   }
 };
 
@@ -268,6 +264,17 @@ export { dbConfig };
  */
 export const getDatabase = (): Knex => {
   if (!database) {
+    if (process.env.NODE_ENV === 'demo') {
+      // Return a mock database object for demo mode
+      logger.warn('⚠️ Returning mock database for demo mode');
+      return {
+        // Mock common database methods
+        raw: () => Promise.resolve({ rows: [] }),
+        select: () => ({ where: () => ({ first: () => Promise.resolve(null) }) }),
+        from: () => ({ where: () => ({ first: () => Promise.resolve(null) }) }),
+        count: () => ({ first: () => Promise.resolve({ count: 0 }) })
+      } as any;
+    }
     database = knex(dbConfig);
   }
   return database;

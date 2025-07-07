@@ -470,12 +470,4 @@ export class AdministrativeDivisionService {
       throw new Error(`Validation failed: ${errors.join(', ')}`);
     }
   }
-
-  // Method aliases for backwards compatibility and test consistency
-  static findById = this.getDivisionById;
-  static findByFilters = this.getDivisions;
-  static getHierarchy = this.getDivisionHierarchy;
-  static getStatistics = this.getDivisionStats;
-  static buildTree = this.getDivisionTree;
-
 }

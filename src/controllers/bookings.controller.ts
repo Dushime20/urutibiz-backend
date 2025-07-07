@@ -831,54 +831,6 @@ export class BookingsController extends BaseController {
     return ResponseHelper.success(res, 'Payment methods retrieved successfully', result.data);
   });
 
-  /**
-   * Delete a booking (hard delete)
-   * Use with caution - prefer cancellation for most cases
-   */
-  public deleteBooking = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { id: bookingId } = req.params;
-    const userId = req.user!.id;
-
-    // Get booking first to check permissions
-    const booking = await Booking.findById(bookingId);
-    if (!booking) {
-      return ResponseHelper.error(res, 'Booking not found', 404);
-    }
-
-    // Check if user has permission to delete this booking
-    const canDelete = booking.renterId === userId || 
-                     booking.ownerId === userId || 
-                     req.user!.role === 'admin';
-
-    if (!canDelete) {
-      return ResponseHelper.error(res, 'Not authorized to delete this booking', 403);
-    }
-
-    // Only allow deletion of pending or cancelled bookings for safety
-    if (!['pending', 'cancelled'].includes(booking.status)) {
-      return ResponseHelper.error(res, 'Can only delete pending or cancelled bookings', 400);
-    }
-
-    // Delete the booking
-    await BookingService.delete(bookingId);
-
-    // Record status change for audit
-    await this.recordStatusChange(
-      bookingId,
-      booking.status,
-      'deleted',
-      userId,
-      'Hard deletion',
-      'Booking permanently removed from system'
-    );
-
-    ResponseHelper.success(res, null, 'Booking deleted successfully');
-  });
-
-  // Method aliases for test compatibility
-  public getBookings = this.getUserBookings;
-  public getBookingById = this.getBooking;
-
   // === PRIVATE HELPER METHODS ===
 
   /**

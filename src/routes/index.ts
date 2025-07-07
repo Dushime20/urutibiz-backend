@@ -26,8 +26,6 @@ import insuranceRoutes from './insurance.routes';
 import localizationRoutes from './localization.routes';
 import aiRecommendationRoutes from './aiRecommendation.routes';
 import performanceRoutes from './performance.routes';
-import notificationRoutes from './notifications.routes';
-import communicationRoutes from './communication.routes';
 
 const router = Router();
 
@@ -75,9 +73,6 @@ console.log('🔧 Mounting AI routes at /ai');
 router.use('/ai', aiRecommendationRoutes);
 console.log('🔧 Mounting Performance routes at /performance');
 router.use('/performance', performanceRoutes);
-console.log('🔧 Mounting Notification routes at /notifications');
-router.use('/notifications', notificationRoutes);
-router.use('/communication', communicationRoutes);
 
 // Placeholder routes - remove when actual routes are implemented
 router.get('/', (_req, res) => {
@@ -103,7 +98,6 @@ router.get('/', (_req, res) => {
       messages: '/api/v1/messages',
       ai: '/api/v1/ai',
       admin: '/api/v1/admin',
-      notifications: '/api/v1/notifications',
       analytics: '/api/v1/analytics',
     },
   });

@@ -1,5 +1,5 @@
 import ProductImageRepository from '@/repositories/ProductImageRepository';
-import { CreateProductImageData } from '@/types/productImage.types';
+import { ProductImageData, CreateProductImageData } from '@/types/productImage.types';
 import { ValidationError } from '@/types';
 import { runOnnxModel } from '@/utils/onnxRunner';
 import * as ort from 'onnxruntime-node';

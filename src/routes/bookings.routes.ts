@@ -299,7 +299,7 @@ router.get('/', requireAuth, controller.getUserBookings);
  *       500:
  *         description: Server error
  */
-router.post('/', requireAuth, controller.createBooking); // POST /bookings
+router.post('/', requireAuth, controller.createBooking);
 
 /**
  * @swagger
@@ -398,7 +398,7 @@ router.get('/:id', requireAuth, controller.getBooking);
  *       500:
  *         description: Server error
  */
-router.put('/:id', requireAuth, controller.updateBooking); // PUT /bookings/:id
+router.put('/:id', requireAuth, controller.updateBooking);
 
 /**
  * @swagger
@@ -736,7 +736,7 @@ router.post('/:id/checkout', requireAuth, controller.checkOut);
  *       500:
  *         description: Server error
  */
-router.get('/:id/timeline', requireAuth, controller.getBookingTimeline); // GET /bookings/:id/timeline
+router.get('/:id/timeline', requireAuth, controller.getBookingTimeline);
 // router.get('/:id/messages', controller.getBookingMessages); // Not implemented
 // Remove or comment out sendBookingMessage route until implemented
 // router.post('/:id/messages', controller.sendBookingMessage); // Not implemented
@@ -805,47 +805,5 @@ router.get('/:id/timeline', requireAuth, controller.getBookingTimeline); // GET 
  *         description: Server error
  */
 router.get('/:id/status-history', requireAuth, controller.getBookingStatusHistory);
-
-/**
- * @swagger
- * /bookings/{id}:
- *   delete:
- *     summary: Delete a booking (hard delete)
- *     description: Permanently delete a booking from the system. Use with caution - prefer cancellation for most cases.
- *     tags: [Bookings]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Booking ID
- *     responses:
- *       200:
- *         description: Booking deleted successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Booking deleted successfully"
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Not authorized to delete this booking
- *       404:
- *         description: Booking not found
- *       500:
- *         description: Server error
- */
-router.delete('/:id', requireAuth, controller.deleteBooking); // DELETE /bookings/:id
 
 export default router;

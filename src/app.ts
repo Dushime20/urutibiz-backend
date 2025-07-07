@@ -88,7 +88,7 @@ class App {
     this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
     
     // Serve Swagger JSON specification
-    this.app.get('/api-docs.json', (_req, res) => {
+    this.app.get('/api-docs.json', (req, res) => {
       res.setHeader('Content-Type', 'application/json');
       res.send(swaggerSpec);
     });
@@ -224,21 +224,8 @@ class App {
       const errorMessage = `Database connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
       logger.error(`❌ ${errorMessage}`);
       errors.push({ service: 'database', error: errorMessage });
-      
-      if (isDevelopment) {
-        logger.warn('⚠️ Development mode: continuing without database connection');
-        // Load API routes even without database for testing
-        try {
-          await this.loadApiRoutes();
-          logger.info('✅ API routes loaded in development mode (without database)');
-        } catch (routeError) {
-          logger.error('❌ Failed to load API routes even without database:', routeError);
-          process.exit(1);
-        }
-      } else {
-        // Hard exit if DB connection fails in production
-        process.exit(1);
-      }
+      // Hard exit if DB connection fails
+      process.exit(1);
     }
 
     // Connect to Redis (optional, continue if it fails)

@@ -1,4 +1,4 @@
-import { ProductData, CreateProductData, UpdateProductData } from '@/types/product.types';
+import { ProductData, CreateProductData, UpdateProductData, ProductFilters } from '@/types/product.types';
 import ProductRepository from '@/repositories/ProductRepository';
 import { ValidationError } from '@/types';
 
@@ -54,7 +54,7 @@ class ProductService {
     return errors;
   }
 
-  private async _validateUpdate(_data: UpdateProductData): Promise<ValidationError[]> {
+  private async validateUpdate(_data: UpdateProductData): Promise<ValidationError[]> {
     // Add update-specific validation as needed
     return [];
   }

@@ -545,7 +545,7 @@ export class AdminController extends BaseController {
    *       200:
    *         description: System health
    */
-  public async getSystemHealth(_req: Request, res: Response) {
+  public async getSystemHealth(req: Request, res: Response) {
     try {
       const health = await AdminService.getSystemHealth();
       return ResponseHelper.success(res, 'System health retrieved successfully', health);
@@ -698,7 +698,7 @@ export class AdminController extends BaseController {
     }
   }
 
-  public async getConfig(_req: Request, res: Response) {
+  public async getConfig(req: Request, res: Response) {
     try {
       const config = await AdminService.getPlatformConfig();
       return ResponseHelper.success(res, 'Configuration retrieved successfully', config);

@@ -3,9 +3,12 @@ import config from '../config/config';
 
 export const corsMiddleware = cors({
   origin: (origin, callback) => {
+    // Allow all origins if CORS_ORIGIN is '*'
+    if (config.cors.origin.includes('*')) {
+      return callback(null, true);
+    }
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
     if (config.cors.origin.includes(origin)) {
       callback(null, true);
     } else {

@@ -264,20 +264,19 @@ export { dbConfig };
  */
 export const getDatabase = (): Knex => {
   if (!database) {
-    if (process.env.NODE_ENV === 'demo') {
-      // Return a mock database object for demo mode
-      logger.warn('⚠️ Returning mock database for demo mode');
-      return {
-        // Mock common database methods
-        raw: () => Promise.resolve({ rows: [] }),
-        select: () => ({ where: () => ({ first: () => Promise.resolve(null) }) }),
-        from: () => ({ where: () => ({ first: () => Promise.resolve(null) }) }),
-        count: () => ({ first: () => Promise.resolve({ count: 0 }) })
-      } as any;
-    }
-    database = knex(dbConfig);
+    throw new Error('Database is not initialized! Please check your database connection.');
   }
   return database;
+};
+
+/**
+ * Close the database connection pool
+ */
+export const closeDatabase = async (): Promise<void> => {
+  if (database) {
+    await database.destroy();
+    database = undefined;
+  }
 };
 
 // Export the database instance directly as well

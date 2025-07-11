@@ -3,6 +3,7 @@ import 'dotenv/config';
 import App from './app';
 import { getConfig } from './config/config';
 import logger from './utils/logger';
+import { connectDatabase } from './config/database';
 
 const config = getConfig();
 
@@ -10,6 +11,8 @@ async function startServer(): Promise<void> {
   let app: App | null = null;
   
   try {
+    // Connect to the database before initializing the app
+    await connectDatabase();
     app = new App();
     
     // Initialize the application

@@ -3,11 +3,8 @@
  * 
  * Handles CRUD operations for country-specific business rules and configurations
  */
-import { getDatabase } from '../../config/database';
 import logger from '../../utils/logger';
 
-// Get database instance
-const db = getDatabase();
 import {
   CountryBusinessRulesData,
   CreateCountryBusinessRulesData,
@@ -26,6 +23,7 @@ export class CountryBusinessRulesService {
    * Create new country business rules
    */
   static async createCountryBusinessRules(data: CreateCountryBusinessRulesData): Promise<ServiceResponse<CountryBusinessRulesData>> {
+    const db = getDatabase();
     try {
       // Validate required fields
       if (!data.country_id) {
@@ -96,6 +94,7 @@ export class CountryBusinessRulesService {
    * Get country business rules by ID
    */
   static async getCountryBusinessRulesById(id: string): Promise<ServiceResponse<CountryBusinessRulesData>> {
+    const db = getDatabase();
     try {
       const rules = await db('country_business_rules')
         .where('id', id)
@@ -126,6 +125,7 @@ export class CountryBusinessRulesService {
    * Get country business rules by country ID
    */
   static async getCountryBusinessRulesByCountryId(countryId: string): Promise<ServiceResponse<CountryBusinessRulesData>> {
+    const db = getDatabase();
     try {
       const rules = await db('country_business_rules')
         .where('country_id', countryId)
@@ -156,6 +156,7 @@ export class CountryBusinessRulesService {
    * Get all country business rules with pagination
    */
   static async getAllCountryBusinessRules(page: number = 1, limit: number = 50): Promise<ServiceResponse<PaginatedResponse<CountryBusinessRulesData>>> {
+    const db = getDatabase();
     try {
       const offset = (page - 1) * limit;
 
@@ -200,6 +201,7 @@ export class CountryBusinessRulesService {
    * Update country business rules
    */
   static async updateCountryBusinessRules(id: string, data: UpdateCountryBusinessRulesData): Promise<ServiceResponse<CountryBusinessRulesData>> {
+    const db = getDatabase();
     try {
       // Check if rules exist
       const existing = await db('country_business_rules')
@@ -249,6 +251,7 @@ export class CountryBusinessRulesService {
    * Delete country business rules
    */
   static async deleteCountryBusinessRules(id: string): Promise<ServiceResponse<void>> {
+    const db = getDatabase();
     try {
       const deleted = await db('country_business_rules')
         .where('id', id)
@@ -285,6 +288,7 @@ export class CountryBusinessRulesService {
    * Check if KYC is required for a country
    */
   static async isKycRequiredForCountry(countryId: string): Promise<boolean> {
+    const db = getDatabase();
     try {
       const rules = await db('country_business_rules')
         .where('country_id', countryId)
@@ -301,6 +305,7 @@ export class CountryBusinessRulesService {
    * Get minimum user age for a country
    */
   static async getMinUserAgeForCountry(countryId: string): Promise<number> {
+    const db = getDatabase();
     try {
       const rules = await db('country_business_rules')
         .where('country_id', countryId)
@@ -317,6 +322,7 @@ export class CountryBusinessRulesService {
    * Calculate service fee for a country
    */
   static async calculateServiceFee(countryId: string, amount: number): Promise<number> {
+    const db = getDatabase();
     try {
       const rules = await db('country_business_rules')
         .where('country_id', countryId)
@@ -334,6 +340,7 @@ export class CountryBusinessRulesService {
    * Calculate payment processing fee for a country
    */
   static async calculatePaymentProcessingFee(countryId: string, amount: number): Promise<number> {
+    const db = getDatabase();
     try {
       const rules = await db('country_business_rules')
         .where('country_id', countryId)
@@ -351,6 +358,7 @@ export class CountryBusinessRulesService {
    * Check if booking amount is within limits for a country
    */
   static async isBookingAmountValid(countryId: string, amount: number): Promise<boolean> {
+    const db = getDatabase();
     try {
       const rules = await db('country_business_rules')
         .where('country_id', countryId)
@@ -371,6 +379,7 @@ export class CountryBusinessRulesService {
    * Check if support is available for a country at a given time
    */
   static async isSupportAvailable(countryId: string, date: Date = new Date()): Promise<boolean> {
+    const db = getDatabase();
     try {
       const rules = await db('country_business_rules')
         .where('country_id', countryId)

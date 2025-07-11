@@ -1,75 +1,30 @@
 import { Knex } from 'knex';
-import config from '../src/config/config';
+import * as path from 'path';
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-const knexConfig: { [key: string]: Knex.Config } = {
-  development: {
-    client: 'postgresql',
-    connection: {
-      host: config.database.host,
-      port: config.database.port,
-      database: config.database.name,
-      user: config.database.user,
-      password: config.database.password,
-    },
-    pool: {
-      min: 2,
-      max: 10,
-    },
-    migrations: {
-      directory: './database/migrations',
-      tableName: 'knex_migrations',
-    },
-    seeds: {
-      directory: './database/seeds',
-    },
+const baseConfig: Knex.Config = {
+  client: 'postgresql',
+  connection: {
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT),
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
   },
-
-  production: {
-    client: 'postgresql',
-    connection: {
-      host: config.database.host,
-      port: config.database.port,
-      database: config.database.name,
-      user: config.database.user,
-      password: config.database.password,
-      ssl: config.database.ssl ? { 
-        rejectUnauthorized: false
-      } : false,
-    },
-    pool: {
-      min: 2,
-      max: 10,
-    },
-    migrations: {
-      directory: './database/migrations',
-      tableName: 'knex_migrations',
-    },
-    seeds: {
-      directory: './database/seeds',
-    },
+  migrations: {
+    directory: path.join(__dirname, 'migrations'),
+    tableName: 'knex_migrations',
   },
-
-  test: {
-    client: 'postgresql',
-    connection: {
-      host: config.database.host,
-      port: config.database.port,
-      database: `${config.database.name}_test`,
-      user: config.database.user,
-      password: config.database.password,
-    },
-    pool: {
-      min: 1,
-      max: 5,
-    },
-    migrations: {
-      directory: './database/migrations',
-      tableName: 'knex_migrations',
-    },
-    seeds: {
-      directory: './database/seeds',
-    },
+  seeds: {
+    directory: path.join(__dirname, 'seeds'),
   },
 };
 
-export default knexConfig;
+const knexConfig: { [key: string]: Knex.Config } = {
+  development: baseConfig,
+  demo: baseConfig,
+  // Add production config if needed
+};
+
+module.exports = knexConfig;

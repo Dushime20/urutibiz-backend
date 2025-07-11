@@ -1,27 +1,25 @@
-import { Knex } from "knex";
+import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
-  // Create users table
-  await knex.schema.createTable('users', (table) => {
-    table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
-    table.string('email').unique().notNullable();
-    table.string('password_hash').notNullable();
-    table.string('first_name').notNullable();
-    table.string('last_name').notNullable();
-    table.string('phone_number');
-    table.enum('role', ['admin', 'user', 'provider', 'moderator']).defaultTo('user');
-    table.boolean('is_active').defaultTo(true);
-    table.boolean('email_verified').defaultTo(false);
-    table.string('profile_image_url');
-    table.jsonb('address');
-    table.timestamp('last_login_at');
-    table.timestamps(true, true);
-    
-    // Indexes
-    table.index('email');
-    table.index('role');
-    table.index('is_active');
-  });
+  const exists = await knex.schema.hasTable('users');
+  if (!exists) {
+    await knex.schema.createTable('users', (table) => {
+      table.uuid('id').defaultTo(knex.raw('gen_random_uuid()')).primary();
+      table.string('email', 255).notNullable();
+      table.string('password_hash', 255).notNullable();
+      table.string('first_name', 255).notNullable();
+      table.string('last_name', 255).notNullable();
+      table.string('phone_number', 255);
+      table.enu('role', ['admin', 'user', 'provider', 'moderator']).defaultTo('user');
+      table.boolean('is_active').defaultTo(true);
+      table.boolean('email_verified').defaultTo(false);
+      table.string('profile_image_url', 255);
+      table.jsonb('address');
+      table.timestamp('last_login_at');
+      table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+      table.timestamp('updated_at').notNullable().defaultTo(knex.fn.now());
+    });
+  }
 
   // Create email verification tokens table
   await knex.schema.createTable('email_verification_tokens', (table) => {

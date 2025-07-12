@@ -3,6 +3,8 @@ import UserVerificationController from '@/controllers/userVerification.controlle
 import { EnhancedUserVerificationController } from '@/controllers/userVerification.controller.enhanced';
 import { requireAuth, requireAdmin } from '@/middleware/auth.middleware';
 import { cacheMiddleware, cacheInvalidationMiddleware } from '@/middleware/cache.middleware';
+import multer from 'multer';
+const upload = multer({ storage: multer.memoryStorage() });
 
 /**
  * @swagger
@@ -157,6 +159,7 @@ const verificationCacheOptions = {
  *         description: Internal server error
  */
 router.post('/submit-documents', requireAuth, cacheInvalidationMiddleware(['verification:*']), 
+  upload.fields([{ name: 'documentImage' }, { name: 'selfieImage' }]),
   EnhancedUserVerificationController.submitDocuments);
 
 /**
@@ -359,8 +362,189 @@ router.get('/user-verification', requireAuth, cacheMiddleware(verificationCacheO
 // Admin endpoints
 router.post('/user-verification/review', requireAuth, requireAdmin, cacheInvalidationMiddleware(['verification:*']), UserVerificationController.reviewVerification);
 
-// AI Processing routes
-router.get('/ai-metrics', requireAuth, requireAdmin, EnhancedUserVerificationController.getAIProcessingMetrics);
-router.post('/cancel/:verificationId', requireAuth, EnhancedUserVerificationController.cancelAIProcessing);
+/**
+ * @swagger
+ * /api/v1/user-verification/ai-processing-metrics:
+ *   get:
+ *     summary: Get AI processing queue metrics
+ *     tags: [User Verification]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: AI processing metrics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "AI processing metrics retrieved"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     queueSize:
+ *                       type: number
+ *                     activeJobs:
+ *                       type: number
+ *                     completedJobs:
+ *                       type: number
+ *                     failedJobs:
+ *                       type: number
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ */
+router.get('/ai-processing-metrics', requireAuth, 
+  EnhancedUserVerificationController.getAIProcessingMetrics);
+
+/**
+ * @swagger
+ * /api/v1/user-verification/{verificationId}:
+ *   put:
+ *     summary: Update user verification data
+ *     tags: [User Verification]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: verificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Verification ID to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               verificationType:
+ *                 type: string
+ *                 enum: [national_id, passport, driving_license, address, selfie]
+ *               documentNumber:
+ *                 type: string
+ *               documentImage:
+ *                 type: string
+ *                 format: binary
+ *                 description: Document image file
+ *               documentImageUrl:
+ *                 type: string
+ *                 description: Direct URL to document image
+ *               addressLine:
+ *                 type: string
+ *               city:
+ *                 type: string
+ *               district:
+ *                 type: string
+ *               country:
+ *                 type: string
+ *               selfieImage:
+ *                 type: string
+ *                 format: binary
+ *                 description: Selfie image file
+ *               selfieImageUrl:
+ *                 type: string
+ *                 description: Direct URL to selfie image
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               verificationType:
+ *                 type: string
+ *                 enum: [national_id, passport, driving_license, address, selfie]
+ *               documentNumber:
+ *                 type: string
+ *               documentImageUrl:
+ *                 type: string
+ *               addressLine:
+ *                 type: string
+ *               city:
+ *                 type: string
+ *               district:
+ *                 type: string
+ *               country:
+ *                 type: string
+ *               selfieImageUrl:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Verification updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Verification updated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     verification:
+ *                       $ref: '#/components/schemas/UserVerification'
+ *                     message:
+ *                       type: string
+ *                       example: "Verification data updated. Status reset to pending for review."
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         description: Not authorized to update this verification
+ *       404:
+ *         description: Verification not found
+ *       409:
+ *         description: Cannot update already verified documents
+ */
+router.put('/:verificationId', requireAuth, cacheInvalidationMiddleware(['verification:*']), 
+  upload.fields([{ name: 'documentImage' }, { name: 'selfieImage' }]),
+  EnhancedUserVerificationController.updateVerification);
+
+/**
+ * @swagger
+ * /api/v1/user-verification/{verificationId}/cancel-ai:
+ *   post:
+ *     summary: Cancel AI processing for a verification
+ *     tags: [User Verification]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: verificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Verification ID to cancel AI processing for
+ *     responses:
+ *       200:
+ *         description: AI processing cancelled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "AI processing cancelled"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         description: Not authorized to cancel this verification
+ *       404:
+ *         description: Verification not found
+ */
+router.post('/:verificationId/cancel-ai', requireAuth, cacheInvalidationMiddleware(['verification:*']), 
+  EnhancedUserVerificationController.cancelAIProcessing);
 
 export default router;

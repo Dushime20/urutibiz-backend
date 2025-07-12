@@ -52,3 +52,16 @@ export interface ReviewVerificationRequest {
   status: VerificationStatus;
   notes?: string;
 }
+
+export interface UpdateVerificationRequest {
+  verificationType?: VerificationType;
+  documentNumber?: string;
+  documentImageUrl?: string;
+  // Address fields (for address verification)
+  addressLine?: string;
+  city?: string;
+  district?: string;
+  country?: string;
+  // Selfie
+  selfieImageUrl?: string;
+}

@@ -11,6 +11,7 @@ export default class DocumentManagementController {
     try {
       const userId = (req as any).user.id;
       const { documentType, fileName, fileUrl, fileSize, mimeType } = req.body;
+      console.log(documentType,fileName,fileUrl,'docement type,file name,file url')
       
       if (!documentType || !fileName || !fileUrl) {
         return ResponseHelper.error(res, 'Document type, file name, and file URL are required', 400);

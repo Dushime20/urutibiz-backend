@@ -13,8 +13,9 @@
 import { Request, Response } from 'express';
 import UserVerificationService from '@/services/userVerification.service';
 import { BackgroundQueue } from '@/services/BackgroundQueue';
-import { SubmitVerificationRequest, ReviewVerificationRequest } from '@/types/userVerification.types';
+import { SubmitVerificationRequest, ReviewVerificationRequest, UpdateVerificationRequest } from '@/types/userVerification.types';
 import { ResponseHelper } from '@/utils/response';
+import cloudinary from '@/config/cloudinary';
 
 // Initialize background queue for AI processing
 const aiQueue = new BackgroundQueue({
@@ -33,43 +34,85 @@ export class EnhancedUserVerificationController {
     try {
       const userId = (req as any).user.id;
       const data: SubmitVerificationRequest = req.body;
-      
+
+      // Handle file upload (assuming 'documentImage' and/or 'selfieImage' fields via multer)
+      let documentImageUrl = data.documentImageUrl;
+      let selfieImageUrl = data.selfieImageUrl;
+      console.log(selfieImageUrl,'image url')
+
+      // Multer: req.files is an object (if using .fields), req.file is single file (if using .single)
+      if (req.files) {
+        const files = req.files as any;
+        if (files.documentImage && files.documentImage[0]) {
+          const file = files.documentImage[0];
+          const uploadResult = await new Promise<any>((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream({ folder: 'user_verifications' }, (error, result) => {
+              if (error) return reject(error);
+              resolve(result);
+            });
+            stream.end(file.buffer);
+          });
+          documentImageUrl = uploadResult.secure_url;
+        }
+        if (files.selfieImage && files.selfieImage[0]) {
+          const file = files.selfieImage[0];
+          const uploadResult = await new Promise<any>((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream({ folder: 'user_verifications' }, (error, result) => {
+              if (error) return reject(error);
+              resolve(result);
+            });
+            stream.end(file.buffer);
+          });
+          selfieImageUrl = uploadResult.secure_url;
+        }
+      }
+
+      // Log the data being sent to the backend
+      console.log('Verification payload:', {
+        ...data,
+        documentImageUrl,
+        selfieImageUrl,
+      });
       // Create initial verification record (without AI processing)
-      const verification = await UserVerificationService.submitVerificationInitial(userId, data);
+      const verification = await UserVerificationService.submitVerificationInitial(userId, {
+        ...data,
+        documentImageUrl,
+        selfieImageUrl,
+      });
       
       // Queue AI processing jobs asynchronously
       const jobs: Promise<string>[] = [];
       
       // Queue OCR processing if document provided
-      if (data.documentImageUrl) {
+      if (documentImageUrl) {
         jobs.push(aiQueue.add('ai-verification', {
           verificationId: verification.id,
           userId: userId,
           verificationType: 'ocr',
-          documentImageUrl: data.documentImageUrl,
+          documentImageUrl: documentImageUrl,
           contextData: { documentType: data.verificationType }
         }, { priority: 5 }));
       }
       
       // Queue liveness detection if selfie provided
-      if (data.selfieImageUrl) {
+      if (selfieImageUrl) {
         jobs.push(aiQueue.add('ai-verification', {
           verificationId: verification.id,
           userId: userId,
           verificationType: 'liveness',
-          selfieImageUrl: data.selfieImageUrl,
+          selfieImageUrl: selfieImageUrl,
           contextData: { documentType: data.verificationType }
         }, { priority: 5 }));
       }
       
       // Queue profile verification if both images provided
-      if (data.documentImageUrl && data.selfieImageUrl) {
+      if (documentImageUrl && selfieImageUrl) {
         jobs.push(aiQueue.add('ai-verification', {
           verificationId: verification.id,
           userId: userId,
           verificationType: 'profile',
-          documentImageUrl: data.documentImageUrl,
-          selfieImageUrl: data.selfieImageUrl,
+          documentImageUrl: documentImageUrl,
+          selfieImageUrl: selfieImageUrl,
           contextData: { documentType: data.verificationType }
         }, { priority: 5 }));
       }
@@ -257,6 +300,79 @@ export class EnhancedUserVerificationController {
       
       return ResponseHelper.success(res, 'AI processing cancelled');
     } catch (error: any) {
+      return ResponseHelper.error(res, error.message);
+    }
+  }
+
+  /**
+   * Update user verification data
+   */
+  static async updateVerification(req: Request, res: Response) {
+    const startTime = Date.now();
+    
+    try {
+      const userId = (req as any).user.id;
+      const { verificationId } = req.params;
+      const data: UpdateVerificationRequest = req.body;
+
+      // Handle file upload (assuming 'documentImage' and/or 'selfieImage' fields via multer)
+      let documentImageUrl = data.documentImageUrl;
+      let selfieImageUrl = data.selfieImageUrl;
+
+      // Multer: req.files is an object (if using .fields), req.file is single file (if using .single)
+      if (req.files) {
+        const files = req.files as any;
+        if (files.documentImage && files.documentImage[0]) {
+          const file = files.documentImage[0];
+          const uploadResult = await new Promise<any>((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream({ folder: 'user_verifications' }, (error, result) => {
+              if (error) return reject(error);
+              resolve(result);
+            });
+            stream.end(file.buffer);
+          });
+          documentImageUrl = uploadResult.secure_url;
+        }
+        if (files.selfieImage && files.selfieImage[0]) {
+          const file = files.selfieImage[0];
+          const uploadResult = await new Promise<any>((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream({ folder: 'user_verifications' }, (error, result) => {
+              if (error) return reject(error);
+              resolve(result);
+            });
+            stream.end(file.buffer);
+          });
+          selfieImageUrl = uploadResult.secure_url;
+        }
+      }
+
+      // Log the data being sent to the backend
+      console.log('Update verification payload:', {
+        verificationId,
+        ...data,
+        documentImageUrl,
+        selfieImageUrl,
+      });
+
+      // Update verification with new data
+      const verification = await UserVerificationService.updateVerification(userId, verificationId, {
+        ...data,
+        documentImageUrl,
+        selfieImageUrl,
+      });
+      
+      const responseTime = Date.now() - startTime;
+      console.log(`✅ Verification updated in ${responseTime}ms`);
+      
+      return ResponseHelper.success(res, 'Verification updated successfully', {
+        verification: {
+          ...verification,
+          message: 'Verification data updated. Status reset to pending for review.'
+        }
+      });
+      
+    } catch (error: any) {
+      console.error('Error updating verification:', error);
       return ResponseHelper.error(res, error.message);
     }
   }

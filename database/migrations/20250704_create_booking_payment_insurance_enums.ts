@@ -1,19 +1,37 @@
 import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
-  // Create booking_status enum
+  // Create booking_status enum if not exists
   await knex.schema.raw(`
-    CREATE TYPE booking_status AS ENUM ('pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'disputed')
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'booking_status') THEN
+        CREATE TYPE booking_status AS ENUM ('pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'disputed');
+      END IF;
+    END
+    $$;
   `);
   
-  // Create payment_status enum  
+  // Create payment_status enum if not exists
   await knex.schema.raw(`
-    CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded')
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_status') THEN
+        CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded');
+      END IF;
+    END
+    $$;
   `);
   
-  // Create insurance_type enum
+  // Create insurance_type enum if not exists
   await knex.schema.raw(`
-    CREATE TYPE insurance_type AS ENUM ('basic', 'standard', 'premium', 'none')
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'insurance_type') THEN
+        CREATE TYPE insurance_type AS ENUM ('basic', 'standard', 'premium', 'none');
+      END IF;
+    END
+    $$;
   `);
 }
 

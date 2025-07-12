@@ -37,25 +37,21 @@ const extractToken = (authHeader: string | undefined): string => {
   return parts[1];
 };
 
-const verifyToken = (token: string): JWTPayload => {
+function verifyToken(token: string) {
   try {
-    const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
-    
-    if (!decoded.id || !decoded.email || !decoded.role) {
-      throw new UnauthorizedError('Invalid token payload');
+    console.log('Verifying token:', token); // Debug: print the token
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('JWT secret is not defined');
     }
-
-    return decoded;
-  } catch (error) {
-    if (error instanceof jwt.TokenExpiredError) {
-      throw new UnauthorizedError('Token has expired');
-    }
-    if (error instanceof jwt.JsonWebTokenError) {
-      throw new UnauthorizedError('Invalid token');
-    }
-    throw error;
+    const payload = jwt.verify(token, secret) as JWTPayload;
+    console.log('Token payload:', payload); // Debug: print the payload
+    return payload;
+  } catch (err) {
+    console.error('JWT verification error:', err); // Debug: print the error
+    throw new UnauthorizedError('Invalid token payload');
   }
-};
+}
 
 export const authenticateToken: RequestHandler = (req: Request, _res: Response, next: NextFunction): void => {
   try {

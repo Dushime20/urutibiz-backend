@@ -1,5 +1,5 @@
 import { getDatabase } from '@/config/database';
-import { UserVerification, SubmitVerificationRequest, ReviewVerificationRequest } from '@/types/userVerification.types';
+import { UserVerification, SubmitVerificationRequest, ReviewVerificationRequest, UpdateVerificationRequest } from '@/types/userVerification.types';
 import { v4 as uuidv4 } from 'uuid';
 import { runOcrOnImage, runLivenessCheck } from '@/utils/kycAutomation';
 import NotificationService from '@/services/notification.service';
@@ -337,20 +337,128 @@ export default class UserVerificationService {
   }
 
   /**
-   * Get verification by ID
+   * Update user verification data
+   * @param userId - The user ID for authorization
+   * @param verificationId - The verification ID to update
+   * @param data - The data to update
+   * @returns Updated verification object
+   */
+  static async updateVerification(userId: string, verificationId: string, data: UpdateVerificationRequest): Promise<UserVerification> {
+    const db = getDatabase();
+    
+    // Check if the verification exists and belongs to the user
+    const existing = await db('user_verifications')
+      .where({ id: verificationId, user_id: userId })
+      .first();
+    
+    if (!existing) {
+      throw new Error('Verification not found or access denied');
+    }
+
+    // Only allow updates if verification is not already verified
+    if (existing.verification_status === 'verified') {
+      throw new Error('Cannot update already verified documents');
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      updated_at: new Date()
+    };
+
+    // Update basic fields if provided
+    if (data.verificationType) {
+      updateData.verification_type = data.verificationType;
+    }
+    if (data.documentNumber !== undefined) {
+      updateData.document_number = data.documentNumber;
+    }
+    if (data.documentImageUrl !== undefined) {
+      updateData.document_image_url = data.documentImageUrl;
+    }
+    if (data.addressLine !== undefined) {
+      updateData.address_line = data.addressLine;
+    }
+    if (data.city !== undefined) {
+      updateData.city = data.city;
+    }
+    if (data.district !== undefined) {
+      updateData.district = data.district;
+    }
+    if (data.country !== undefined) {
+      updateData.country = data.country;
+    }
+    if (data.selfieImageUrl !== undefined) {
+      updateData.selfie_image_url = data.selfieImageUrl;
+    }
+
+    // Process AI scoring if new images are provided
+    let ocrData, livenessScore, aiProfileScore;
+    
+    if (data.documentImageUrl && ['national_id', 'passport', 'driving_license'].includes(data.verificationType || existing.verification_type)) {
+      try {
+        ocrData = await runOcrOnImage(data.documentImageUrl);
+        updateData.ocr_data = ocrData;
+      } catch (error) {
+        console.error('OCR processing failed:', error);
+      }
+    }
+    
+    if (data.selfieImageUrl && (data.verificationType === 'selfie' || existing.verification_type === 'selfie')) {
+      try {
+        livenessScore = await runLivenessCheck(data.selfieImageUrl);
+        updateData.liveness_score = livenessScore;
+      } catch (error) {
+        console.error('Liveness check failed:', error);
+      }
+    }
+    
+    // AI profile verification if both document and selfie are provided
+    if ((data.documentImageUrl || existing.document_image_url) && 
+        (data.selfieImageUrl || existing.selfie_image_url)) {
+      try {
+        const docUrl = data.documentImageUrl || existing.document_image_url;
+        const selfieUrl = data.selfieImageUrl || existing.selfie_image_url;
+        
+        if (docUrl && selfieUrl) {
+          const docTensor = new ort.Tensor('float32', new Float32Array(224 * 224 * 3), [1, 224, 224, 3]);
+          const selfieTensor = new ort.Tensor('float32', new Float32Array(224 * 224 * 3), [1, 224, 224, 3]);
+          aiProfileScore = await runProfileVerification('models/profile_verification.onnx', {
+            doc_image: docTensor,
+            selfie_image: selfieTensor
+          });
+          updateData.ai_profile_score = aiProfileScore;
+        }
+      } catch (error) {
+        console.error('AI profile verification failed:', error);
+      }
+    }
+
+    // Reset verification status to pending since data was updated
+    updateData.verification_status = 'pending';
+    updateData.verified_by = null;
+    updateData.verified_at = null;
+    updateData.notes = null;
+
+    // Update the verification record
+    const [row] = await db('user_verifications')
+      .where({ id: verificationId, user_id: userId })
+      .update(updateData, '*');
+
+    return UserVerificationService.fromDb(row);
+  }
+
+  /**
+   * Get verification by ID with authorization check
    */
   static async getVerificationById(verificationId: string): Promise<UserVerification> {
     const db = getDatabase();
+    const row = await db('user_verifications').where({ id: verificationId }).first();
     
-    const verification = await db('user_verifications')
-      .where('id', verificationId)
-      .first();
-    
-    if (!verification) {
+    if (!row) {
       throw new Error('Verification not found');
     }
     
-    return verification;
+    return UserVerificationService.fromDb(row);
   }
 
   /**

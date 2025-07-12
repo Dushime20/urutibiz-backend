@@ -10,6 +10,7 @@ export type VerificationType =
   | 'selfie';
 
 export interface UserVerification {
+  aiProcessingStatus: string;
   id: string;
   userId: string;
   verificationType: VerificationType;

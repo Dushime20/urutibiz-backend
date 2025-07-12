@@ -1,57 +1,60 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 
 /**
- * React Hook for User Verification Update with Loading States and Toast Messages
+ * Example React Component for User Verification Update
  * 
  * Features:
  * - Loading states for different operations
- * - Toast notifications for success/error
+ * - Toast notifications
  * - File upload handling
- * - OCR and AI processing feedback
- * - Auto-verification status handling
+ * - Progress tracking
+ * - Auto-verification feedback
  */
 
-export const useVerificationUpdate = () => {
+const VerificationUpdateExample = ({ verificationId }) => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [formData, setFormData] = useState({
+    verificationType: 'national_id',
+    documentNumber: '',
+    addressLine: '',
+    city: '',
+    district: '',
+    country: '',
+    documentImage: null,
+    selfieImage: null
+  });
 
-  const updateVerification = async (verificationId, data, options = {}) => {
-    const {
-      showToast = true,
-      onProgress,
-      onSuccess,
-      onError
-    } = options;
-
+  const updateVerification = async () => {
     setLoading(true);
     setProgress(0);
 
     try {
       // Step 1: File upload (if files are provided)
-      let finalData = { ...data };
+      let finalData = { ...formData };
       
-      if (data.documentImage || data.selfieImage) {
+      if (formData.documentImage || formData.selfieImage) {
         setUploading(true);
         setProgress(10);
         
-        const formData = new FormData();
+        const formDataToSend = new FormData();
         
         // Add text fields
-        Object.keys(data).forEach(key => {
+        Object.keys(formData).forEach(key => {
           if (key !== 'documentImage' && key !== 'selfieImage') {
-            formData.append(key, data[key]);
+            formDataToSend.append(key, formData[key]);
           }
         });
         
         // Add files
-        if (data.documentImage) {
-          formData.append('documentImage', data.documentImage);
+        if (formData.documentImage) {
+          formDataToSend.append('documentImage', formData.documentImage);
         }
-        if (data.selfieImage) {
-          formData.append('selfieImage', data.selfieImage);
+        if (formData.selfieImage) {
+          formDataToSend.append('selfieImage', formData.selfieImage);
         }
 
         setProgress(30);
@@ -61,7 +64,7 @@ export const useVerificationUpdate = () => {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           },
-          body: formData
+          body: formDataToSend
         });
 
         if (!uploadResponse.ok) {
@@ -80,7 +83,7 @@ export const useVerificationUpdate = () => {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(data)
+          body: JSON.stringify(formData)
         });
 
         if (!jsonResponse.ok) {
@@ -116,34 +119,27 @@ export const useVerificationUpdate = () => {
       if (result.success) {
         const verification = result.data.verification;
         
-        if (showToast) {
-          if (verification.verificationStatus === 'verified') {
-            toast.success('🎉 Verification completed and auto-verified!', {
-              position: "top-right",
-              autoClose: 5000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-            });
-          } else {
-            toast.success('✅ Verification updated successfully', {
-              position: "top-right",
-              autoClose: 3000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-            });
-          }
+        if (verification.verificationStatus === 'verified') {
+          toast.success('🎉 Verification completed and auto-verified!', {
+            position: "top-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          });
+        } else {
+          toast.success('✅ Verification updated successfully', {
+            position: "top-right",
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          });
         }
 
-        // Call success callback
-        if (onSuccess) {
-          onSuccess(verification);
-        }
-
-        return verification;
+        console.log('Verification updated:', verification);
       } else {
         throw new Error(result.message || 'Update failed');
       }
@@ -156,63 +152,18 @@ export const useVerificationUpdate = () => {
 
       const errorMessage = error.message || 'Verification update failed';
 
-      if (showToast) {
-        toast.error(`❌ ${errorMessage}`, {
-          position: "top-right",
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-      }
+      toast.error(`❌ ${errorMessage}`, {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
 
-      // Call error callback
-      if (onError) {
-        onError(error);
-      }
-
-      throw error;
+      console.error('Update failed:', error);
     }
   };
-
-  return {
-    updateVerification,
-    loading,
-    uploading,
-    processing,
-    progress,
-    isUpdating: loading || uploading || processing
-  };
-};
-
-/**
- * React Component Example with Loading States and Toast Messages
- */
-
-import React, { useState } from 'react';
-import { useVerificationUpdate } from './useVerificationUpdate';
-
-export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
-  const [formData, setFormData] = useState({
-    verificationType: 'national_id',
-    documentNumber: '',
-    addressLine: '',
-    city: '',
-    district: '',
-    country: '',
-    documentImage: null,
-    selfieImage: null
-  });
-
-  const {
-    updateVerification,
-    loading,
-    uploading,
-    processing,
-    progress,
-    isUpdating
-  } = useVerificationUpdate();
 
   const handleFileChange = (e, field) => {
     const file = e.target.files[0];
@@ -222,30 +173,17 @@ export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
     }));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-
-    try {
-      await updateVerification(verificationId, formData, {
-        onSuccess: (verification) => {
-          console.log('Verification updated:', verification);
-          if (onSuccess) onSuccess(verification);
-        },
-        onError: (error) => {
-          console.error('Update failed:', error);
-        }
-      });
-    } catch (error) {
-      console.error('Form submission failed:', error);
-    }
+    updateVerification();
   };
 
   return (
-    <div className="verification-update-form">
+    <div className="verification-update-example">
       <h3>Update Verification</h3>
       
       {/* Progress Bar */}
-      {isUpdating && (
+      {(loading || uploading || processing) && (
         <div className="progress-container">
           <div className="progress-bar">
             <div 
@@ -254,9 +192,9 @@ export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
             />
           </div>
           <div className="progress-text">
-            {uploading && 'Uploading files...'}
-            {processing && 'Processing with AI...'}
-            {loading && !uploading && !processing && 'Updating verification...'}
+            {uploading && '📤 Uploading files...'}
+            {processing && '🤖 Processing with AI (OCR + Image Comparison)...'}
+            {loading && !uploading && !processing && '⏳ Updating verification...'}
             {progress}%
           </div>
         </div>
@@ -268,7 +206,7 @@ export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
           <select
             value={formData.verificationType}
             onChange={(e) => setFormData(prev => ({ ...prev, verificationType: e.target.value }))}
-            disabled={isUpdating}
+            disabled={loading || uploading || processing}
           >
             <option value="national_id">National ID</option>
             <option value="passport">Passport</option>
@@ -284,7 +222,8 @@ export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
             type="text"
             value={formData.documentNumber}
             onChange={(e) => setFormData(prev => ({ ...prev, documentNumber: e.target.value }))}
-            disabled={isUpdating}
+            disabled={loading || uploading || processing}
+            placeholder="Enter document number"
           />
         </div>
 
@@ -294,7 +233,8 @@ export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
             type="text"
             value={formData.addressLine}
             onChange={(e) => setFormData(prev => ({ ...prev, addressLine: e.target.value }))}
-            disabled={isUpdating}
+            disabled={loading || uploading || processing}
+            placeholder="Enter address"
           />
         </div>
 
@@ -305,7 +245,8 @@ export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
               type="text"
               value={formData.city}
               onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-              disabled={isUpdating}
+              disabled={loading || uploading || processing}
+              placeholder="Enter city"
             />
           </div>
           <div className="form-group">
@@ -314,7 +255,8 @@ export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
               type="text"
               value={formData.district}
               onChange={(e) => setFormData(prev => ({ ...prev, district: e.target.value }))}
-              disabled={isUpdating}
+              disabled={loading || uploading || processing}
+              placeholder="Enter district"
             />
           </div>
         </div>
@@ -325,7 +267,8 @@ export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
             type="text"
             value={formData.country}
             onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
-            disabled={isUpdating}
+            disabled={loading || uploading || processing}
+            placeholder="Enter country"
           />
         </div>
 
@@ -335,8 +278,9 @@ export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
             type="file"
             accept="image/*"
             onChange={(e) => handleFileChange(e, 'documentImage')}
-            disabled={isUpdating}
+            disabled={loading || uploading || processing}
           />
+          <small>Upload a clear image of your document</small>
         </div>
 
         <div className="form-group">
@@ -345,16 +289,17 @@ export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
             type="file"
             accept="image/*"
             onChange={(e) => handleFileChange(e, 'selfieImage')}
-            disabled={isUpdating}
+            disabled={loading || uploading || processing}
           />
+          <small>Upload a clear selfie for comparison</small>
         </div>
 
         <button 
           type="submit" 
-          disabled={isUpdating}
-          className={isUpdating ? 'loading' : ''}
+          disabled={loading || uploading || processing}
+          className={(loading || uploading || processing) ? 'loading' : ''}
         >
-          {isUpdating ? 'Processing...' : 'Update Verification'}
+          {(loading || uploading || processing) ? 'Processing...' : 'Update Verification'}
         </button>
       </form>
 
@@ -376,129 +321,19 @@ export const VerificationUpdateForm = ({ verificationId, onSuccess }) => {
           ⏳ Updating verification data...
         </div>
       )}
+
+      {/* Info Box */}
+      <div className="info-box">
+        <h4>ℹ️ How it works:</h4>
+        <ul>
+          <li>📄 <strong>OCR Processing:</strong> Extracts text from document images</li>
+          <li>🤖 <strong>AI Comparison:</strong> Compares document and selfie for similarity</li>
+          <li>✅ <strong>Auto-Verification:</strong> If images match (score > 0.8), status becomes "verified"</li>
+          <li>⏳ <strong>Manual Review:</strong> If images don't match, status remains "pending"</li>
+        </ul>
+      </div>
     </div>
   );
 };
 
-/**
- * CSS Styles for the form
- */
-
-const styles = `
-.verification-update-form {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.progress-container {
-  margin: 20px 0;
-}
-
-.progress-bar {
-  width: 100%;
-  height: 8px;
-  background-color: #f0f0f0;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #4CAF50, #45a049);
-  transition: width 0.3s ease;
-}
-
-.progress-text {
-  text-align: center;
-  margin-top: 8px;
-  font-size: 14px;
-  color: #666;
-}
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
-}
-
-.form-group input,
-.form-group select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.form-group input:disabled,
-.form-group select:disabled {
-  background-color: #f5f5f5;
-  cursor: not-allowed;
-}
-
-.form-row {
-  display: flex;
-  gap: 15px;
-}
-
-.form-row .form-group {
-  flex: 1;
-}
-
-button {
-  width: 100%;
-  padding: 12px;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-button:hover:not(:disabled) {
-  background-color: #45a049;
-}
-
-button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
-}
-
-button.loading {
-  background-color: #ff9800;
-}
-
-.status-message {
-  padding: 12px;
-  margin: 10px 0;
-  border-radius: 4px;
-  font-weight: 500;
-}
-
-.status-message.uploading {
-  background-color: #e3f2fd;
-  color: #1976d2;
-  border: 1px solid #bbdefb;
-}
-
-.status-message.processing {
-  background-color: #fff3e0;
-  color: #f57c00;
-  border: 1px solid #ffe0b2;
-}
-
-.status-message.loading {
-  background-color: #f3e5f5;
-  color: #7b1fa2;
-  border: 1px solid #e1bee7;
-}
-`;
-
-export default useVerificationUpdate; 
+export default VerificationUpdateExample; 

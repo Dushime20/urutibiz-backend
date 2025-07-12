@@ -1,14 +1,17 @@
 // server.ts - UrutiBiz Backend Server
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import App from './app';
 import { getConfig } from './config/config';
 import logger from './utils/logger';
 import { connectDatabase } from './config/database';
 
+
 const config = getConfig();
+dotenv.config();
 
 async function startServer(): Promise<void> {
   let app: App | null = null;
+  console.log('DB_HOST:', process.env.DB_HOST); 
   
   try {
     // Connect to the database before initializing the app

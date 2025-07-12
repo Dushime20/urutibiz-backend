@@ -3,7 +3,8 @@ import { UserVerification, SubmitVerificationRequest, ReviewVerificationRequest,
 import { v4 as uuidv4 } from 'uuid';
 import { runOcrOnImage, runLivenessCheck } from '@/utils/kycAutomation';
 import NotificationService from '@/services/notification.service';
-import { runProfileVerification } from '@/utils/onnxProfileVerification';
+import { runProfileVerification, getDefaultModelPath, setupProfileVerificationModel } from '@/utils/onnxProfileVerification';
+import { imageComparisonService } from '@/services/imageComparison.service';
 import * as ort from 'onnxruntime-node';
 
 export default class UserVerificationService {
@@ -29,7 +30,7 @@ export default class UserVerificationService {
         // For demo, use dummy ort.Tensor
         const docTensor = new ort.Tensor('float32', new Float32Array(224 * 224 * 3), [1, 224, 224, 3]);
         const selfieTensor = new ort.Tensor('float32', new Float32Array(224 * 224 * 3), [1, 224, 224, 3]);
-        aiProfileScore = await runProfileVerification('models/profile_verification.onnx', {
+        aiProfileScore = await runProfileVerification(getDefaultModelPath(), {
           doc_image: docTensor,
           selfie_image: selfieTensor
         });
@@ -134,7 +135,7 @@ export default class UserVerificationService {
         // const selfieImgResp = await axios.get(data.selfieImageUrl, { responseType: 'arraybuffer' });
         const docTensor = new ort.Tensor('float32', new Float32Array(224 * 224 * 3), [1, 224, 224, 3]);
         const selfieTensor = new ort.Tensor('float32', new Float32Array(224 * 224 * 3), [1, 224, 224, 3]);
-        aiProfileScore = await runProfileVerification('models/profile_verification.onnx', {
+        aiProfileScore = await runProfileVerification(getDefaultModelPath(), {
           doc_image: docTensor,
           selfie_image: selfieTensor
         });
@@ -346,14 +347,31 @@ export default class UserVerificationService {
   static async updateVerification(userId: string, verificationId: string, data: UpdateVerificationRequest): Promise<UserVerification> {
     const db = getDatabase();
     
+    console.log(`🔍 Debug: Checking verification ${verificationId} for user ${userId}`);
+    
     // Check if the verification exists and belongs to the user
     const existing = await db('user_verifications')
       .where({ id: verificationId, user_id: userId })
       .first();
     
+    console.log(`🔍 Debug: Database query result:`, existing ? 'Found' : 'Not found');
+    
     if (!existing) {
-      throw new Error('Verification not found or access denied');
+      // Let's check if the verification exists at all (for debugging)
+      const anyVerification = await db('user_verifications')
+        .where({ id: verificationId })
+        .first();
+      
+      if (anyVerification) {
+        console.log(`🔍 Debug: Verification exists but belongs to user ${anyVerification.user_id}, not ${userId}`);
+        throw new Error(`Verification not found or access denied. Verification belongs to user ${anyVerification.user_id}, but you are user ${userId}`);
+      } else {
+        console.log(`🔍 Debug: Verification ${verificationId} does not exist in database`);
+        throw new Error(`Verification not found or access denied. Verification ID ${verificationId} does not exist.`);
+      }
     }
+
+    console.log(`🔍 Debug: Verification found. Status: ${existing.verification_status}`);
 
     // Only allow updates if verification is not already verified
     if (existing.verification_status === 'verified') {
@@ -391,58 +409,114 @@ export default class UserVerificationService {
       updateData.selfie_image_url = data.selfieImageUrl;
     }
 
-    // Process AI scoring if new images are provided
-    let ocrData, livenessScore, aiProfileScore;
+    console.log(`🔍 Debug: Update data prepared:`, updateData);
+
+    // OCR processing only happens during updates (not during initial submission)
+    let ocrData = null;
+    let livenessScore = null;
+    let aiProfileScore = null;
+    let verificationStatus = 'pending';
     
+    // Process OCR if document image is provided
     if (data.documentImageUrl && ['national_id', 'passport', 'driving_license'].includes(data.verificationType || existing.verification_type)) {
       try {
+        console.log('🔍 Debug: Starting OCR processing...');
         ocrData = await runOcrOnImage(data.documentImageUrl);
         updateData.ocr_data = ocrData;
+        console.log(`🔍 Debug: OCR processing completed:`, ocrData);
       } catch (error) {
         console.error('OCR processing failed:', error);
       }
     }
     
+    // Process liveness check if selfie image is provided
     if (data.selfieImageUrl && (data.verificationType === 'selfie' || existing.verification_type === 'selfie')) {
       try {
+        console.log('🔍 Debug: Starting liveness check...');
         livenessScore = await runLivenessCheck(data.selfieImageUrl);
         updateData.liveness_score = livenessScore;
+        console.log(`🔍 Debug: Liveness check completed:`, livenessScore);
       } catch (error) {
         console.error('Liveness check failed:', error);
       }
     }
     
-    // AI profile verification if both document and selfie are provided
-    if ((data.documentImageUrl || existing.document_image_url) && 
-        (data.selfieImageUrl || existing.selfie_image_url)) {
+    // Compare document and selfie images for similarity using AI
+    const docUrl = data.documentImageUrl || existing.document_image_url;
+    const selfieUrl = data.selfieImageUrl || existing.selfie_image_url;
+    
+    if (docUrl && selfieUrl) {
       try {
-        const docUrl = data.documentImageUrl || existing.document_image_url;
-        const selfieUrl = data.selfieImageUrl || existing.selfie_image_url;
+        console.log('🔍 Starting AI image comparison...');
+        console.log(`🔍 Document URL: ${docUrl}`);
+        console.log(`🔍 Selfie URL: ${selfieUrl}`);
         
-        if (docUrl && selfieUrl) {
-          const docTensor = new ort.Tensor('float32', new Float32Array(224 * 224 * 3), [1, 224, 224, 3]);
-          const selfieTensor = new ort.Tensor('float32', new Float32Array(224 * 224 * 3), [1, 224, 224, 3]);
-          aiProfileScore = await runProfileVerification('models/profile_verification.onnx', {
-            doc_image: docTensor,
-            selfie_image: selfieTensor
-          });
-          updateData.ai_profile_score = aiProfileScore;
+        // Use the new image comparison service
+        const aiComparisonResult = await imageComparisonService.compareImages(docUrl, selfieUrl);
+        
+        aiProfileScore = aiComparisonResult.similarity;
+        updateData.ai_profile_score = aiProfileScore;
+        updateData.ai_processing_status = 'completed';
+        
+        console.log(`🔍 AI comparison completed:`, {
+          similarity: aiComparisonResult.similarity,
+          confidence: aiComparisonResult.confidence,
+          isMatch: aiComparisonResult.isMatch,
+          method: aiComparisonResult.method
+        });
+        
+        // Determine verification status based on AI comparison results
+        if (aiComparisonResult.isMatch && aiComparisonResult.similarity > 0.75 && aiComparisonResult.confidence > 0.8) {
+          verificationStatus = 'verified';
+          console.log('✅ AI verification successful - setting status to verified');
+        } else if (aiComparisonResult.similarity < 0.4) {
+          verificationStatus = 'rejected';
+          console.log('❌ AI verification failed - setting status to rejected');
+        } else {
+          verificationStatus = 'pending';
+          console.log('⚠️ AI verification inconclusive - keeping status as pending');
         }
+        
+        // Add AI comparison details to notes
+        const aiNotes = `AI Comparison (${aiComparisonResult.method}): Similarity ${(aiComparisonResult.similarity * 100).toFixed(1)}%, Confidence ${(aiComparisonResult.confidence * 100).toFixed(1)}%`;
+        updateData.notes = aiNotes;
+        
       } catch (error) {
-        console.error('AI profile verification failed:', error);
+        if (error instanceof Error) {
+          console.error('AI image comparison failed:', error);
+          verificationStatus = 'pending';
+          updateData.notes = `AI comparison failed: ${error.message}`;
+        } else {
+          console.error('AI image comparison failed:', error);
+          verificationStatus = 'pending';
+          updateData.notes = 'AI comparison failed: Unknown error';
+        }
+        console.log(`Selfie URL: ${selfieUrl}`);
       }
     }
 
-    // Reset verification status to pending since data was updated
-    updateData.verification_status = 'pending';
-    updateData.verified_by = null;
-    updateData.verified_at = null;
-    updateData.notes = null;
+    // Set verification status based on similarity comparison
+    updateData.verification_status = verificationStatus;
+    
+    // If verified, set verification metadata
+    if (verificationStatus === 'verified') {
+      updateData.verified_by = userId; // Self-verified through AI
+      updateData.verified_at = new Date();
+      updateData.notes = 'Auto-verified through image similarity comparison';
+    } else {
+      updateData.verified_by = null;
+      updateData.verified_at = null;
+      updateData.notes = null;
+    }
+
+    console.log(`🔍 Debug: Final update data:`, updateData);
 
     // Update the verification record
     const [row] = await db('user_verifications')
       .where({ id: verificationId, user_id: userId })
       .update(updateData, '*');
+
+    console.log(`🔍 Debug: Update completed. Rows affected:`, row ? 1 : 0);
 
     return UserVerificationService.fromDb(row);
   }

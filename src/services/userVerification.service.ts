@@ -6,6 +6,7 @@ import NotificationService from '@/services/notification.service';
 import { runProfileVerification, getDefaultModelPath, setupProfileVerificationModel } from '@/utils/onnxProfileVerification';
 import { imageComparisonService } from '@/services/imageComparison.service';
 import * as ort from 'onnxruntime-node';
+import { compareFacesFaceApi } from './faceApiComparison.service';
 
 export default class UserVerificationService {
   static async submitVerification(userId: string, data: SubmitVerificationRequest): Promise<UserVerification> {
@@ -445,14 +446,14 @@ export default class UserVerificationService {
     const docUrl = data.documentImageUrl || existing.document_image_url;
     const selfieUrl = data.selfieImageUrl || existing.selfie_image_url;
     
-    if (docUrl && selfieUrl) {
+    if (docUrl && selfieUrl)
       try {
-        console.log('🔍 Starting AI image comparison...');
+        console.log('🔍 Starting AI image comparison (face-api.js)...');
         console.log(`🔍 Document URL: ${docUrl}`);
         console.log(`🔍 Selfie URL: ${selfieUrl}`);
         
-        // Use the new image comparison service
-        const aiComparisonResult = await imageComparisonService.compareImages(docUrl, selfieUrl);
+        // Use face-api.js for image comparison
+        const aiComparisonResult = await compareFacesFaceApi(docUrl, selfieUrl);
         
         aiProfileScore = aiComparisonResult.similarity;
         updateData.ai_profile_score = aiProfileScore;
@@ -460,13 +461,13 @@ export default class UserVerificationService {
         
         console.log(`🔍 AI comparison completed:`, {
           similarity: aiComparisonResult.similarity,
-          confidence: aiComparisonResult.confidence,
           isMatch: aiComparisonResult.isMatch,
-          method: aiComparisonResult.method
+          distance: aiComparisonResult.distance,
+          method: 'face-api.js'
         });
         
         // Determine verification status based on AI comparison results
-        if (aiComparisonResult.isMatch && aiComparisonResult.similarity > 0.75 && aiComparisonResult.confidence > 0.8) {
+        if (aiComparisonResult.isMatch && aiComparisonResult.similarity > 0.75) {
           verificationStatus = 'verified';
           console.log('✅ AI verification successful - setting status to verified');
         } else if (aiComparisonResult.similarity < 0.4) {
@@ -478,22 +479,11 @@ export default class UserVerificationService {
         }
         
         // Add AI comparison details to notes
-        const aiNotes = `AI Comparison (${aiComparisonResult.method}): Similarity ${(aiComparisonResult.similarity * 100).toFixed(1)}%, Confidence ${(aiComparisonResult.confidence * 100).toFixed(1)}%`;
+        const aiNotes = `AI Comparison (face-api.js): Similarity ${(aiComparisonResult.similarity * 100).toFixed(1)}%, Distance ${aiComparisonResult.distance.toFixed(3)}`;
         updateData.notes = aiNotes;
-        
       } catch (error) {
-        if (error instanceof Error) {
-          console.error('AI image comparison failed:', error);
-          verificationStatus = 'pending';
-          updateData.notes = `AI comparison failed: ${error.message}`;
-        } else {
-          console.error('AI image comparison failed:', error);
-          verificationStatus = 'pending';
-          updateData.notes = 'AI comparison failed: Unknown error';
-        }
-        console.log(`Selfie URL: ${selfieUrl}`);
+        console.error('AI comparison failed:', error);
       }
-    }
 
     // Set verification status based on similarity comparison
     updateData.verification_status = verificationStatus;

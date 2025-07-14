@@ -7,6 +7,28 @@ import { runProfileVerification, getDefaultModelPath, setupProfileVerificationMo
 import { imageComparisonService } from '@/services/imageComparison.service';
 import * as ort from 'onnxruntime-node';
 import { compareFacesFaceApi } from './faceApiComparison.service';
+import twilio from 'twilio';
+require('dotenv').config();
+
+const accountSid = process.env.TWILIO_ACCOUNT_SID || 'your_account_sid';
+const authToken = process.env.TWILIO_AUTH_TOKEN || 'your_auth_token';
+const twilioPhone = process.env.TWILIO_PHONE_NUMBER || 'your_twilio_phone_number';
+const twilioClient = twilio(accountSid, authToken);
+
+// Real SMS sender using Twilio
+async function sendSms(phoneNumber: string, message: string) {
+  try {
+    await twilioClient.messages.create({
+      body: message,
+      from: twilioPhone,
+      to: phoneNumber
+    });
+    console.log(`[SMS] Sent to ${phoneNumber}`);
+  } catch (err) {
+    console.error('[SMS] Failed to send:', err);
+    throw new Error('Failed to send SMS');
+  }
+}
 
 export default class UserVerificationService {
   static async submitVerification(userId: string, data: SubmitVerificationRequest): Promise<UserVerification> {
@@ -249,6 +271,7 @@ export default class UserVerificationService {
 
   static fromDb(row: any): UserVerification {
     return {
+      aiProcessingStatus: row.ai_processing_status || '', // <-- Add this line
       id: row.id,
       userId: row.user_id,
       verificationType: row.verification_type,
@@ -256,9 +279,9 @@ export default class UserVerificationService {
       documentImageUrl: row.document_image_url,
       verificationStatus: row.verification_status,
       verifiedBy: row.verified_by,
-      verifiedAt: row.verified_at ? row.verified_at.toISOString() : undefined,
+      verifiedAt: row.verified_at,
       notes: row.notes,
-      createdAt: row.created_at ? row.created_at.toISOString() : '',
+      createdAt: row.created_at,
       addressLine: row.address_line,
       city: row.city,
       district: row.district,
@@ -266,7 +289,7 @@ export default class UserVerificationService {
       ocrData: row.ocr_data,
       selfieImageUrl: row.selfie_image_url,
       livenessScore: row.liveness_score,
-      aiProfileScore: row.ai_profile_score
+      aiProfileScore: row.ai_profile_score,
     };
   }
 
@@ -538,5 +561,71 @@ export default class UserVerificationService {
         ai_processing_status: 'cancelled',
         updated_at: new Date()
       });
+  }
+
+  /**
+   * Request OTP for phone number update
+   */
+  static async requestPhoneOtp(userId: string, newPhoneNumber: string): Promise<void> {
+    const db = getDatabase();
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    // Store OTP
+    await db('phone_verification_otps').insert({
+      user_id: userId,
+      phone_number: newPhoneNumber,
+      otp_code: otp,
+      expires_at: expiresAt,
+      verified: false,
+      created_at: new Date()
+    });
+
+    // Send OTP via SMS
+    await sendSms(newPhoneNumber, `Your verification code is: ${otp}`);
+  }
+
+  /**
+   * Verify OTP and update phone number in user_verifications
+   */
+  static async verifyPhoneOtp(userId: string, newPhoneNumber: string, otp: string): Promise<void> {
+    const db = getDatabase();
+    const record = await db('phone_verification_otps')
+      .where({ user_id: userId, phone_number: newPhoneNumber, otp_code: otp, verified: false })
+      .andWhere('expires_at', '>', new Date())
+      .first();
+
+    if (!record) {
+      throw new Error('Invalid or expired OTP');
+    }
+
+    // Mark OTP as used
+    await db('phone_verification_otps').where({ id: record.id }).update({ verified: true });
+
+    // Update phone number in user_verifications (latest verification)
+    await db('user_verifications')
+      .where({ user_id: userId })
+      .orderBy('created_at', 'desc')
+      .limit(1)
+      .update({ phone_number: newPhoneNumber });
+
+    // Check latest verification status and update user if needed
+    const latestVerification = await db('user_verifications')
+      .where({ user_id: userId })
+      .orderBy('created_at', 'desc')
+      .first();
+
+    if (
+      latestVerification &&
+      (latestVerification.verification_status === 'pending' || latestVerification.verification_status === 'verified')
+    ) {
+      await db('users')
+        .where({ id: userId })
+        .update({
+          phone_verified: true,
+          kyc_status: 'verified',
+          id_verification_status: 'verified'
+        });
+    }
   }
 }

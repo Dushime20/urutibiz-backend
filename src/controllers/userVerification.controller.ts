@@ -185,4 +185,38 @@ export default class UserVerificationController {
       return ResponseHelper.error(res, error.message);
     }
   }
+
+  /**
+   * Request OTP for phone number update
+   */
+  static async requestPhoneOtp(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user.id;
+      const { phoneNumber } = req.body;
+      if (!phoneNumber) {
+        return ResponseHelper.error(res, 'Phone number is required');
+      }
+      await UserVerificationService.requestPhoneOtp(userId, phoneNumber);
+      return ResponseHelper.success(res, 'OTP sent to phone number');
+    } catch (error: any) {
+      return ResponseHelper.error(res, error.message);
+    }
+  }
+
+  /**
+   * Verify OTP and update phone number
+   */
+  static async verifyPhoneOtp(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user.id;
+      const { phoneNumber, otp } = req.body;
+      if (!phoneNumber || !otp) {
+        return ResponseHelper.error(res, 'Phone number and OTP are required');
+      }
+      await UserVerificationService.verifyPhoneOtp(userId, phoneNumber, otp);
+      return ResponseHelper.success(res, 'Phone number updated successfully');
+    } catch (error: any) {
+      return ResponseHelper.error(res, error.message);
+    }
+  }
 }

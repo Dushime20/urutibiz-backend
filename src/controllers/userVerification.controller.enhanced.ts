@@ -16,7 +16,6 @@ import { BackgroundQueue } from '@/services/BackgroundQueue';
 import { SubmitVerificationRequest, ReviewVerificationRequest, UpdateVerificationRequest } from '@/types/userVerification.types';
 import { ResponseHelper } from '@/utils/response';
 import cloudinary from '@/config/cloudinary';
-import { imageComparisonService } from '@/services/imageComparison.service';
 
 // Initialize background queue for AI processing
 const aiQueue = new BackgroundQueue({
@@ -371,10 +370,14 @@ export class EnhancedUserVerificationController {
       
       if (verification.verificationStatus === 'verified') {
         message = 'Verification completed and auto-verified!';
-        additionalInfo = `Your documents have been successfully verified through AI comparison. Similarity Score: ${(verification.aiProfileScore * 100).toFixed(1)}%`;
+        additionalInfo = (typeof verification.aiProfileScore === 'number')
+          ? `Your documents have been successfully verified through AI comparison. Similarity Score: ${(verification.aiProfileScore * 100).toFixed(1)}%`
+          : 'Your documents have been successfully verified through AI comparison.';
       } else if (verification.verificationStatus === 'rejected') {
         message = 'Verification rejected';
-        additionalInfo = `The images do not appear to match. Similarity Score: ${(verification.aiProfileScore * 100).toFixed(1)}%`;
+        additionalInfo = (typeof verification.aiProfileScore === 'number')
+          ? `The images do not appear to match. Similarity Score: ${(verification.aiProfileScore * 100).toFixed(1)}%`
+          : 'The images do not appear to match.';
       } else if (verification.verificationStatus === 'pending') {
         message = 'Verification updated successfully';
         additionalInfo = verification.aiProfileScore 

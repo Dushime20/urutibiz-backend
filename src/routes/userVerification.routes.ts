@@ -547,4 +547,8 @@ router.put('/:verificationId', requireAuth, cacheInvalidationMiddleware(['verifi
 router.post('/:verificationId/cancel-ai', requireAuth, cacheInvalidationMiddleware(['verification:*']), 
   EnhancedUserVerificationController.cancelAIProcessing);
 
+// Phone number OTP endpoints
+router.post('/request-phone-otp', requireAuth, UserVerificationController.requestPhoneOtp);
+router.post('/verify-phone-otp', requireAuth, UserVerificationController.verifyPhoneOtp);
+
 export default router;

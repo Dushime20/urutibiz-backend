@@ -21,10 +21,10 @@ export default class AuthService {
         last_name: lastName,
         password_hash: hash
       },
-      ['id', 'email', 'first_name', 'last_name']
+      ['id', 'email', 'first_name', 'last_name', 'kyc_status']
     );
     const user = User.fromDb(userRow);
-    return { success: true, user };
+    return { success: true, user: { ...user, kyc_status: user.kyc_status || 'unverified' } };
   }
 
   static async login({ email, password, ip_address, user_agent }: any) {
@@ -50,7 +50,7 @@ export default class AuthService {
       token,
       sessionToken,
       refreshToken,
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName }
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, kyc_status: (user as any).kyc_status || 'unverified' }
     };
   }
 

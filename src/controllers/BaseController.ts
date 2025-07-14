@@ -61,7 +61,12 @@ export abstract class BaseController {
    * Check if user owns resource or is admin
    */
   protected checkResourceOwnership(req: AuthenticatedRequest, resourceOwnerId: string): boolean {
-    return req.user.id === resourceOwnerId || req.user.role === 'admin';
+    console.log('checkResourceOwnership - req.user:', req.user);
+    console.log('checkResourceOwnership - resourceOwnerId:', resourceOwnerId);
+    if (!req.user || !req.user.id) {
+      return false;
+    }
+    return String(req.user.id) === String(resourceOwnerId) || req.user.role === 'admin';
   }
 
   /**

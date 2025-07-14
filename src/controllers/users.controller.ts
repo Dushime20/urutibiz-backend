@@ -95,7 +95,24 @@ export class UsersController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to fetch users', 400);
     }
 
-    return this.formatPaginatedResponse(res, 'Users retrieved successfully', result.data);
+    // Ensure kyc_status is included in every user object
+    const usersWithKyc = result.data.data.map((u: any) => ({
+      ...u,
+      kyc_status: u.kyc_status || 'unverified'
+    }));
+
+    // Wrap in PaginationResult to match expected type
+    const paginatedResult = {
+      data: usersWithKyc,
+      page: result.data.page,
+      limit: result.data.limit,
+      total: result.data.total,
+      totalPages: result.data.totalPages,
+      hasNext: result.data.hasNext,
+      hasPrev: result.data.hasPrev
+    };
+
+    return this.formatPaginatedResponse(res, 'Users retrieved successfully', paginatedResult);
   });
 
   /**
@@ -130,8 +147,10 @@ export class UsersController extends BaseController {
     // Performance: Optimized KYC progress calculation
     const kycProgress = this.calculateKycProgress(verifications);
 
+    // Ensure kyc_status is included in the returned user object
     const responseData = {
       ...userResult.data,
+      kyc_status: userResult.data.kyc_status || 'unverified',
       verifications,
       kycProgress
     };

@@ -160,6 +160,7 @@
 
 import { Router } from 'express';
 import { UsersController } from '../controllers/users.controller';
+import { requireAuth } from '@/middleware';
 
 const router = Router();
 const controller = new UsersController();
@@ -250,7 +251,7 @@ router.get('/', controller.getUsers);
  *       500:
  *         description: Server error
  */
-router.get('/:id', controller.getUser);
+router.get('/:id',requireAuth, controller.getUser);
 
 /**
  * @swagger

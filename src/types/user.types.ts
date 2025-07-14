@@ -21,6 +21,7 @@ export interface UserData {
   phoneVerified: boolean;
   lastLoginAt?: Date;
   preferences?: Record<string, any>;
+  kyc_status: string;
   createdAt: Date;
   updatedAt: Date;
 }

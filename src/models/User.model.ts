@@ -22,6 +22,7 @@ export class User implements Partial<UserData> {
   public emailVerified: boolean;
   public phoneVerified: boolean;
   public passwordHash?: string;
+  public kyc_status: 'unverified' | 'verified' | 'rejected';
 
   // In-memory storage for demo
   private static users: User[] = [];
@@ -40,6 +41,7 @@ export class User implements Partial<UserData> {
     this.passwordHash = data.passwordHash;
     this.createdAt = data.createdAt || new Date();
     this.updatedAt = data.updatedAt || new Date();
+    this.kyc_status = data.kyc_status || 'unverified';
   }
 
   static async findById(id: string): Promise<User | null> {
@@ -68,7 +70,8 @@ export class User implements Partial<UserData> {
       phoneVerified: row.phone_verified,
       passwordHash: row.password_hash,
       createdAt: row.created_at,
-      updatedAt: row.updated_at
+      updatedAt: row.updated_at,
+      kyc_status: row.kyc_status // <-- Ensure this is mapped
     });
   }
 
@@ -107,7 +110,7 @@ export class User implements Partial<UserData> {
       role: this.role,
       status: this.status,
       idVerificationStatus: (this as any).id_verification_status || (this as any).idVerificationStatus,
-      kycStatus: (this as any).kyc_status || (this as any).kycStatus,
+      kyc_status: this.kyc_status || 'unverified', // <-- Ensure this is included
       createdAt: this.createdAt,
       updatedAt: this.updatedAt
     };

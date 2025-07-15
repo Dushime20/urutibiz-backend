@@ -435,7 +435,9 @@ router.get('/:id/reviews', cacheMiddleware({ ...productCacheOptions, duration: 3
  */
 router.post('/', requireAuth, cacheInvalidationMiddleware(['products:*', 'api:GET:*products*']), async (req, res, next) => {
   try {
-    const user = req.user as { id: string; role: string }; // Ensure user has 'id' and 'role'
+  
+    const user = req.user as { id: string; role: string }; 
+  
     // Only allow verified users, admin, or moderator
     const isVerified = user && (user.role === 'admin' || user.role === 'moderator' || await UserVerificationService.isUserFullyKycVerified(user.id));
     if (!isVerified) {

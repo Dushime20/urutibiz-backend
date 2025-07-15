@@ -4,8 +4,8 @@
 
 export interface ProductImageData {
   id: string;
-  productId: string;
-  imageUrl: string;
+  product_id: string;
+  image_url: string;
   thumbnailUrl?: string;
   altText?: string;
   sortOrder: number;
@@ -16,8 +16,8 @@ export interface ProductImageData {
 }
 
 export interface CreateProductImageData {
-  productId: string;
-  imageUrl: string;
+  product_id: string;
+  image_url: string;
   thumbnailUrl?: string;
   altText?: string;
   sortOrder?: number;

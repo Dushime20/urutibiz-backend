@@ -2,19 +2,28 @@ import { ProductData, CreateProductData, UpdateProductData, ProductFilters } fro
 import ProductRepository from '@/repositories/ProductRepository';
 import { ValidationError } from '@/types';
 
+console.log('[DEBUG] ProductService file loaded');
+
 class ProductService {
   async create(data: CreateProductData, ownerId: string) {
-    const errors = await this.validateCreate(data);
-    if (errors.length > 0) {
-      return { success: false, error: errors.map(e => e.message).join(', ') };
+    try {
+      console.log('[DEBUG] ProductService.create called with:', data, ownerId);
+      const errors = await this.validateCreate(data);
+      console.log('[DEBUG] ProductService.create validation errors:', errors);
+      if (errors.length > 0) {
+        return { success: false, error: errors.map(e => e.message).join(', ') };
+      }
+      // Add owner_id to data in snake_case
+      const productData = { ...data, owner_id: ownerId } as any;
+      const result = await ProductRepository.create(productData);
+      if (!result.success || !result.data) {
+        return { success: false, error: result.error || 'Failed to create product' };
+      }
+      return { success: true, data: result.data };
+    } catch (err) {
+      console.error('[DEBUG] Error in ProductService.create:', err);
+      throw err;
     }
-    // Add ownerId to data
-    const productData = { ...data, ownerId } as any;
-    const result = await ProductRepository.create(productData);
-    if (!result.success || !result.data) {
-      return { success: false, error: result.error || 'Failed to create product' };
-    }
-    return { success: true, data: result.data };
   }
 
   async getById(id: string) {
@@ -43,15 +52,23 @@ class ProductService {
 
   // Validation helpers
   private async validateCreate(data: CreateProductData): Promise<ValidationError[]> {
-    const errors: ValidationError[] = [];
-    if (!data.title) errors.push({ field: 'title', message: 'Title is required' });
-    if (!data.description) errors.push({ field: 'description', message: 'Description is required' });
-    if (!data.categoryId) errors.push({ field: 'categoryId', message: 'Category is required' });
-    if (!data.basePrice) errors.push({ field: 'basePrice', message: 'Base price is required' });
-    if (!data.baseCurrency) errors.push({ field: 'baseCurrency', message: 'Base currency is required' });
-    if (!data.pickupMethods || !data.pickupMethods.length) errors.push({ field: 'pickupMethods', message: 'At least one pickup method is required' });
-    if (!data.location) errors.push({ field: 'location', message: 'Location is required' });
-    return errors;
+    try {
+      console.log('[DEBUG] validateCreate received data:', data);
+      const errors: ValidationError[] = [];
+      if (!data.title) errors.push({ field: 'title', message: 'Title is required' });
+      if (!data.slug) errors.push({ field: 'slug', message: 'Slug is required' });
+      if (!data.description) errors.push({ field: 'description', message: 'Description is required' });
+      if (!data.category_id) errors.push({ field: 'category_id', message: 'Category is required' });
+      if (!data.base_price_per_day) errors.push({ field: 'base_price_per_day', message: 'Base price per day is required' });
+      if (!data.base_currency) errors.push({ field: 'base_currency', message: 'Base currency is required' });
+      if (!data.pickup_methods || !data.pickup_methods.length) errors.push({ field: 'pickup_methods', message: 'At least one pickup method is required' });
+      if (!data.country_id) errors.push({ field: 'country_id', message: 'Country is required' });
+      console.log('[DEBUG] validateCreate errors:', errors);
+      return errors;
+    } catch (err) {
+      console.error('[DEBUG] Error in validateCreate:', err);
+      throw err;
+    }
   }
 
   private async validateUpdate(_data: UpdateProductData): Promise<ValidationError[]> {

@@ -11,7 +11,7 @@ export interface ProductLocation {
   longitude: number;
   address: string;
   city: string;
-  countryId: string;
+  country_id: string;
 }
 
 export interface ProductImage {
@@ -38,7 +38,7 @@ export interface ProductData {
   condition: ProductCondition;
   basePrice: number;
   baseCurrency: string;
-  pickupMethods: PickupMethod[];
+  pickupMethods: any[];
   location: ProductLocation;
   images: ProductImage[];
   specifications?: Record<string, any>;
@@ -56,14 +56,16 @@ export interface ProductData {
 }
 
 export interface CreateProductData {
+  id:string
   title: string;
+  slug: string;
   description: string;
-  categoryId: string;
+  category_id: string;
   condition: ProductCondition;
-  basePrice: number;
-  baseCurrency: string;
-  pickupMethods: PickupMethod[];
-  location: ProductLocation;
+  base_price_per_day: number;
+  base_currency: string;
+  pickup_methods: any[];
+  country_id: string;
   specifications?: Record<string, any>;
 }
 
@@ -72,7 +74,7 @@ export interface UpdateProductData {
   description?: string;
   condition?: ProductCondition;
   basePrice?: number;
-  pickupMethods?: PickupMethod[];
+  pickupMethods?: any[];
   location?: Partial<ProductLocation>;
   specifications?: Record<string, any>;
   status?: ProductStatus;

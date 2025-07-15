@@ -177,7 +177,7 @@
 
 import { Request, Response } from 'express';
 import { BaseController } from './BaseController';
-import ProductService from '@/services/ProductService';
+import ProductService from '@/services/product.service'
 import UserVerificationService from '@/services/userVerification.service';
 import { 
   AuthenticatedRequest,
@@ -300,30 +300,42 @@ export class ProductsController extends BaseController {
    * POST /api/v1/products
    */
   public createProduct = this.asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
-    if (this.handleValidationErrors(req as any, res)) return;
-    
-    const ownerId = req.user.id;
-    const productData: CreateProductData = req.body;
+    console.log('[DEBUG] Entered createProduct controller');
+    console.log('[DEBUG] req.body:', req.body);
+    console.log('[DEBUG] pickup_methods in req.body:', req.body.pickup_methods, typeof req.body.pickup_methods);
+    try {
+      const ownerId = req.user.id;
+      const productData = { ...req.body };
+      // Force pickup_methods to be a plain JSON array
+      if (productData.pickup_methods) {
+        productData.pickup_methods = JSON.parse(JSON.stringify(productData.pickup_methods));
+        console.log('[DEBUG] pickup_methods after JSON serialization:', productData.pickup_methods, typeof productData.pickup_methods);
+      }
 
-    // Performance: Parallel KYC check and data validation
-    const [isVerified] = await Promise.all([
-      UserVerificationService.isUserFullyKycVerified(ownerId),
-    ]);
+      console.log('[DEBUG] Before KYC check');
+      const isVerified = await UserVerificationService.isUserFullyKycVerified(ownerId);
+      console.log('[DEBUG] After KYC check, before validation');
 
-    if (!isVerified) {
-      return ResponseHelper.error(res, 'You must complete KYC verification to create a product.', 403);
+      if (!isVerified) {
+        return ResponseHelper.error(res, 'You must complete KYC verification to create a product.', 403);
+      }
+
+      console.log('[DEBUG] Before calling ProductService.create');
+      const created = await ProductService.create(productData, ownerId);
+      console.log('[DEBUG] After ProductService.create');
+
+      if (!created.success) {
+        console.log('[DEBUG] Product creation failed. Error:', created.error);
+        return ResponseHelper.error(res, created.error || 'Failed to create product', 400);
+      }
+
+      this.invalidateProductCaches(ownerId);
+      this.logAction('CREATE_PRODUCT', ownerId, created.data?.id, productData);
+      return ResponseHelper.success(res, 'Product created successfully', created.data, 201);
+    } catch (error) {
+      console.error('[DEBUG] Error in createProduct:', error);
+      return ResponseHelper.error(res, 'Internal server error', 500);
     }
-
-    const created = await ProductService.create(productData, ownerId);
-    if (!created.success) {
-      return ResponseHelper.error(res, created.error || 'Failed to create product', 400);
-    }
-
-    // Performance: Invalidate related caches
-    this.invalidateProductCaches(ownerId);
-
-    this.logAction('CREATE_PRODUCT', ownerId, created.data?.id, productData);
-    return ResponseHelper.success(res, 'Product created successfully', created.data, 201);
   });
 
   /**

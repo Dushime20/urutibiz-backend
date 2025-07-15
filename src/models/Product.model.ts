@@ -47,7 +47,7 @@ export class Product implements ProductData {
   private static products: Product[] = [];
 
   constructor(data: CreateProductData & { ownerId: string }) {
-    this.id = uuidv4();
+    this.id = data.id;
     this.ownerId = data.ownerId;
     this.title = data.title;
     this.description = data.description;

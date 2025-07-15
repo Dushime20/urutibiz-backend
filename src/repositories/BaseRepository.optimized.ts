@@ -28,27 +28,15 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
    * Convert database fields to model format (optimized)
    */
   protected formatDatabaseFields(data: any): any {
-    // Use cached conversion map for better performance
+    // Convert camelCase keys to snake_case for DB
     const formatted: any = {};
-    
     Object.keys(data).forEach(key => {
-      const dbKey = this.toCamelCase(key);
+      const dbKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
       formatted[dbKey] = data[key];
     });
     return formatted;
   }
 
-  /**
-   * Optimized camelCase conversion with caching
-   */
-  private static conversionCache = new Map<string, string>();
-  private toCamelCase(str: string): string {
-    if (!BaseRepository.conversionCache.has(str)) {
-      const converted = str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-      BaseRepository.conversionCache.set(str, converted);
-    }
-    return BaseRepository.conversionCache.get(str)!;
-  }
 
   /**
    * Convert camelCase to snake_case for database fields
@@ -297,13 +285,31 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
   @performanceTrack('BaseRepository.create')
   async create(data: CreateData): Promise<ServiceResponse<T>> {
     try {
+      // Debug and force JSON for pickup_methods
+      const pickupMethods = (data as any)?.pickup_methods;
+      if (pickupMethods) {
+        console.log('[DEBUG] pickup_methods before DB insert:', pickupMethods, typeof pickupMethods, Array.isArray(pickupMethods));
+        if (Array.isArray(pickupMethods)) {
+          (data as any).pickup_methods = JSON.stringify(pickupMethods);
+          console.log('[DEBUG] pickup_methods after JSON.stringify:', (data as any).pickup_methods, typeof (data as any).pickup_methods);
+        }
+      }
+      // Handle geometry location (POINT)
+      let dbLocation = null;
+      const location = (data as any)?.location;
+      if (location && location.latitude && location.longitude) {
+        dbLocation = `SRID=4326;POINT(${location.longitude} ${location.latitude})`;
+        console.log('[DEBUG] location as WKT:', dbLocation);
+      }
       const formattedData = this.formatDatabaseFields(data);
+      const insertData = {
+        ...formattedData,
+        location: dbLocation ? getDatabase().raw('ST_GeomFromText(?)', [dbLocation]) : null,
+        created_at: getDatabase().fn.now(),
+        updated_at: getDatabase().fn.now()
+      };
       const [created] = await getDatabase()(this.tableName)
-        .insert({
-          ...formattedData,
-          created_at: getDatabase().fn.now(),
-          updated_at: getDatabase().fn.now()
-        })
+        .insert(insertData)
         .returning('*');
 
       const entity = new this.modelClass(created);

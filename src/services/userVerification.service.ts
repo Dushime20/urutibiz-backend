@@ -261,12 +261,12 @@ export default class UserVerificationService {
   // Helper: Check if user is fully KYC-verified (all required types are verified)
   static async isUserFullyKycVerified(userId: string): Promise<boolean> {
     const db = getDatabase();
-    // Define required types for full KYC
-    const requiredTypes = ['national_id', 'selfie', 'address'];
-    const rows = await db('user_verifications')
-      .where({ user_id: userId, verification_status: 'verified' });
-    const verifiedTypes = new Set(rows.map((r: any) => r.verification_type));
-    return requiredTypes.every(type => verifiedTypes.has(type));
+    console.log('[DEBUG] Checking KYC for user:', userId);
+    const row = await db('users')
+      .where({ id: userId, kyc_status: 'verified' })
+      .first();
+  
+    return !!row; // true if found, false otherwise
   }
 
   static fromDb(row: any): UserVerification {

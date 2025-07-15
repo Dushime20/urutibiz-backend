@@ -8,8 +8,8 @@ class ProductImageService {
   async create(data: CreateProductImageData) {
     // Basic validation
     const errors: ValidationError[] = [];
-    if (!data.productId) errors.push({ field: 'productId', message: 'Product ID is required' });
-    if (!data.imageUrl) errors.push({ field: 'imageUrl', message: 'Image URL is required' });
+    if (!data.product_id) errors.push({ field: 'productId', message: 'Product ID is required' });
+    if (!data.image_url) errors.push({ field: 'imageUrl', message: 'Image URL is required' });
     if (errors.length > 0) return { success: false, error: errors.map(e => e.message).join(', ') };
 
     // AI scoring for product image (optional, if model available)
@@ -31,13 +31,13 @@ class ProductImageService {
     return ProductImageRepository.create({ ...data, aiAnalysis });
   }
 
-  async getByProduct(productId: string) {
-    return ProductImageRepository.findMany({ productId });
+  async getByProduct(product_id: string) {
+    return ProductImageRepository.findMany({ product_id });
   }
 
-  async setPrimary(imageId: string, productId: string) {
+  async setPrimary(imageId: string, product_id: string) {
     // Set all images for product to isPrimary = false, then set imageId to true
-    await ProductImageRepository.updateMany({ productId }, { isPrimary: false });
+    await ProductImageRepository.updateMany({ product_id }, { isPrimary: false });
     return ProductImageRepository.updateById(imageId, { isPrimary: true });
   }
 

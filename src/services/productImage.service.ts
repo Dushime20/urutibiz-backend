@@ -35,6 +35,14 @@ class ProductImageService {
     return ProductImageRepository.findMany({ product_id });
   }
 
+  async getAll() {
+    return ProductImageRepository.findMany();
+  }
+
+  async getById(imageId: string) {
+    return ProductImageRepository.findById(imageId);
+  }
+
   async setPrimary(imageId: string, product_id: string) {
     // Set all images for product to isPrimary = false, then set imageId to true
     await ProductImageRepository.updateMany({ product_id }, { isPrimary: false });

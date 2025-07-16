@@ -2,27 +2,27 @@ import { ProductImageData, CreateProductImageData } from '@/types/productImage.t
 
 export class ProductImage implements ProductImageData {
   id: string;
-  productId: string;
-  imageUrl: string;
-  thumbnailUrl?: string;
-  altText?: string;
-  sortOrder: number;
-  isPrimary: boolean;
-  aiAnalysis?: Record<string, any>;
-  createdAt: Date;
-  updatedAt: Date;
+  product_id: string;
+  image_url: string;
+  thumbnail_url?: string;
+  alt_text?: string;
+  sort_order: number;
+  is_primary: boolean;
+  ai_analysis?: Record<string, any>;
+  created_at: Date;
+  updated_at: Date;
 
   constructor(data: ProductImageData) {
     this.id = data.id;
-    this.productId = data.productId;
-    this.imageUrl = data.imageUrl;
-    this.thumbnailUrl = data.thumbnailUrl;
-    this.altText = data.altText;
-    this.sortOrder = data.sortOrder;
-    this.isPrimary = data.isPrimary;
-    this.aiAnalysis = data.aiAnalysis;
-    this.createdAt = data.createdAt;
-    this.updatedAt = data.updatedAt;
+    this.product_id = data.product_id;
+    this.image_url = data.image_url;
+    this.thumbnail_url = data.thumbnail_url;
+    this.alt_text = data.alt_text;
+    this.sort_order = data.sort_order;
+    this.is_primary = data.is_primary;
+    this.ai_analysis = data.ai_analysis;
+    this.created_at = data.created_at;
+    this.updated_at = data.updated_at;
   }
 }
 

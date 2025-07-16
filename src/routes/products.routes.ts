@@ -583,7 +583,7 @@ router.delete('/:id', cacheInvalidationMiddleware(['products:*', 'api:GET:*produ
  *       500:
  *         description: Server error
  */
-router.get('/my/products', controller.getUserProducts);
+router.get('/my/products',requireAuth, controller.getUserProducts);
 
 /**
  * @swagger

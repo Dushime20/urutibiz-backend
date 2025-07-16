@@ -234,34 +234,34 @@ const normalizeProductFilters = (query: any): ProductFilters => {
   }
   
   // Numeric validation with fast parsing
-  if (query.minPrice) {
-    const price = parseFloat(query.minPrice);
-    if (!isNaN(price) && price >= 0) filters.minPrice = price;
+  if (query.min_price) {
+    const price = parseFloat(query.min_price);
+    if (!isNaN(price) && price >= 0) filters.min_price = price;
   }
-  if (query.maxPrice) {
-    const price = parseFloat(query.maxPrice);
-    if (!isNaN(price) && price >= 0) filters.maxPrice = price;
+  if (query.max_price) {
+    const price = parseFloat(query.max_price);
+    if (!isNaN(price) && price >= 0) filters.max_price = price;
   }
   
   // Location optimization
-  if (query.lat && query.lng) {
-    const lat = parseFloat(query.lat);
-    const lng = parseFloat(query.lng);
+  if (query.latitude && query.longitude) {
+    const latitude = parseFloat(query.latitude);
+    const longitude = parseFloat(query.longitude);
     const radius = parseFloat(query.radius) || 10;
     
-    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-      filters.location = { lat, lng, radius };
+    if (!isNaN(latitude) && !isNaN(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180) {
+      filters.location = { latitude, longitude, radius };
     }
   }
   
-  if (query.countryId && typeof query.countryId === 'string') {
-    filters.countryId = query.countryId;
+  if (query.country_id && typeof query.country_id === 'string') {
+    filters.country_id = query.country_id;
   }
-  if (query.category && typeof query.category === 'string') {
-    filters.category = query.category;
+  if (query.category_id && typeof query.category_id === 'string') {
+    filters.category_id = query.category_id;
   }
-  if (query.ownerId && typeof query.ownerId === 'string') {
-    filters.ownerId = query.ownerId;
+  if (query.owner_id && typeof query.owner_id === 'string') {
+    filters.owner_id = query.owner_id;
   }
   
   return filters;
@@ -273,20 +273,20 @@ const normalizeProductFilters = (query: any): ProductFilters => {
 const convertFiltersToQuery = (filters: ProductFilters): Partial<ProductData> => {
   const query: Partial<ProductData> = {};
   
-  if (filters.ownerId) query.ownerId = filters.ownerId;
-  if (filters.category) query.categoryId = filters.category;
+  if (filters.owner_id) query.owner_id = filters.owner_id;
+  if (filters.category_id) query.category_id = filters.category_id;
   if (filters.status) query.status = filters.status;
   if (filters.condition) query.condition = filters.condition;
   if (filters.search) query.title = filters.search;
   
-  if (filters.countryId || filters.location) {
+  if (filters.country_id || filters.location) {
     query.location = {
       address: '',
       city: '',
-      countryId: filters.countryId || '',
+      country_id: filters.country_id || '',
       ...(filters.location && {
-        latitude: filters.location.lat,
-        longitude: filters.location.lng,
+        latitude: filters.location.latitude,
+        longitude: filters.location.longitude,
       })
     } as any;
   }
@@ -304,24 +304,24 @@ export class ProductsController extends BaseController {
     console.log('[DEBUG] req.body:', req.body);
     console.log('[DEBUG] pickup_methods in req.body:', req.body.pickup_methods, typeof req.body.pickup_methods);
     try {
-      const ownerId = req.user.id;
-      const productData = { ...req.body };
+      const owner_id = req.user.id;
+      const product_data = { ...req.body };
       // Force pickup_methods to be a plain JSON array
-      if (productData.pickup_methods) {
-        productData.pickup_methods = JSON.parse(JSON.stringify(productData.pickup_methods));
-        console.log('[DEBUG] pickup_methods after JSON serialization:', productData.pickup_methods, typeof productData.pickup_methods);
+      if (product_data.pickup_methods) {
+        product_data.pickup_methods = JSON.parse(JSON.stringify(product_data.pickup_methods));
+        console.log('[DEBUG] pickup_methods after JSON serialization:', product_data.pickup_methods, typeof product_data.pickup_methods);
       }
 
       console.log('[DEBUG] Before KYC check');
-      const isVerified = await UserVerificationService.isUserFullyKycVerified(ownerId);
+      const is_verified = await UserVerificationService.isUserFullyKycVerified(owner_id);
       console.log('[DEBUG] After KYC check, before validation');
 
-      if (!isVerified) {
+      if (!is_verified) {
         return ResponseHelper.error(res, 'You must complete KYC verification to create a product.', 403);
       }
 
       console.log('[DEBUG] Before calling ProductService.create');
-      const created = await ProductService.create(productData, ownerId);
+      const created = await ProductService.create(product_data, owner_id);
       console.log('[DEBUG] After ProductService.create');
 
       if (!created.success) {
@@ -329,8 +329,8 @@ export class ProductsController extends BaseController {
         return ResponseHelper.error(res, created.error || 'Failed to create product', 400);
       }
 
-      this.invalidateProductCaches(ownerId);
-      this.logAction('CREATE_PRODUCT', ownerId, created.data?.id, productData);
+      this.invalidateProductCaches(owner_id);
+      this.logAction('CREATE_PRODUCT', owner_id, created.data?.id, product_data);
       return ResponseHelper.success(res, 'Product created successfully', created.data, 201);
     } catch (error) {
       console.error('[DEBUG] Error in createProduct:', error);
@@ -413,32 +413,32 @@ export class ProductsController extends BaseController {
     if (this.handleValidationErrors(req as any, res)) return;
     
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     // Performance: Parallel authorization and update preparation
-    const [productResult, updateData] = await Promise.all([
+    const [product_result, update_data] = await Promise.all([
       ProductService.getById(id),
       this.prepareUpdateData(req.body)
     ]);
 
-    if (!productResult.success || !productResult.data) {
+    if (!product_result.success || !product_result.data) {
       return this.handleNotFound(res, 'Product');
     }
 
-    if (!this.checkResourceOwnership(req, productResult.data.ownerId)) {
+    if (!this.checkResourceOwnership(req, product_result.data.owner_id)) {
       return this.handleUnauthorized(res, 'Not authorized');
     }
 
-    const updatedProduct = await ProductService.update(id, updateData);
-    if (!updatedProduct.success) {
-      return ResponseHelper.error(res, updatedProduct.error || 'Failed to update product', 400);
+    const updated_product = await ProductService.update(id, update_data);
+    if (!updated_product.success) {
+      return ResponseHelper.error(res, updated_product.error || 'Failed to update product', 400);
     }
 
     // Performance: Invalidate related caches
-    this.invalidateProductCaches(productResult.data.ownerId, id);
+    this.invalidateProductCaches(product_result.data.owner_id, id);
 
-    this.logAction('UPDATE_PRODUCT', userId, id, updateData);
-    return ResponseHelper.success(res, 'Product updated successfully', updatedProduct.data);
+    this.logAction('UPDATE_PRODUCT', user_id, id, update_data);
+    return ResponseHelper.success(res, 'Product updated successfully', updated_product.data);
   });
 
   /**
@@ -447,26 +447,26 @@ export class ProductsController extends BaseController {
    */
   public deleteProduct = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     // Performance: Get product ownership info only
-    const productResult = await ProductService.getById(id);
-    if (!productResult.success || !productResult.data) {
+    const product_result = await ProductService.getById(id);
+    if (!product_result.success || !product_result.data) {
       return this.handleNotFound(res, 'Product');
     }
 
-    if (!this.checkResourceOwnership(req, productResult.data.ownerId)) {
+    if (!this.checkResourceOwnership(req, product_result.data.owner_id)) {
       return this.handleUnauthorized(res, 'Not authorized to delete this product');
     }
 
     // Performance: Direct status update
-    const deletedProduct = await ProductService.update(id, { status: 'inactive' });
+    const deleted_product = await ProductService.update(id, { status: 'inactive' });
     
     // Performance: Invalidate caches
-    this.invalidateProductCaches(productResult.data.ownerId, id);
+    this.invalidateProductCaches(product_result.data.owner_id, id);
 
-    this.logAction('DELETE_PRODUCT', userId, id);
-    return ResponseHelper.success(res, 'Product deleted successfully', deletedProduct.data);
+    this.logAction('DELETE_PRODUCT', user_id, id);
+    return ResponseHelper.success(res, 'Product deleted successfully', deleted_product.data);
   });
 
   /**
@@ -474,12 +474,12 @@ export class ProductsController extends BaseController {
    * GET /api/v1/products/my-products
    */
   public getUserProducts = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const userId = req.user.id;
+    const user_id = req.user.id;
     const { page, limit } = this.getPaginationParams(req as any);
     const status = req.query.status as ProductFilters['status'];
 
     // Performance: Generate cache key
-    const cacheKey = `user_products_${userId}_${status || 'all'}_${page}_${limit}`;
+    const cacheKey = `user_products_${user_id}_${status || 'all'}_${page}_${limit}`;
     const cached = productCache.get(cacheKey);
     
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.PRODUCT_LIST * 1000) {
@@ -487,14 +487,14 @@ export class ProductsController extends BaseController {
     }
 
     // Transform to optimized query
-    const query: Partial<ProductData> = { ownerId: userId };
+    const query: Partial<ProductData> = { owner_id: user_id };
     if (status && VALID_STATUSES.has(status)) {
       query.status = status;
     }
 
     const result = await ProductService.getPaginated(query, page, limit);
 
-    this.logAction('GET_USER_PRODUCTS', userId);
+    this.logAction('GET_USER_PRODUCTS', user_id);
 
     if (!result.success || !result.data) {
       return ResponseHelper.error(res, result.error || 'Failed to fetch user products', 400);
@@ -515,27 +515,27 @@ export class ProductsController extends BaseController {
    */
   public checkAvailability = this.asyncHandler(async (req: OptionalAuthRequest, res: Response) => {
     const { id } = req.params;
-    const { startDate, endDate } = req.query;
+    const { start_date, end_date } = req.query;
 
-    if (!startDate || !endDate) {
+    if (!start_date || !end_date) {
       return this.handleBadRequest(res, 'Start date and end date are required');
     }
 
     // Performance: Check availability cache
-    const cacheKey = `availability_${id}_${startDate}_${endDate}`;
+    const cacheKey = `availability_${id}_${start_date}_${end_date}`;
     const cached = availabilityCache.get(cacheKey);
     
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.AVAILABILITY * 1000) {
       return ResponseHelper.success(res, 'Availability checked successfully (cached)', cached.data);
     }
 
-    const productResult = await ProductService.getById(id);
-    if (!productResult.success || !productResult.data) {
+    const product_result = await ProductService.getById(id);
+    if (!product_result.success || !product_result.data) {
       return this.handleNotFound(res, 'Product');
     }
 
     // Performance: Optimized availability calculation
-    const availability = this.calculateAvailability(productResult.data, startDate as string, endDate as string);
+    const availability = this.calculateAvailability(product_result.data, start_date as string, end_date as string);
 
     // Cache the result
     availabilityCache.set(cacheKey, {
@@ -543,7 +543,7 @@ export class ProductsController extends BaseController {
       timestamp: Date.now()
     });
 
-    this.logAction('CHECK_AVAILABILITY', req.user?.id || 'anonymous', id, { startDate, endDate });
+    this.logAction('CHECK_AVAILABILITY', req.user?.id || 'anonymous', id, { start_date, end_date });
 
     return ResponseHelper.success(res, 'Availability checked successfully', availability);
   });
@@ -554,18 +554,18 @@ export class ProductsController extends BaseController {
    */
   public uploadImages = this.asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     // Performance: Parallel product validation and file processing
-    const [productResult] = await Promise.all([
+    const [product_result] = await Promise.all([
       ProductService.getById(id),
     ]);
 
-    if (!productResult.success || !productResult.data) {
+    if (!product_result.success || !product_result.data) {
       return this.handleNotFound(res, 'Product');
     }
 
-    if (!this.checkResourceOwnership(req, productResult.data.ownerId)) {
+    if (!this.checkResourceOwnership(req, product_result.data.owner_id)) {
       return this.handleUnauthorized(res, 'Not authorized to update this product');
     }
 
@@ -576,14 +576,14 @@ export class ProductsController extends BaseController {
     }
 
     // Performance: Optimized image processing
-    const uploadedImages = this.processUploadedImages(files, id);
+    const uploaded_images = this.processUploadedImages(files, id);
 
     // Performance: Invalidate product cache
-    this.invalidateProductCaches(productResult.data.ownerId, id);
+    this.invalidateProductCaches(product_result.data.owner_id, id);
 
-    this.logAction('UPLOAD_PRODUCT_IMAGES', userId, id, { imageCount: files.length });
+    this.logAction('UPLOAD_PRODUCT_IMAGES', user_id, id, { image_count: files.length });
 
-    return ResponseHelper.success(res, 'Images uploaded successfully', { images: uploadedImages });
+    return ResponseHelper.success(res, 'Images uploaded successfully', { images: uploaded_images });
   });
 
   /**
@@ -592,7 +592,7 @@ export class ProductsController extends BaseController {
    */
   public getProductAnalytics = this.asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     // Performance: Check analytics cache
     const cacheKey = `analytics_${id}`;
@@ -602,12 +602,12 @@ export class ProductsController extends BaseController {
       return ResponseHelper.success(res, 'Product analytics retrieved successfully (cached)', cached.data);
     }
 
-    const productResult = await ProductService.getById(id);
-    if (!productResult.success || !productResult.data) {
+    const product_result = await ProductService.getById(id);
+    if (!product_result.success || !product_result.data) {
       return this.handleNotFound(res, 'Product');
     }
 
-    if (!this.checkResourceOwnership(req, productResult.data.ownerId)) {
+    if (!this.checkResourceOwnership(req, product_result.data.owner_id)) {
       return this.handleUnauthorized(res, 'Not authorized to view analytics for this product');
     }
 
@@ -620,7 +620,7 @@ export class ProductsController extends BaseController {
       timestamp: Date.now()
     });
 
-    this.logAction('GET_PRODUCT_ANALYTICS', userId, id);
+    this.logAction('GET_PRODUCT_ANALYTICS', user_id, id);
 
     return ResponseHelper.success(res, 'Product analytics retrieved successfully', analytics);
   });
@@ -631,10 +631,10 @@ export class ProductsController extends BaseController {
    */
   public searchProducts = this.asyncHandler(async (req: OptionalAuthRequest, res: Response): Promise<Response | void> => {
     const { page, limit } = this.getPaginationParams(req);
-    const searchCriteria = req.body;
+    const search_criteria = req.body;
 
     // Performance: Generate search cache key
-    const cacheKey = `search_${JSON.stringify({ searchCriteria, page, limit })}`;
+    const cacheKey = `search_${JSON.stringify({ search_criteria, page, limit })}`;
     const cached = productCache.get(cacheKey);
     
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.PRODUCT_LIST * 1000) {
@@ -642,7 +642,7 @@ export class ProductsController extends BaseController {
     }
 
     // Performance: Execute optimized search
-    const results = await this.executeOptimizedSearch(searchCriteria, page, limit);
+    const results = await this.executeOptimizedSearch(search_criteria, page, limit);
 
     // Cache the result
     productCache.set(cacheKey, {
@@ -650,7 +650,7 @@ export class ProductsController extends BaseController {
       timestamp: Date.now()
     });
 
-    this.logAction('SEARCH_PRODUCTS', req.user?.id || 'anonymous', undefined, searchCriteria);
+    this.logAction('SEARCH_PRODUCTS', req.user?.id || 'anonymous', undefined, search_criteria);
 
     return this.formatPaginatedResponse(res, 'Search completed successfully', results);
   });
@@ -663,8 +663,8 @@ export class ProductsController extends BaseController {
     const { id } = req.params;
     const { page, limit } = this.getPaginationParams(req);
 
-    const productResult = await ProductService.getById(id);
-    if (!productResult.success || !productResult.data) {
+    const product_result = await ProductService.getById(id);
+    if (!product_result.success || !product_result.data) {
       return this.handleNotFound(res, 'Product');
     }
 
@@ -682,44 +682,44 @@ export class ProductsController extends BaseController {
    * Prepare update data efficiently
    */
   private async prepareUpdateData(body: any): Promise<UpdateProductData> {
-    const updateData: UpdateProductData = {};
+    const update_data: UpdateProductData = {};
     
     // Performance: Direct assignment for defined values only
-    if (body.title !== undefined) updateData.title = body.title;
-    if (body.description !== undefined) updateData.description = body.description;
-    if (body.basePrice !== undefined) updateData.basePrice = body.basePrice;
-    if (body.condition !== undefined) updateData.condition = body.condition;
-    if (body.status !== undefined) updateData.status = body.status;
+    if (body.title !== undefined) update_data.title = body.title;
+    if (body.description !== undefined) update_data.description = body.description;
+    if (body.base_price !== undefined) update_data.base_price = body.base_price;
+    if (body.condition !== undefined) update_data.condition = body.condition;
+    if (body.status !== undefined) update_data.status = body.status;
     
-    return updateData;
+    return update_data;
   }
 
   /**
    * Calculate availability efficiently
    */
-  private calculateAvailability(product: any, startDate: string, endDate: string) {
-    const basePrice = product.basePrice;
-    const startDateObj = new Date(startDate);
-    const endDateObj = new Date(endDate);
-    const totalDays = Math.max(1, Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)));
+  private calculateAvailability(product: any, start_date: string, end_date: string) {
+    const base_price = product.base_price;
+    const start_date_obj = new Date(start_date);
+    const end_date_obj = new Date(end_date);
+    const total_days = Math.max(1, Math.ceil((end_date_obj.getTime() - start_date_obj.getTime()) / (1000 * 60 * 60 * 24)));
     
-    const subtotal = basePrice * totalDays;
-    const platformFee = subtotal * 0.1;
-    const taxAmount = subtotal * 0.08;
-    const totalAmount = subtotal + platformFee + taxAmount;
+    const subtotal = base_price * total_days;
+    const platform_fee = subtotal * 0.1;
+    const tax_amount = subtotal * 0.08;
+    const total_amount = subtotal + platform_fee + tax_amount;
 
     return {
-      isAvailable: true,
-      availableDates: [],
-      unavailableDates: [],
+      is_available: true,
+      available_dates: [],
+      unavailable_dates: [],
       pricing: {
-        basePrice,
-        totalDays,
+        base_price,
+        total_days,
         subtotal,
-        platformFee,
-        taxAmount,
-        insuranceFee: 0,
-        totalAmount
+        platform_fee,
+        tax_amount,
+        insurance_fee: 0,
+        total_amount
       }
     };
   }
@@ -727,13 +727,13 @@ export class ProductsController extends BaseController {
   /**
    * Process uploaded images efficiently
    */
-  private processUploadedImages(files: any[], productId: string) {
+  private processUploadedImages(files: any[], product_id: string) {
     const timestamp = Date.now();
     return files.map((file: any, index: number) => ({
-      id: `img_${productId}_${timestamp}_${index}`,
-      url: `/uploads/products/${productId}/${file.filename}`,
-      altText: file.originalname,
-      isPrimary: index === 0,
+      id: `img_${product_id}_${timestamp}_${index}`,
+      url: `/uploads/products/${product_id}/${file.filename}`,
+      alt_text: file.originalname,
+      is_primary: index === 0,
       order: index
     }));
   }
@@ -741,19 +741,19 @@ export class ProductsController extends BaseController {
   /**
    * Calculate product analytics efficiently
    */
-  private async calculateProductAnalytics(productId: string) {
+  private async calculateProductAnalytics(product_id: string) {
     const db = require('@/config/database').getDatabase();
     
     // Performance: Single query with aggregations
     const [views, bookings] = await Promise.all([
-      db('product_views').count('* as count').where({ product_id: productId }).first(),
+      db('product_views').count('* as count').where({ product_id: product_id }).first(),
       db('bookings')
         .select(
           db.raw('COUNT(*) as booking_count'),
           db.raw('SUM(total_amount) as revenue'),
           db.raw('AVG(rating) as rating')
         )
-        .where({ product_id: productId })
+        .where({ product_id: product_id })
         .first()
     ]);
 
@@ -762,8 +762,8 @@ export class ProductsController extends BaseController {
       bookings: bookings?.booking_count || 0,
       revenue: bookings?.revenue || 0,
       rating: bookings?.rating || 0,
-      viewsOverTime: [], // Could be populated with time-series data
-      bookingsOverTime: []
+      views_over_time: [], // Could be populated with time-series data
+      bookings_over_time: []
     };
   }
 
@@ -773,9 +773,9 @@ export class ProductsController extends BaseController {
   private async executeOptimizedSearch(criteria: any, page: number, limit: number) {
     // Performance: Mock optimized search implementation
     // In production, this would use the criteria for advanced filtering
-    const searchMetrics = {
-      criteriaUsed: Object.keys(criteria).length,
-      searchType: 'optimized'
+    const search_metrics = {
+      criteria_used: Object.keys(criteria).length,
+      search_type: 'optimized'
     };
     
     return {
@@ -786,27 +786,27 @@ export class ProductsController extends BaseController {
       totalPages: 0,
       hasNext: false,
       hasPrev: false,
-      searchMetrics
+      search_metrics
     };
   }
 
   /**
    * Fetch product reviews efficiently
    */
-  private async fetchProductReviews(productId: string, page: number, limit: number) {
+  private async fetchProductReviews(product_id: string, page: number, limit: number) {
     const db = require('@/config/database').getDatabase();
     
-    const [reviews, totalCount] = await Promise.all([
+    const [reviews, total_count] = await Promise.all([
       db('product_reviews')
         .select('id', 'user_id', 'rating', 'comment', 'created_at')
-        .where({ product_id: productId })
+        .where({ product_id: product_id })
         .orderBy('created_at', 'desc')
         .limit(limit)
         .offset((page - 1) * limit),
       
       db('product_reviews')
         .count('id as count')
-        .where({ product_id: productId })
+        .where({ product_id: product_id })
         .first()
     ]);
 
@@ -814,9 +814,9 @@ export class ProductsController extends BaseController {
       data: reviews,
       page,
       limit,
-      total: totalCount?.count || 0,
-      totalPages: Math.ceil((totalCount?.count || 0) / limit),
-      hasNext: page * limit < (totalCount?.count || 0),
+      total: total_count?.count || 0,
+      totalPages: Math.ceil((total_count?.count || 0) / limit),
+      hasNext: page * limit < (total_count?.count || 0),
       hasPrev: page > 1
     };
   }
@@ -824,24 +824,24 @@ export class ProductsController extends BaseController {
   /**
    * Invalidate product-related caches
    */
-  private invalidateProductCaches(ownerId?: string, productId?: string): void {
-    const keysToDelete = Array.from(productCache.keys()).filter(key => {
-      if (productId && key.includes(productId)) return true;
-      if (ownerId && key.includes(ownerId)) return true;
+  private invalidateProductCaches(owner_id?: string, product_id?: string): void {
+    const keys_to_delete = Array.from(productCache.keys()).filter(key => {
+      if (product_id && key.includes(product_id)) return true;
+      if (owner_id && key.includes(owner_id)) return true;
       if (key.startsWith('products_') || key.startsWith('user_products_')) return true;
       return false;
     });
     
-    for (const key of keysToDelete) {
+    for (const key of keys_to_delete) {
       productCache.delete(key);
     }
 
     // Also clear availability cache for the product
-    if (productId) {
-      const availabilityKeys = Array.from(availabilityCache.keys()).filter(key => 
-        key.includes(productId)
+    if (product_id) {
+      const availability_keys = Array.from(availabilityCache.keys()).filter(key => 
+        key.includes(product_id)
       );
-      for (const key of availabilityKeys) {
+      for (const key of availability_keys) {
         availabilityCache.delete(key);
       }
     }

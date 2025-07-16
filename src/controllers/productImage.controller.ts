@@ -35,11 +35,52 @@ class ProductImageController {
     return ResponseHelper.success(res, 'Image added', result.data, 201);
   }
 
+  async createMultiple(req: Request, res: Response) {
+    const product_id = req.body.product_id;
+    if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+      return res.status(400).json({ success: false, message: 'No images uploaded' });
+    }
+    try {
+      const imagePromises = (req.files as Express.Multer.File[]).map(async (file: Express.Multer.File) => {
+        const result = await cloudinary.uploader.upload(file.path, { folder: 'products' });
+        // Save each image to DB
+        return ProductImageService.create({
+          product_id,
+          image_url: result.secure_url,
+          // Add other fields as needed (thumbnail_url, alt_text, etc.)
+        });
+      });
+      const images = await Promise.all(imagePromises);
+      // Flatten to just the data property if service returns { success, data }
+      const imageData = images.map(img => img.data || img);
+      return res.status(201).json({ success: true, data: imageData });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: 'Failed to upload images', error: err.message });
+    }
+  }
+
   async getByProduct(req: Request, res: Response) {
     const { productId } = req.params;
     const result = await ProductImageService.getByProduct(productId);
     if (!result.success) return ResponseHelper.error(res, result.error || 'Failed to fetch images', 400);
     return ResponseHelper.success(res, 'Images retrieved', result.data);
+  }
+
+  async getAll(req: Request, res: Response) {
+    const result = await ProductImageService.getAll();
+    if (!result.success) {
+      return res.status(500).json({ success: false, message: result.error || 'Failed to fetch images' });
+    }
+    return res.status(200).json({ success: true, data: result.data });
+  }
+
+  async getById(req: Request, res: Response) {
+    const { imageId } = req.params;
+    const result = await ProductImageService.getById(imageId);
+    if (!result.success || !result.data) {
+      return res.status(404).json({ success: false, message: result.error || 'Image not found' });
+    }
+    return res.status(200).json({ success: true, data: result.data });
   }
 
   async setPrimary(req: Request, res: Response) {

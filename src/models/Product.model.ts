@@ -19,56 +19,56 @@ import { v4 as uuidv4 } from 'uuid';
 // Demo Product Model - In-memory implementation
 export class Product implements ProductData {
   public id: string;
-  public ownerId: string;
+  public owner_id: string;
   public title: string;
   public description: string;
-  public categoryId: string;
+  public category_id: string;
   public status: ProductStatus;
   public condition: ProductCondition;
-  public basePrice: number;
-  public baseCurrency: string;
-  public pickupMethods: PickupMethod[];
+  public base_price: number;
+  public base_currency: string;
+  public pickup_methods: PickupMethod[];
   public location: ProductLocation;
   public images: ProductImage[];
   public specifications?: Record<string, any>;
   public availability: ProductAvailability[];
-  public viewCount: number;
+  public view_count: number;
   public rating?: number;
-  public reviewCount: number;
-  public aiScore?: number;
-  public aiTags?: string[];
-  public displayPrice?: number;
-  public displayCurrency?: string;
+  public review_count: number;
+  public ai_score?: number;
+  public ai_tags?: string[];
+  public display_price?: number;
+  public display_currency?: string;
   public recommendations?: any[];
-  public createdAt: Date;
-  public updatedAt: Date;
+  public created_at: Date;
+  public updated_at: Date;
 
   // In-memory storage for demo
   private static products: Product[] = [];
 
-  constructor(data: CreateProductData & { ownerId: string }) {
+  constructor(data: CreateProductData & { owner_id: string }) {
     this.id = data.id;
-    this.ownerId = data.ownerId;
+    this.owner_id = data.owner_id;
     this.title = data.title;
     this.description = data.description;
-    this.categoryId = data.categoryId;
+    this.category_id = data.category_id;
     this.status = 'draft';
     this.condition = data.condition;
-    this.basePrice = data.basePrice;
-    this.baseCurrency = data.baseCurrency;
-    this.pickupMethods = data.pickupMethods;
+    this.base_price = data.base_price_per_day;
+    this.base_currency = data.base_currency;
+    this.pickup_methods = data.pickup_methods;
     this.location = data.location;
     this.images = [];
     this.specifications = data.specifications;
     this.availability = [];
-    this.viewCount = 0;
-    this.reviewCount = 0;
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
+    this.view_count = 0;
+    this.review_count = 0;
+    this.created_at = new Date();
+    this.updated_at = new Date();
   }
 
   // Static methods for CRUD operations
-  static async create(data: CreateProductData & { ownerId: string }): Promise<Product> {
+  static async create(data: CreateProductData & { owner_id: string }): Promise<Product> {
     const product = new Product(data);
     Product.products.push(product);
     return product;
@@ -106,24 +106,24 @@ export class Product implements ProductData {
       );
     }
 
-    if (filters.category) {
-      filtered = filtered.filter(p => p.categoryId === filters.category);
+    if (filters.category_id) {
+      filtered = filtered.filter(p => p.category_id === filters.category_id);
     }
 
-    if (filters.countryId) {
-      filtered = filtered.filter(p => p.location.countryId === filters.countryId);
+    if (filters.country_id) {
+      filtered = filtered.filter(p => p.location.country_id === filters.country_id);
     }
 
-    if (filters.minPrice !== undefined) {
-      filtered = filtered.filter(p => p.basePrice >= filters.minPrice!);
+    if (filters.min_price !== undefined) {
+      filtered = filtered.filter(p => p.base_price >= filters.min_price!);
     }
 
-    if (filters.maxPrice !== undefined) {
-      filtered = filtered.filter(p => p.basePrice <= filters.maxPrice!);
+    if (filters.max_price !== undefined) {
+      filtered = filtered.filter(p => p.base_price <= filters.max_price!);
     }
 
     if (filters.currency) {
-      filtered = filtered.filter(p => p.baseCurrency === filters.currency);
+      filtered = filtered.filter(p => p.base_currency === filters.currency);
     }
 
     if (filters.condition) {
@@ -134,15 +134,15 @@ export class Product implements ProductData {
       filtered = filtered.filter(p => p.status === filters.status);
     }
 
-    if (filters.ownerId) {
-      filtered = filtered.filter(p => p.ownerId === filters.ownerId);
+    if (filters.owner_id) {
+      filtered = filtered.filter(p => p.owner_id === filters.owner_id);
     }
 
     if (filters.location) {
       // Simple radius filter (not geospatially accurate)
       filtered = filtered.filter(p => {
-        const dx = p.location.latitude - filters.location!.lat;
-        const dy = p.location.longitude - filters.location!.lng;
+        const dx = p.location.latitude - filters.location!.latitude;
+        const dy = p.location.longitude - filters.location!.longitude;
         const distance = Math.sqrt(dx * dx + dy * dy);
         return distance <= filters.location!.radius;
       });
@@ -169,36 +169,36 @@ export class Product implements ProductData {
   // Instance methods
   async update(data: UpdateProductData): Promise<Product> {
     Object.assign(this, data);
-    this.updatedAt = new Date();
+    this.updated_at = new Date();
     return this;
   }
 
   toJSON(): ProductData {
     return {
       id: this.id,
-      ownerId: this.ownerId,
+      owner_id: this.owner_id,
       title: this.title,
       description: this.description,
-      categoryId: this.categoryId,
+      category_id: this.category_id,
       status: this.status,
       condition: this.condition,
-      basePrice: this.basePrice,
-      baseCurrency: this.baseCurrency,
-      pickupMethods: this.pickupMethods,
+      base_price: this.base_price,
+      base_currency: this.base_currency,
+      pickup_methods: this.pickup_methods,
       location: this.location,
       images: this.images,
       specifications: this.specifications,
       availability: this.availability,
-      viewCount: this.viewCount,
+      view_count: this.view_count,
       rating: this.rating,
-      reviewCount: this.reviewCount,
-      aiScore: this.aiScore,
-      aiTags: this.aiTags,
-      displayPrice: this.displayPrice,
-      displayCurrency: this.displayCurrency,
+      review_count: this.review_count,
+      ai_score: this.ai_score,
+      ai_tags: this.ai_tags,
+      display_price: this.display_price,
+      display_currency: this.display_currency,
       recommendations: this.recommendations,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt
+      created_at: this.created_at,
+      updated_at: this.updated_at
     };
   }
 
@@ -208,60 +208,69 @@ export class Product implements ProductData {
 
     const demoProducts: CreateProductData[] = [
       {
+        id: 'demo-product-1',
         title: 'Luxury Beach Villa in Miami',
+        slug: 'luxury-beach-villa-miami',
         description: 'Beautiful oceanfront villa with 4 bedrooms, private pool, and stunning views',
-        categoryId: 'accommodation',
-        basePrice: 299.99,
-        baseCurrency: 'USD',
+        category_id: 'accommodation',
         condition: 'like_new',
+        base_price_per_day: 299.99,
+        base_currency: 'USD',
+        pickup_methods: ['pickup', 'delivery'],
+        country_id: 'US',
+        specifications: { bedrooms: 4, bathrooms: 3, pool: true },
         location: {
           latitude: 25.7617,
           longitude: -80.1918,
           address: '123 Ocean Drive',
           city: 'Miami',
-          countryId: 'US'
-        },
-        pickupMethods: ['pickup', 'delivery'],
-        // tags: ['luxury', 'beachfront', 'pool', 'family-friendly']
+          country_id: 'US'
+        }
       },
       {
+        id: 'demo-product-2',
         title: 'Sports Car Rental - Ferrari 488',
+        slug: 'sports-car-rental-ferrari-488',
         description: 'Experience the thrill of driving a Ferrari 488 GTB',
-        categoryId: 'transportation',
-        basePrice: 899.99,
-        baseCurrency: 'USD',
+        category_id: 'transportation',
         condition: 'new',
+        base_price_per_day: 899.99,
+        base_currency: 'USD',
+        pickup_methods: ['pickup'],
+        country_id: 'US',
+        specifications: { seats: 2, color: 'red', transmission: 'automatic' },
         location: {
           latitude: 34.0522,
           longitude: -118.2437,
           address: '456 Sunset Blvd',
           city: 'Los Angeles',
-          countryId: 'US'
-        },
-        pickupMethods: ['pickup'],
-        // tags: ['luxury', 'sports-car', 'weekend', 'exotic']
+          country_id: 'US'
+        }
       },
       {
+        id: 'demo-product-3',
         title: 'Cooking Class with Professional Chef',
+        slug: 'cooking-class-professional-chef',
         description: 'Learn to cook authentic Italian cuisine from a Michelin-starred chef',
-        categoryId: 'experience',
-        basePrice: 150.00,
-        baseCurrency: 'USD',
+        category_id: 'experience',
         condition: 'new',
+        base_price_per_day: 150.00,
+        base_currency: 'USD',
+        pickup_methods: ['pickup'],
+        country_id: 'US',
+        specifications: { cuisine: 'Italian', chef: 'Michelin-starred' },
         location: {
           latitude: 40.7128,
           longitude: -74.0060,
           address: '789 Culinary Ave',
           city: 'New York',
-          countryId: 'US'
-        },
-        pickupMethods: ['pickup'],
-        // tags: ['cooking', 'education', 'italian', 'professional']
+          country_id: 'US'
+        }
       }
     ];
 
     for (const productData of demoProducts) {
-      await Product.create({ ...productData, ownerId: 'demo-user-1' });
+      await Product.create({ ...productData, owner_id: 'demo-user-1' });
     }
   }
 }

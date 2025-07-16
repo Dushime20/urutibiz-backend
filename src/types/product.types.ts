@@ -1,5 +1,5 @@
 // =====================================================
-// PRODUCT TYPES
+// PRODUCT TYPES (snake_case)
 // =====================================================
 
 export type ProductStatus = 'draft' | 'active' | 'inactive' | 'suspended' | 'deleted';
@@ -17,46 +17,46 @@ export interface ProductLocation {
 export interface ProductImage {
   id: string;
   url: string;
-  altText?: string;
-  isPrimary: boolean;
-  order: number;
+  alt_text?: string;
+  is_primary: boolean;
+  sort_order: number;
 }
 
 export interface ProductAvailability {
   date: string;
-  isAvailable: boolean;
-  customPrice?: number;
+  is_available: boolean;
+  custom_price?: number;
 }
 
 export interface ProductData {
   id: string;
-  ownerId: string;
+  owner_id: string;
   title: string;
   description: string;
-  categoryId: string;
+  category_id: string;
   status: ProductStatus;
   condition: ProductCondition;
-  basePrice: number;
-  baseCurrency: string;
-  pickupMethods: any[];
+  base_price: number;
+  base_currency: string;
+  pickup_methods: any[];
   location: ProductLocation;
   images: ProductImage[];
   specifications?: Record<string, any>;
   availability: ProductAvailability[];
-  viewCount: number;
+  view_count: number;
   rating?: number;
-  reviewCount: number;
-  aiScore?: number;
-  aiTags?: string[];
-  displayPrice?: number;
-  displayCurrency?: string;
+  review_count: number;
+  ai_score?: number;
+  ai_tags?: string[];
+  display_price?: number;
+  display_currency?: string;
   recommendations?: any[];
-  createdAt: Date;
-  updatedAt: Date;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface CreateProductData {
-  id:string
+  id: string;
   title: string;
   slug: string;
   description: string;
@@ -66,6 +66,7 @@ export interface CreateProductData {
   base_currency: string;
   pickup_methods: any[];
   country_id: string;
+  location: ProductLocation;
   specifications?: Record<string, any>;
 }
 
@@ -73,8 +74,8 @@ export interface UpdateProductData {
   title?: string;
   description?: string;
   condition?: ProductCondition;
-  basePrice?: number;
-  pickupMethods?: any[];
+  base_price?: number;
+  pickup_methods?: any[];
   location?: Partial<ProductLocation>;
   specifications?: Record<string, any>;
   status?: ProductStatus;
@@ -82,40 +83,40 @@ export interface UpdateProductData {
 
 export interface ProductFilters {
   search?: string;
-  category?: string;
-  countryId?: string;
-  minPrice?: number;
-  maxPrice?: number;
+  category_id?: string;
+  country_id?: string;
+  min_price?: number;
+  max_price?: number;
   currency?: string;
   condition?: ProductCondition;
   status?: ProductStatus;
-  ownerId?: string;
+  owner_id?: string;
   location?: {
-    lat: number;
-    lng: number;
+    latitude: number;
+    longitude: number;
     radius: number;
   };
 }
 
 export interface ProductPricing {
-  basePrice: number;
-  totalDays: number;
+  base_price: number;
+  total_days: number;
   subtotal: number;
-  platformFee: number;
-  insuranceFee: number;
-  taxAmount: number;
-  totalAmount: number;
+  platform_fee: number;
+  insurance_fee: number;
+  tax_amount: number;
+  total_amount: number;
   currency: string;
 }
 
-// Legacy types for backward compatibility
+// Legacy types for backward compatibility (updated to snake_case)
 export type ProductCategory = 'accommodation' | 'transportation' | 'experience' | 'service' | 'other';
 
 export interface ProductSearchParams {
-  category?: ProductCategory;
+  category_id?: ProductCategory;
   status?: ProductStatus;
-  priceMin?: number;
-  priceMax?: number;
+  price_min?: number;
+  price_max?: number;
   location?: string;
   page?: number;
   limit?: number;
@@ -123,41 +124,41 @@ export interface ProductSearchParams {
 
 export interface Product {
   id: string;
-  ownerId: string;
-  categoryId: string;
+  owner_id: string;
+  category_id: string;
   title: string;
   slug: string;
   description: string;
   brand?: string;
   model?: string;
-  serialNumber?: string;
-  yearManufactured?: number;
+  serial_number?: string;
+  year_manufactured?: number;
   condition: ProductCondition;
-  basePricePerDay: number;
-  basePricePerWeek?: number;
-  basePricePerMonth?: number;
-  securityDeposit?: number;
+  base_price_per_day: number;
+  base_price_per_week?: number;
+  base_price_per_month?: number;
+  security_deposit?: number;
   currency: string;
   location?: { latitude: number; longitude: number } | any;
-  addressLine?: string;
+  address_line?: string;
   district?: string;
   sector?: string;
-  pickupAvailable?: boolean;
-  deliveryAvailable?: boolean;
-  deliveryRadiusKm?: number;
-  deliveryFee?: number;
+  pickup_available?: boolean;
+  delivery_available?: boolean;
+  delivery_radius_km?: number;
+  delivery_fee?: number;
   specifications?: Record<string, any>;
   features?: string[];
-  includedAccessories?: string[];
+  included_accessories?: string[];
   status: ProductStatus;
-  isFeatured?: boolean;
-  viewCount?: number;
+  is_featured?: boolean;
+  view_count?: number;
   tags?: string[];
-  searchVector?: string;
-  aiCategoryConfidence?: number;
-  qualityScore?: number;
-  createdAt: string;
-  updatedAt: string;
-  publishedAt?: string;
-  lastBookedAt?: string;
+  search_vector?: string;
+  ai_category_confidence?: number;
+  quality_score?: number;
+  created_at: string;
+  updated_at: string;
+  published_at?: string;
+  last_booked_at?: string;
 }

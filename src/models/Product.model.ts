@@ -40,6 +40,9 @@ export class Product implements ProductData {
   public display_price?: number;
   public display_currency?: string;
   public recommendations?: any[];
+  public features?: string[];
+  public base_price_per_week?: number;
+  public base_price_per_month?: number;
   public created_at: Date;
   public updated_at: Date;
 
@@ -52,7 +55,7 @@ export class Product implements ProductData {
     this.title = data.title;
     this.description = data.description;
     this.category_id = data.category_id;
-    this.status = 'draft';
+    this.status = (data as any).status !== undefined ? (data as any).status : 'draft';
     this.condition = data.condition;
     this.base_price = data.base_price_per_day;
     this.base_currency = data.base_currency;
@@ -63,6 +66,9 @@ export class Product implements ProductData {
     this.availability = [];
     this.view_count = 0;
     this.review_count = 0;
+    this.features = data.features || [];
+    this.base_price_per_week = data.base_price_per_week;
+    this.base_price_per_month = data.base_price_per_month;
     this.created_at = new Date();
     this.updated_at = new Date();
   }
@@ -168,6 +174,16 @@ export class Product implements ProductData {
 
   // Instance methods
   async update(data: UpdateProductData): Promise<Product> {
+    if (data.features && Array.isArray(data.features)) {
+      // Append new features, avoid duplicates
+      this.features = Array.from(new Set([...(this.features || []), ...data.features]));
+    }
+    if (data.base_price_per_week !== undefined) {
+      this.base_price_per_week = data.base_price_per_week;
+    }
+    if (data.base_price_per_month !== undefined) {
+      this.base_price_per_month = data.base_price_per_month;
+    }
     Object.assign(this, data);
     this.updated_at = new Date();
     return this;
@@ -197,6 +213,9 @@ export class Product implements ProductData {
       display_price: this.display_price,
       display_currency: this.display_currency,
       recommendations: this.recommendations,
+      features: this.features,
+      base_price_per_week: this.base_price_per_week,
+      base_price_per_month: this.base_price_per_month,
       created_at: this.created_at,
       updated_at: this.updated_at
     };

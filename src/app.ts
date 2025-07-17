@@ -105,7 +105,7 @@ class App {
     this.app.use(corsMiddleware);
     
     // Rate limiting
-    this.app.use(rateLimitMiddleware);
+    // this.app.use(rateLimitMiddleware);
     
     // Body parsing
     this.app.use(express.json({ 

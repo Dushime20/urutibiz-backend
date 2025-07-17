@@ -24,3 +24,12 @@ export interface CreateProductImageData {
   isPrimary?: boolean;
   aiAnalysis?: Record<string, any>;
 }
+
+export interface UpdateProductImageData {
+  image_url?: string;
+  thumbnailUrl?: string;
+  altText?: string;
+  sortOrder?: number;
+  isPrimary?: boolean;
+  aiAnalysis?: Record<string, any>;
+}

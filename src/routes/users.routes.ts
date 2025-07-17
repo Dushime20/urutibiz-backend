@@ -217,7 +217,7 @@ const controller = new UsersController();
  */
 // Protected routes (authentication required)
 // Note: In a real implementation, these would have authentication middleware
-router.get('/', controller.getUsers);
+router.get('/',requireAuth, controller.getUsers);
 
 /**
  * @swagger

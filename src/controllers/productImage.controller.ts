@@ -83,6 +83,35 @@ class ProductImageController {
     return res.status(200).json({ success: true, data: result.data });
   }
 
+  async update(req: Request, res: Response) {
+    const { imageId } = req.params;
+    let imageUrl = req.body.image_url;
+    let thumbnailUrl = req.body.thumbnail_url;
+    // If a file is uploaded, upload to Cloudinary
+    if (req.file) {
+      try {
+        const result = await cloudinary.uploader.upload(req.file.path, { folder: 'products' });
+        imageUrl = result.secure_url;
+        thumbnailUrl = result.secure_url;
+      } catch (err) {
+        return ResponseHelper.error(res, 'Cloudinary upload failed', 500);
+      }
+    }
+    const data: any = {
+      image_url: imageUrl,
+      thumbnailUrl: thumbnailUrl,
+      altText: req.body.altText,
+      sortOrder: req.body.sortOrder ? parseInt(req.body.sortOrder) : undefined,
+      isPrimary: req.body.isPrimary === 'true' || req.body.isPrimary === true,
+      aiAnalysis: req.body.aiAnalysis
+    };
+    // Remove undefined fields
+    Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
+    const result = await ProductImageService.update(imageId, data);
+    if (!result.success) return ResponseHelper.error(res, result.error || 'Failed to update image', 400);
+    return ResponseHelper.success(res, 'Image updated', result.data);
+  }
+
   async setPrimary(req: Request, res: Response) {
     const { imageId, productId } = req.body;
     const result = await ProductImageService.setPrimary(imageId, productId);

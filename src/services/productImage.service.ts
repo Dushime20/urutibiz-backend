@@ -1,5 +1,5 @@
 import ProductImageRepository from '@/repositories/ProductImageRepository';
-import { ProductImageData, CreateProductImageData } from '@/types/productImage.types';
+import { ProductImageData, CreateProductImageData, UpdateProductImageData } from '@/types/productImage.types';
 import { ValidationError } from '@/types';
 import { runOnnxModel } from '@/utils/onnxRunner';
 import * as ort from 'onnxruntime-node';
@@ -41,6 +41,10 @@ class ProductImageService {
 
   async getById(imageId: string) {
     return ProductImageRepository.findById(imageId);
+  }
+
+  async update(imageId: string, data: UpdateProductImageData) {
+    return ProductImageRepository.updateById(imageId, data);
   }
 
   async setPrimary(imageId: string, product_id: string) {

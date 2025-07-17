@@ -52,7 +52,7 @@ router.use('/bookings', bookingRoutes);
 router.use('/user-verification', userVerificationRoutes);
 router.use('/admin', adminVerificationRoutes);
 router.use('/documents', documentManagementRoutes);
-router.use('/api/categories', categoriesRoutes);
+router.use('/categories', categoriesRoutes);
 router.use('/product-images', productImagesRoutes);
 router.use('/product-availability', productAvailabilityRoutes);
 router.use('/business-rules', businessRulesRoutes);

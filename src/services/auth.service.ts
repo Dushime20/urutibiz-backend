@@ -50,7 +50,14 @@ export default class AuthService {
       token,
       sessionToken,
       refreshToken,
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, kyc_status: (user as any).kyc_status || 'unverified' }
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        kyc_status: (user as any).kyc_status || 'unverified',
+        role: user.role // <-- include role
+      }
     };
   }
 

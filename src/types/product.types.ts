@@ -53,6 +53,9 @@ export interface ProductData {
   recommendations?: any[];
   created_at: Date;
   updated_at: Date;
+  features?: string[];
+  base_price_per_week?: number;
+  base_price_per_month?: number;
 }
 
 export interface CreateProductData {
@@ -68,6 +71,9 @@ export interface CreateProductData {
   country_id: string;
   location: ProductLocation;
   specifications?: Record<string, any>;
+  features?: string[];
+  base_price_per_week?: number;
+  base_price_per_month?: number;
 }
 
 export interface UpdateProductData {
@@ -79,6 +85,9 @@ export interface UpdateProductData {
   location?: Partial<ProductLocation>;
   specifications?: Record<string, any>;
   status?: ProductStatus;
+  features?: string[];
+  base_price_per_week?: number;
+  base_price_per_month?: number;
 }
 
 export interface ProductFilters {

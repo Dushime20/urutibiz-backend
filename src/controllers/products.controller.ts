@@ -691,6 +691,20 @@ export class ProductsController extends BaseController {
     if (body.condition !== undefined) update_data.condition = body.condition;
     if (body.status !== undefined) update_data.status = body.status;
     
+    // Handle features array update
+    if (body.features && Array.isArray(body.features)) {
+      const current_product = await ProductService.getById(body.id); // Fetch current product to get existing features
+      let currentFeatures: string[] = [];
+      if (current_product.success && current_product.data && Array.isArray(current_product.data.features)) {
+        currentFeatures = current_product.data.features;
+      }
+      update_data.features = [...new Set([...(currentFeatures), ...body.features])]; // Merge and remove duplicates
+    }
+
+    // Handle base_price_per_week and base_price_per_month updates
+    if (body.base_price_per_week !== undefined) update_data.base_price_per_week = body.base_price_per_week;
+    if (body.base_price_per_month !== undefined) update_data.base_price_per_month = body.base_price_per_month;
+
     return update_data;
   }
 

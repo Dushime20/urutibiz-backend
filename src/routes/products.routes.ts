@@ -509,7 +509,7 @@ router.post('/', requireAuth, cacheInvalidationMiddleware(['products:*', 'api:GE
  *       500:
  *         description: Server error
  */
-router.put('/:id', cacheInvalidationMiddleware(['products:*', 'api:GET:*products*']), controller.updateProduct);
+router.put('/:id',requireAuth, cacheInvalidationMiddleware(['products:*', 'api:GET:*products*']), controller.updateProduct);
 
 /**
  * @swagger

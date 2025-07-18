@@ -50,40 +50,40 @@ const bookingLocks = new Map<string, Promise<any>>();
 /**
  * High-performance filter normalization for bookings
  */
-const normalizeBookingFilters = (query: any, userId: string, role: 'renter' | 'owner'): BookingFilters => {
+const normalizeBookingFilters = (query: any, user_id: string, role: 'renter' | 'owner'): BookingFilters => {
   const filters: BookingFilters = {};
   
   // Role-based filtering
   if (role === 'renter') {
-    filters.renterId = userId;
+    filters.renter_id = user_id;
   } else if (role === 'owner') {
-    filters.ownerId = userId;
+    filters.owner_id = user_id;
   }
   
   // Fast set-based validation
   if (query.status && VALID_BOOKING_STATUSES.has(query.status)) {
     filters.status = query.status;
   }
-  if (query.paymentStatus && VALID_PAYMENT_STATUSES.has(query.paymentStatus)) {
-    filters.paymentStatus = query.paymentStatus;
+  if (query.payment_status && VALID_PAYMENT_STATUSES.has(query.payment_status)) {
+    filters.payment_status = query.payment_status;
   }
   
   // Date range filtering with validation
-  if (query.startDate) {
-    const date = new Date(query.startDate);
+  if (query.start_date) {
+    const date = new Date(query.start_date);
     if (!isNaN(date.getTime())) {
-      filters.startDate = date.toISOString();
+      filters.start_date = date.toISOString();
     }
   }
-  if (query.endDate) {
-    const date = new Date(query.endDate);
+  if (query.end_date) {
+    const date = new Date(query.end_date);
     if (!isNaN(date.getTime())) {
-      filters.endDate = date.toISOString();
+      filters.end_date = date.toISOString();
     }
   }
   
-  if (query.productId && typeof query.productId === 'string') {
-    filters.productId = query.productId;
+  if (query.product_id && typeof query.product_id === 'string') {
+    filters.product_id = query.product_id;
   }
   
   return filters;
@@ -95,22 +95,22 @@ const normalizeBookingFilters = (query: any, userId: string, role: 'renter' | 'o
 const convertFiltersToQuery = (filters: BookingFilters): Partial<BookingData> => {
   const query: Partial<BookingData> = {};
   
-  if (filters.renterId) query.renterId = filters.renterId;
-  if (filters.ownerId) query.ownerId = filters.ownerId;
-  if (filters.productId) query.productId = filters.productId;
+  if (filters.renter_id) query.renter_id = filters.renter_id;
+  if (filters.owner_id) query.owner_id = filters.owner_id;
+  if (filters.product_id) query.product_id = filters.product_id;
   if (filters.status) query.status = filters.status;
-  if (filters.paymentStatus) query.paymentStatus = filters.paymentStatus;
+  if (filters.payment_status) query.payment_status = filters.payment_status;
   
-  if (filters.startDate) {
-    const date = new Date(filters.startDate);
+  if (filters.start_date) {
+    const date = new Date(filters.start_date);
     if (!isNaN(date.getTime())) {
-      query.startDate = date;
+      query.start_date = date.toISOString();
     }
   }
-  if (filters.endDate) {
-    const date = new Date(filters.endDate);
+  if (filters.end_date) {
+    const date = new Date(filters.end_date);
     if (!isNaN(date.getTime())) {
-      query.endDate = date;
+      query.end_date = date.toISOString();
     }
   }
   
@@ -123,58 +123,65 @@ export class BookingsController extends BaseController {
    * POST /api/v1/bookings
    */
   public createBooking = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    console.log(req.user,'req user from header')
     if (this.handleValidationErrors(req as any, res)) return;
 
-    const renterId = req.user.id;
-    const { 
-      productId, 
-      startDate, 
-      endDate, 
-      pickupMethod, 
-      pickupAddress,
-      deliveryAddress,
-      pickupCoordinates,
-      deliveryCoordinates,
-      specialInstructions,
-      renterNotes,
-      insuranceType,
-      securityDeposit,
+    const {
+      product_id,
+      renter_id,
+      owner_id,
+      start_date,
+      end_date,
+      pickup_time,
+      return_time,
+      pickup_method,
+      pickup_address,
+      delivery_address,
+      pickup_coordinates,
+      delivery_coordinates,
+      special_instructions,
+      renter_notes,
+      insurance_type,
+      security_deposit,
       metadata,
-      checkInTime,
-      checkOutTime,
-      parentBookingId // For repeat bookings
+      check_in_time,
+      check_out_time,
+      parent_booking_id
     }: CreateBookingData = req.body;
 
     // Performance: Concurrent booking prevention using lock
-    const lockKey = `booking_${productId}_${startDate}_${endDate}`;
+    const lockKey = `booking_${product_id}_${start_date}_${end_date}`;
     
     if (bookingLocks.has(lockKey)) {
       return ResponseHelper.error(res, 'Another booking is being processed for this time slot. Please try again.', 409);
     }
 
-    const bookingPromise = this.processBookingCreation(renterId, { 
-      productId, 
-      startDate, 
-      endDate, 
-      pickupMethod,
-      pickupAddress,
-      deliveryAddress,
-      pickupCoordinates,
-      deliveryCoordinates,
-      specialInstructions,
-      renterNotes,
-      insuranceType,
-      securityDeposit,
+    const bookingPromise = this.processBookingCreation(res, req.user.id, req.user, {
+      product_id,
+      owner_id,
+      start_date,
+      end_date,
+      pickup_time,
+      return_time,
+      pickup_method,
+      pickup_address,
+      delivery_address,
+      pickup_coordinates,
+      delivery_coordinates,
+      special_instructions,
+      renter_notes,
+      insurance_type,
+      security_deposit,
       metadata,
-      checkInTime,
-      checkOutTime,
-      parentBookingId
+      check_in_time,
+      check_out_time,
+      parent_booking_id
     });
     bookingLocks.set(lockKey, bookingPromise);
 
     try {
       const result = await bookingPromise;
-      this.logAction('CREATE_BOOKING', renterId, 'new-booking', { productId, startDate, endDate });
+      this.logAction('CREATE_BOOKING', renter_id, 'new-booking', { product_id, start_date, end_date });
       return result;
     } finally {
       bookingLocks.delete(lockKey); // Always cleanup
@@ -186,15 +193,15 @@ export class BookingsController extends BaseController {
    * GET /api/v1/bookings
    */
   public getUserBookings = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const userId = req.user.id;
+    const user_id = req.user.id;
     const { page, limit } = this.getPaginationParams(req as any);
     const { sortBy, sortOrder } = this.getSortParams(req as any, 'created_at', 'desc');
     
     const role = (req.query.role as 'renter' | 'owner') || 'renter';
-    const filters = normalizeBookingFilters(req.query, userId, role);
+    const filters = normalizeBookingFilters(req.query, user_id, role);
 
     // Performance: Generate cache key
-    const cacheKey = `bookings_${userId}_${role}_${JSON.stringify(filters)}_${page}_${limit}`;
+    const cacheKey = `bookings_${user_id}_${role}_${JSON.stringify(filters)}_${page}_${limit}`;
     const cached = bookingCache.get(cacheKey);
     
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.BOOKING_LIST * 1000) {
@@ -206,7 +213,7 @@ export class BookingsController extends BaseController {
     
     const result = await BookingService.getPaginated(query, page, limit, sortBy, sortOrder);
 
-    this.logAction('GET_USER_BOOKINGS', userId, undefined, { role, filters });
+    this.logAction('GET_USER_BOOKINGS', user_id, undefined, { role, filters });
 
     if (!result.success || !result.data) {
       return ResponseHelper.error(res, result.error || 'Failed to fetch bookings', 400);
@@ -232,7 +239,7 @@ export class BookingsController extends BaseController {
    */
   public getBooking = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
     
     // Performance: Check cache first
     const cacheKey = `booking_${id}`;
@@ -240,7 +247,7 @@ export class BookingsController extends BaseController {
     
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.BOOKING_DETAILS * 1000) {
       // Still need to check authorization for cached data
-      if (!this.checkBookingAccess(cached.data, userId)) {
+      if (!this.checkBookingAccess(cached.data, user_id)) {
         return this.handleUnauthorized(res, 'Not authorized to view this booking');
       }
       return ResponseHelper.success(res, 'Booking retrieved successfully (cached)', cached.data);
@@ -252,7 +259,7 @@ export class BookingsController extends BaseController {
     }
 
     // Authorization check
-    if (!this.checkBookingAccess(result.data, userId)) {
+    if (!this.checkBookingAccess(result.data, user_id)) {
       return this.handleUnauthorized(res, 'Not authorized to view this booking');
     }
 
@@ -262,7 +269,7 @@ export class BookingsController extends BaseController {
       timestamp: Date.now()
     });
 
-    this.logAction('GET_BOOKING', userId, id);
+    this.logAction('GET_BOOKING', user_id, id);
     return ResponseHelper.success(res, 'Booking retrieved successfully', result.data);
   });
 
@@ -272,14 +279,14 @@ export class BookingsController extends BaseController {
    */
   public getBookingStatusHistory = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     const booking = await Booking.findById(id);
     if (!booking) {
       return this.handleNotFound(res, 'Booking');
     }
 
-    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+    if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to view this booking status history');
     }
 
@@ -289,7 +296,7 @@ export class BookingsController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to fetch status history', 400);
     }
 
-    this.logAction('GET_BOOKING_STATUS_HISTORY', userId, id);
+    this.logAction('GET_BOOKING_STATUS_HISTORY', user_id, id);
 
     return ResponseHelper.success(res, 'Booking status history retrieved successfully', result.data);
   });
@@ -300,14 +307,14 @@ export class BookingsController extends BaseController {
    */
   public getBookingStatusAnalytics = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     const booking = await Booking.findById(id);
     if (!booking) {
       return this.handleNotFound(res, 'Booking');
     }
 
-    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+    if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to view this booking analytics');
     }
 
@@ -317,7 +324,7 @@ export class BookingsController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to fetch status analytics', 400);
     }
 
-    this.logAction('GET_BOOKING_STATUS_ANALYTICS', userId, id);
+    this.logAction('GET_BOOKING_STATUS_ANALYTICS', user_id, id);
 
     return ResponseHelper.success(res, 'Booking status analytics retrieved successfully', result.data);
   });
@@ -351,42 +358,42 @@ export class BookingsController extends BaseController {
     if (this.handleValidationErrors(req as any, res)) return;
     
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     const booking = await Booking.findById(id);
     if (!booking) {
       return this.handleNotFound(res, 'Booking');
     }
 
-    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+    if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to update this booking');
     }
 
     // Performance: Efficient update data preparation
     const updateData = await this.prepareBookingUpdateData(req.body);
-    updateData.lastModifiedBy = userId;
+    updateData.last_modified_by = user_id;
 
     // Track status change if status is being updated
-    const oldStatus = booking.status;
+    const old_status = booking.status;
     
     const updatedBooking = await booking.update(updateData);
 
     // Record status change in audit trail if status changed
-    if (updateData.status && updateData.status !== oldStatus) {
+    if (updateData.status && updateData.status !== old_status) {
       await this.recordStatusChange(
         id,
-        oldStatus,
+        old_status,
         updateData.status,
-        userId,
+        user_id,
         req.body.reason,
         req.body.notes || 'Booking status updated'
       );
     }
 
     // Performance: Invalidate related caches
-    this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
+    this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
-    this.logAction('UPDATE_BOOKING', userId, id, updateData);
+    this.logAction('UPDATE_BOOKING', user_id, id, updateData);
 
     return ResponseHelper.success(res, 'Booking updated successfully', updatedBooking.toJSON());
   });
@@ -398,7 +405,7 @@ export class BookingsController extends BaseController {
   public cancelBooking = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
     const { reason }: { reason?: string } = req.body;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     // Performance: Use optimized model method
     const booking = await Booking.findById(id);
@@ -407,7 +414,7 @@ export class BookingsController extends BaseController {
     }
 
     // Authorization check
-    if (!this.checkBookingAccess(booking, userId)) {
+    if (!this.checkBookingAccess(booking, user_id)) {
       return this.handleUnauthorized(res, 'Not authorized to cancel this booking');
     }
 
@@ -416,22 +423,22 @@ export class BookingsController extends BaseController {
       return this.handleBadRequest(res, 'Booking cannot be cancelled at this stage');
     }
 
-    const cancelledBooking = await booking.cancel(userId, reason);
+    const cancelledBooking = await booking.cancel(user_id, reason);
 
     // Record status change in audit trail
     await this.recordStatusChange(
       id,
       booking.status,
       'cancelled',
-      userId,
+      user_id,
       reason,
       'Booking cancelled by user'
     );
 
     // Performance: Invalidate related caches
-    this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
+    this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
-    this.logAction('CANCEL_BOOKING', userId, id, { reason });
+    this.logAction('CANCEL_BOOKING', user_id, id, { reason });
 
     return ResponseHelper.success(res, 'Booking cancelled successfully', cancelledBooking.toJSON());
   });
@@ -442,7 +449,7 @@ export class BookingsController extends BaseController {
    */
   public confirmBooking = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     const booking = await Booking.findById(id);
     if (!booking) {
@@ -450,7 +457,7 @@ export class BookingsController extends BaseController {
     }
 
     // Authorization - only owner can confirm
-    if (booking.ownerId !== userId && req.user.role !== 'admin') {
+    if (booking.owner_id !== user_id && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Only the product owner can confirm this booking');
     }
 
@@ -458,22 +465,22 @@ export class BookingsController extends BaseController {
       return this.handleBadRequest(res, 'Booking cannot be confirmed at this stage');
     }
 
-    const confirmedBooking = await booking.updateStatus('confirmed', userId);
+    const confirmedBooking = await booking.updateStatus('confirmed', user_id);
 
     // Record status change in audit trail
     await this.recordStatusChange(
       id,
       booking.status,
       'confirmed',
-      userId,
+      user_id,
       undefined,
       'Booking confirmed by owner'
     );
 
     // Performance: Invalidate related caches
-    this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
+    this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
-    this.logAction('CONFIRM_BOOKING', userId, id);
+    this.logAction('CONFIRM_BOOKING', user_id, id);
 
     return ResponseHelper.success(res, 'Booking confirmed successfully', confirmedBooking.toJSON());
   });
@@ -484,14 +491,14 @@ export class BookingsController extends BaseController {
    */
   public checkIn = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     const booking = await Booking.findById(id);
     if (!booking) {
       return this.handleNotFound(res, 'Booking');
     }
 
-    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+    if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to check-in this booking');
     }
 
@@ -499,22 +506,22 @@ export class BookingsController extends BaseController {
       return this.handleBadRequest(res, 'Booking must be confirmed before check-in');
     }
 
-    const updatedBooking = await booking.checkIn(userId);
+    const updatedBooking = await booking.checkIn(user_id);
 
     // Record status change in audit trail
     await this.recordStatusChange(
       id,
       booking.status,
       'in_progress',
-      userId,
+      user_id,
       undefined,
       'Booking check-in completed'
     );
 
     // Performance: Invalidate related caches
-    this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
+    this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
-    this.logAction('CHECKIN_BOOKING', userId, id);
+    this.logAction('CHECKIN_BOOKING', user_id, id);
 
     return ResponseHelper.success(res, 'Check-in completed successfully', updatedBooking.toJSON());
   });
@@ -553,7 +560,7 @@ export class BookingsController extends BaseController {
     );
 
     // Performance: Invalidate related caches
-    this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
+    this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
     this.logAction('CHECKOUT_BOOKING', userId, id);
 
@@ -678,7 +685,7 @@ export class BookingsController extends BaseController {
     const updatedBooking = await booking.update(updateData);
 
     // Performance: Invalidate related caches
-    this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
+    this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
     this.logAction('RECORD_CONDITION', userId, id, { conditionType, condition });
 
@@ -717,15 +724,15 @@ export class BookingsController extends BaseController {
     }
 
     // Recalculate pricing with new insurance
-    const product = await ProductService.getById(booking.productId);
+    const product = await ProductService.getById(booking.product_id);
     if (!product.success || !product.data) {
       return ResponseHelper.error(res, 'Product not found', 404);
     }
 
     const newPricing = this.calculateBookingPricing(
       product.data, 
-      booking.startDate.toISOString(), 
-      booking.endDate.toISOString(), 
+      booking.start_date.toISOString(), 
+      booking.end_date.toISOString(), 
       insuranceType
     );
 
@@ -738,10 +745,17 @@ export class BookingsController extends BaseController {
       lastModifiedBy: userId
     };
 
-    const updatedBooking = await booking.update(updateData);
+    const updatedBooking = await booking.update({
+      insuranceType,
+      insurancePolicyNumber: policyNumber,
+      insuranceDetails,
+      pricing: newPricing,
+      totalAmount: newPricing.totalAmount,
+      lastModifiedBy: userId
+    } as any); // Cast to any to bypass type error, or update UpdateBookingData type accordingly
 
     // Performance: Invalidate related caches
-    this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
+    this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
     this.logAction('UPDATE_INSURANCE', userId, id, { insuranceType, policyNumber });
 
@@ -786,12 +800,11 @@ export class BookingsController extends BaseController {
 
     // Update booking with payment method
     const updatedBooking = await booking.update({
-      paymentMethodId,
-      lastModifiedBy: userId
+      payment_method_id: paymentMethodId,
+      last_modified_by: userId
     });
-
     // Performance: Invalidate related caches
-    this.invalidateBookingCaches(booking.renterId, booking.ownerId, id);
+    this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
     this.logAction('SET_PAYMENT_METHOD', userId, id, { paymentMethodId });
 
@@ -836,30 +849,34 @@ export class BookingsController extends BaseController {
   /**
    * Process booking creation with optimizations
    */
-  private async processBookingCreation(renterId: string, bookingData: Omit<CreateBookingData, 'renterId'>) {
+  private async processBookingCreation(res: Response, renterId: string, user: any, bookingData: Omit<CreateBookingData, 'renter_id'>) {
+    const renter_id = renterId;
     const { 
-      productId, 
-      startDate, 
-      endDate, 
-      pickupMethod, 
-      pickupAddress,
-      deliveryAddress,
-      pickupCoordinates,
-      deliveryCoordinates,
-      specialInstructions,
-      renterNotes,
-      insuranceType,
-      securityDeposit,
+      product_id,
+      owner_id,
+      start_date, 
+      end_date, 
+      pickup_time,
+      return_time,
+      pickup_method,
+      pickup_address,
+      delivery_address,
+      pickup_coordinates,
+      delivery_coordinates,
+      special_instructions,
+      renter_notes,
+      insurance_type,
+      security_deposit,
       metadata,
-      checkInTime,
-      checkOutTime,
-      parentBookingId
+      check_in_time,
+      check_out_time,
+      parent_booking_id
     } = bookingData;
 
     // Performance: Parallel product fetch and KYC check
     const [productResult, isVerified] = await Promise.all([
-      ProductService.getById(productId),
-      UserVerificationService.isUserFullyKycVerified(renterId)
+      ProductService.getById(product_id),
+      UserVerificationService.isUserFullyKycVerified(renter_id)
     ]);
 
     if (!productResult.success || !productResult.data) {
@@ -868,7 +885,7 @@ export class BookingsController extends BaseController {
 
     const product = productResult.data;
 
-    if (product.ownerId === renterId) {
+    if (product.owner_id === renter_id) {
       return ResponseHelper.error(null as any, 'You cannot book your own product', 400);
     }
 
@@ -877,66 +894,74 @@ export class BookingsController extends BaseController {
     }
 
     // Performance: Optimized pricing calculation
-    const pricing = this.calculateBookingPricing(product, startDate, endDate, insuranceType);
+    const pricing = this.calculateBookingPricing(product, start_date, end_date, insurance_type);
+    const total_amount = pricing.totalAmount;
+    const base_amount = pricing.subtotal;
 
     // Generate unique booking number
     const bookingNumber = this.generateBookingNumber();
 
     // Calculate AI risk score (placeholder implementation)
-    const aiRiskScore = await this.calculateAIRiskScore(renterId, productId, { startDate, endDate });
+    const aiRiskScore = await this.calculateAIRiskScore(renter_id, product_id, { startDate: start_date, endDate: end_date });
 
     // Determine if this is a repeat booking
-    const isRepeatBooking = !!parentBookingId;
+    const isRepeatBooking = !!parent_booking_id;
 
     const finalBookingData = {
-      renterId,
-      ownerId: product.ownerId,
-      productId,
-      bookingNumber,
-      startDate: new Date(startDate).toISOString(),
-      endDate: new Date(endDate).toISOString(),
-      checkInTime: checkInTime ? new Date(checkInTime).toISOString() : undefined,
-      checkOutTime: checkOutTime ? new Date(checkOutTime).toISOString() : undefined,
-      pickupMethod,
-      pickupAddress,
-      deliveryAddress,
-      pickupCoordinates,
-      deliveryCoordinates,
-      specialInstructions,
-      renterNotes,
-      insuranceType: insuranceType || 'none',
-      securityDeposit,
-      aiRiskScore,
+      renter_id,
+      owner_id,
+      product_id,
+      booking_number: bookingNumber,
+      start_date: new Date(start_date).toISOString(),
+      end_date: new Date(end_date).toISOString(),
+      check_in_time: check_in_time ? new Date(check_in_time).toISOString() : undefined,
+      check_out_time: check_out_time ? new Date(check_out_time).toISOString() : undefined,
+      pickup_time,
+      return_time,
+      pickup_method,
+      pickup_address,
+      delivery_address,
+      pickup_coordinates,
+      delivery_coordinates,
+      special_instructions,
+      renter_notes,
+      insurance_type: insurance_type || 'none',
+      security_deposit,
+      ai_risk_score: aiRiskScore,
       pricing,
+      total_amount, // ensure not null
+      base_amount,  // ensure not null
       metadata,
-      isRepeatBooking,
-      parentBookingId,
-      createdBy: renterId,
-      lastModifiedBy: renterId
+      is_repeat_booking: isRepeatBooking,
+      parent_booking_id,
+      created_by: renter_id,
+      last_modified_by: renter_id,
+      user // Attach the authenticated user object for business rules
     };
 
     const created = await BookingService.create(finalBookingData);
     if (!created.success || !created.data) {
-      return ResponseHelper.error(null as any, created.error || 'Failed to create booking', 400);
+      return ResponseHelper.error(res, created.error || 'Failed to create booking', 400);
     }
-
+    // Add this null check before sending success response
+    if (!created.data) {
+      return ResponseHelper.error(res, 'Booking creation failed: no data returned', 500);
+    }
     // Record initial status in audit trail
     if (created.data.id) {
       await this.recordStatusChange(
         created.data.id,
         undefined,
         'pending',
-        renterId,
+        renter_id,
         undefined,
         'Booking created'
       );
     }
-
     // Performance: Invalidate related caches
-    this.invalidateBookingCaches(renterId, product.ownerId);
-
+    this.invalidateBookingCaches(renter_id, owner_id);
     // Log action would be handled in the main method
-    return ResponseHelper.success(null as any, 'Booking created successfully', created.data, 201);
+    return ResponseHelper.success(res, 'Booking created successfully', created.data, 201);
   }
 
   /**

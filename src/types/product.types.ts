@@ -36,7 +36,7 @@ export interface ProductData {
   category_id: string;
   status: ProductStatus;
   condition: ProductCondition;
-  base_price: number;
+  base_price_per_day: number;
   base_currency: string;
   pickup_methods: any[];
   location: ProductLocation;

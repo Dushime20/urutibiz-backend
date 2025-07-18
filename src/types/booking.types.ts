@@ -12,172 +12,176 @@ export type ConditionType = 'excellent' | 'good' | 'fair' | 'poor' | 'damaged';
 // Enhanced comprehensive booking data interface
 export interface BookingData {
   id: string;
-  bookingNumber?: string; // Unique booking reference
-  renterId: string;
-  ownerId: string;
-  productId: string;
+  booking_number?: string; // Unique booking reference
+  renter_id: string;
+  owner_id: string;
+  product_id: string;
   status: BookingStatus;
-  paymentStatus: PaymentStatus;
-  paymentMethodId?: string; // Reference to payment method used
+  payment_status: PaymentStatus;
+  payment_method_id?: string; // Reference to payment method used
   
   // Payment transaction IDs for tracking
-  paymentTransactionId?: string; // Main payment transaction
-  depositTransactionId?: string; // Security deposit transaction
-  refundTransactionId?: string; // Refund transaction if applicable
+  payment_transaction_id?: string; // Main payment transaction
+  deposit_transaction_id?: string; // Security deposit transaction
+  refund_transaction_id?: string; // Refund transaction if applicable
   
-  insuranceType?: InsuranceType;
+  insurance_type?: InsuranceType;
   
   // Dates and times
-  startDate: Date;
-  endDate: Date;
-  totalDays?: number; // Generated in database
-  checkInTime?: Date;
-  checkOutTime?: Date;
-  pickupTime?: Date;
-  returnTime?: Date;
+  start_date: string;
+  end_date: string;
+  total_days?: number; // Generated in database
+  check_in_time?: string;
+  check_out_time?: string;
+  pickup_time?: string;
+  return_time?: string;
   
   // Pickup and delivery information
-  pickupMethod: PickupMethod;
-  pickupAddress?: string;
-  deliveryAddress?: string;
-  pickupCoordinates?: { lat: number; lng: number };
-  deliveryCoordinates?: { lat: number; lng: number };
+  pickup_method: PickupMethod;
+  pickup_address?: string;
+  delivery_address?: string;
+  pickup_coordinates?: { lat: number; lng: number };
+  delivery_coordinates?: { lat: number; lng: number };
   
   // Pricing breakdown (matching database schema)
-  baseAmount?: number;
-  deliveryFee?: number;
-  serviceFee?: number;
-  insuranceFee?: number;
-  taxAmount?: number;
-  discountAmount?: number;
-  totalAmount: number;
-  securityDeposit?: number;
+  base_amount?: number;
+  delivery_fee?: number;
+  service_fee?: number;
+  insurance_fee?: number;
+  tax_amount?: number;
+  discount_amount?: number;
+  total_amount: number;
+  security_deposit?: number;
   currency?: string;
   
   // Insurance information
-  insurancePolicyNumber?: string;
-  insurancePremium?: number;
-  insuranceDetails?: Record<string, any>;
+  insurance_policy_number?: string;
+  insurance_premium?: number;
+  insurance_details?: Record<string, any>;
   
   // Legacy pricing structure (for backward compatibility)
   pricing?: ProductPricing;
-  platformFee?: number;
+  platform_fee?: number;
   
   // AI and risk assessment
-  aiRiskScore?: number;
-  aiCompatibilityScore?: number;
-  aiAssessment?: Record<string, any>;
+  ai_risk_score?: number;
+  ai_compatibility_score?: number;
+  ai_assessment?: Record<string, any>;
   
   // Notes and instructions
-  specialInstructions?: string;
-  renterNotes?: string;
-  ownerNotes?: string;
-  adminNotes?: string;
+  special_instructions?: string;
+  renter_notes?: string;
+  owner_notes?: string;
+  admin_notes?: string;
   
   // Condition tracking
-  initialCondition?: ConditionType;
-  finalCondition?: ConditionType;
-  damageReport?: string;
-  damagePhotos?: string[];
+  initial_condition?: ConditionType;
+  final_condition?: ConditionType;
+  damage_report?: string;
+  damage_photos?: string[];
   
   // Audit information
-  createdBy?: string;
-  lastModifiedBy?: string;
-  createdAt: Date;
-  updatedAt: Date;
-  confirmedAt?: Date;
-  startedAt?: Date;
-  completedAt?: Date;
-  cancelledAt?: Date;
+  created_by?: string;
+  last_modified_by?: string;
+  created_at: string;
+  updated_at: string;
+  confirmed_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  cancelled_at?: string;
   
   // Additional metadata
   metadata?: Record<string, any>;
-  isRepeatBooking?: boolean;
-  parentBookingId?: string;
+  is_repeat_booking?: boolean;
+  parent_booking_id?: string;
 }
 
 export interface CreateBookingData {
-  productId: string;
-  startDate: string;
-  endDate: string;
-  pickupMethod: PickupMethod;
-  pickupAddress?: string;
-  deliveryAddress?: string;
-  pickupCoordinates?: { lat: number; lng: number };
-  deliveryCoordinates?: { lat: number; lng: number };
-  checkInTime?: string;
-  checkOutTime?: string;
-  specialInstructions?: string;
-  renterNotes?: string;
-  insuranceType?: InsuranceType;
-  securityDeposit?: number;
+  product_id: string;
+  renter_id: string;
+  owner_id: string;
+  start_date: string;
+  end_date: string;
+  pickup_time: string;
+  return_time: string;
+  pickup_method: PickupMethod;
+  pickup_address?: string;
+  delivery_address?: string;
+  pickup_coordinates?: { lat: number; lng: number };
+  delivery_coordinates?: { lat: number; lng: number };
+  check_in_time?: string;
+  check_out_time?: string;
+  special_instructions?: string;
+  renter_notes?: string;
+  insurance_type?: InsuranceType;
+  security_deposit?: number;
   metadata?: Record<string, any>;
-  parentBookingId?: string; // For repeat bookings
+  parent_booking_id?: string; // For repeat bookings
 }
 
 export interface UpdateBookingData {
   status?: BookingStatus;
-  paymentStatus?: PaymentStatus;
-  paymentMethodId?: string; // Reference to payment method
-  checkInTime?: Date;
-  checkOutTime?: Date;
-  pickupTime?: Date;
-  returnTime?: Date;
-  specialInstructions?: string;
-  renterNotes?: string;
-  ownerNotes?: string;
-  adminNotes?: string;
-  aiRiskScore?: number;
-  aiCompatibilityScore?: number;
-  initialCondition?: ConditionType;
-  finalCondition?: ConditionType;
-  damageReport?: string;
-  damagePhotos?: string[];
-  insuranceType?: InsuranceType;
-  insurancePolicyNumber?: string;
-  insuranceDetails?: Record<string, any>;
-  lastModifiedBy?: string;
-  confirmedAt?: Date;
-  startedAt?: Date;
-  completedAt?: Date;
-  cancelledAt?: Date;
+  payment_status?: PaymentStatus;
+  payment_method_id?: string; // Reference to payment method
+  check_in_time?: string;
+  check_out_time?: string;
+  pickup_time?: string;
+  return_time?: string;
+  special_instructions?: string;
+  renter_notes?: string;
+  owner_notes?: string;
+  admin_notes?: string;
+  ai_risk_score?: number;
+  ai_compatibility_score?: number;
+  initial_condition?: ConditionType;
+  final_condition?: ConditionType;
+  damage_report?: string;
+  damage_photos?: string[];
+  insurance_type?: InsuranceType;
+  insurance_policy_number?: string;
+  insurance_details?: Record<string, any>;
+  last_modified_by?: string;
+  confirmed_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  cancelled_at?: string;
   metadata?: Record<string, any>;
 }
 
 export interface BookingFilters {
-  renterId?: string;
-  ownerId?: string;
-  productId?: string;
+  renter_id?: string;
+  owner_id?: string;
+  product_id?: string;
   status?: BookingStatus;
-  paymentStatus?: PaymentStatus;
-  insuranceType?: InsuranceType;
-  startDate?: string;
-  endDate?: string;
-  bookingNumber?: string;
-  minAmount?: number;
-  maxAmount?: number;
-  hasInsurance?: boolean;
-  isDamaged?: boolean;
+  payment_status?: PaymentStatus;
+  insurance_type?: InsuranceType;
+  start_date?: string;
+  end_date?: string;
+  booking_number?: string;
+  min_amount?: number;
+  max_amount?: number;
+  has_insurance?: boolean;
+  is_damaged?: boolean;
 }
 
 // Legacy types for backward compatibility
 export interface BookingPricing {
-  basePrice: number;
+  base_price: number;
   currency: string;
-  totalDays: number;
+  total_days: number;
   subtotal: number;
-  platformFee: number;
-  taxAmount: number;
-  totalAmount: number;
-  securityDeposit?: number;
-  discountAmount?: number;
-  insuranceFee: number;
+  platform_fee: number;
+  tax_amount: number;
+  total_amount: number;
+  security_deposit?: number;
+  discount_amount?: number;
+  insurance_fee: number;
 }
 
 export interface BookingTimelineEvent {
   id: string;
-  eventType: string;
-  userId: string;
+  event_type: string;
+  user_id: string;
   timestamp: Date;
   description: string;
   metadata?: Record<string, any>;
@@ -185,11 +189,11 @@ export interface BookingTimelineEvent {
 
 export interface BookingMessage {
   id: string;
-  bookingId: string;
-  senderId: string;
+  booking_id: string;
+  sender_id: string;
   message: string;
   timestamp: Date;
-  isRead: boolean;
+  is_read: boolean;
   attachments?: Array<{
     id: string;
     url: string;
@@ -201,38 +205,38 @@ export interface BookingMessage {
 // Enhanced booking status history interface
 export interface BookingStatusHistory {
   id: string;
-  bookingId: string;
-  previousStatus?: string;
-  newStatus: string;
-  changedBy: string;
+  booking_id: string;
+  previous_status?: string;
+  new_status: string;
+  changed_by: string;
   reason?: string;
   metadata?: Record<string, any>;
-  changedAt: Date;
+  changed_at: Date;
 }
 
 export interface BookingSearchParams {
-  userId?: string;
-  productId?: string;
+  user_id?: string;
+  product_id?: string;
   status?: string;
-  startDate?: Date;
-  endDate?: Date;
+  start_date?: Date;
+  end_date?: Date;
   page?: number;
   limit?: number;
-  bookingNumber?: string;
-  insuranceType?: string;
-  minAmount?: number;
-  maxAmount?: number;
+  booking_number?: string;
+  insurance_type?: string;
+  min_amount?: number;
+  max_amount?: number;
 }
 
 // Insurance-related types
 export interface InsuranceDetails {
   provider: string;
-  policyNumber: string;
+  policy_number: string;
   coverage: {
-    damageLimit: number;
-    theftCoverage: boolean;
-    liabilityCoverage: boolean;
-    personalAccidentCoverage: boolean;
+    damage_limit: number;
+    theft_coverage: boolean;
+    liability_coverage: boolean;
+    personal_accident_coverage: boolean;
   };
   premium: number;
   deductible: number;
@@ -241,11 +245,11 @@ export interface InsuranceDetails {
 
 // AI assessment types
 export interface AIAssessment {
-  renterRiskScore: number;
-  productRiskScore: number;
-  bookingRiskScore: number;
-  riskFactors: string[];
+  renter_risk_score: number;
+  product_risk_score: number;
+  booking_risk_score: number;
+  risk_factors: string[];
   recommendations: string[];
-  confidenceLevel: number;
-  assessmentDate: Date;
+  confidence_level: number;
+  assessment_date: Date;
 }

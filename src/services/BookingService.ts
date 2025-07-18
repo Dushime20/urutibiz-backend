@@ -10,12 +10,12 @@ class BookingService extends BaseService<BookingData, CreateBookingData, UpdateB
     super(BookingRepository);
   }
 
-  protected async validateCreate(data: CreateBookingData): Promise<ValidationError[]> {
+  public async validateCreate(data: CreateBookingData): Promise<ValidationError[]> {
     const errors: ValidationError[] = [];
-    if (!data.productId) errors.push({ field: 'productId', message: 'Product ID is required' });
-    if (!data.startDate) errors.push({ field: 'startDate', message: 'Start date is required' });
-    if (!data.endDate) errors.push({ field: 'endDate', message: 'End date is required' });
-    if (!data.pickupMethod) errors.push({ field: 'pickupMethod', message: 'Pickup method is required' });
+    if (!data.product_id) errors.push({ field: 'product_id', message: 'Product ID is required' });
+    if (!data.start_date) errors.push({ field: 'start_date', message: 'Start date is required' });
+    if (!data.end_date) errors.push({ field: 'end_date', message: 'End date is required' });
+    if (!data.pickup_method) errors.push({ field: 'pickup_method', message: 'Pickup method is required' });
     // Add more advanced validation as needed
     return errors;
   }

@@ -285,23 +285,16 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
   @performanceTrack('BaseRepository.create')
   async create(data: CreateData): Promise<ServiceResponse<T>> {
     try {
-      // Debug and force JSON for pickup_methods
-      const pickupMethods = (data as any)?.pickup_methods;
-      if (pickupMethods) {
-        console.log('[DEBUG] pickup_methods before DB insert:', pickupMethods, typeof pickupMethods, Array.isArray(pickupMethods));
-        if (Array.isArray(pickupMethods)) {
-          (data as any).pickup_methods = JSON.stringify(pickupMethods);
-          console.log('[DEBUG] pickup_methods after JSON.stringify:', (data as any).pickup_methods, typeof (data as any).pickup_methods);
-        }
-      }
+      // Remove 'user' property if present
+      const { user, ...dbData } = data as any;
       // Handle geometry location (POINT)
       let dbLocation = null;
-      const location = (data as any)?.location;
+      const location = (dbData as any)?.location;
       if (location && location.latitude && location.longitude) {
         dbLocation = `SRID=4326;POINT(${location.longitude} ${location.latitude})`;
         console.log('[DEBUG] location as WKT:', dbLocation);
       }
-      const formattedData = this.formatDatabaseFields(data);
+      const formattedData = this.formatDatabaseFields(dbData);
       const insertData = {
         ...formattedData,
         location: dbLocation ? getDatabase().raw('ST_GeomFromText(?)', [dbLocation]) : null,

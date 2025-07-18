@@ -189,7 +189,7 @@ export class Product implements ProductData {
     return this;
   }
 
-  toJSON(): ProductData {
+  toJSON(): ProductData & { base_price_per_day: number } {
     return {
       id: this.id,
       owner_id: this.owner_id,
@@ -198,7 +198,7 @@ export class Product implements ProductData {
       category_id: this.category_id,
       status: this.status,
       condition: this.condition,
-      base_price: this.base_price,
+      base_price_per_day: this.base_price, // Only return this for daily price
       base_currency: this.base_currency,
       pickup_methods: this.pickup_methods,
       location: this.location,

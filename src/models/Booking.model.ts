@@ -22,100 +22,102 @@ import { v4 as uuidv4 } from 'uuid';
 // Demo Booking Model - In-memory implementation
 export class Booking {
   public id: string;
-  public bookingNumber: string;
-  public renterId: string;
-  public ownerId: string;
-  public productId: string;
-  public startDate: Date;
-  public endDate: Date;
+  public booking_number: string;
+  public renter_id: string;
+  public owner_id: string;
+  public product_id: string;
+  public start_date: Date;
+  public end_date: Date;
   public status: BookingStatus;
-  public paymentStatus: PaymentStatus;
-  public insuranceType?: InsuranceType;
+  public payment_status: PaymentStatus;
+  public insurance_type?: InsuranceType;
   
   // Pickup and delivery information
-  public pickupMethod: PickupMethod;
-  public pickupAddress?: string;
-  public deliveryAddress?: string;
-  public pickupCoordinates?: { lat: number; lng: number };
-  public deliveryCoordinates?: { lat: number; lng: number };
+  public pickup_method: PickupMethod;
+  public pickup_address?: string;
+  public delivery_address?: string;
+  public pickup_coordinates?: { lat: number; lng: number };
+  public delivery_coordinates?: { lat: number; lng: number };
   
   // Insurance information
-  public insurancePolicyNumber?: string;
-  public insurancePremium?: number;
-  public insuranceDetails?: Record<string, any>;
+  public insurance_policy_number?: string;
+  public insurance_premium?: number;
+  public insurance_details?: Record<string, any>;
   
   // Financial information
   public pricing: BookingPricing;
-  public totalAmount: number;
-  public securityDeposit?: number;
-  public platformFee?: number;
-  public taxAmount?: number;
+  public total_amount: number;
+  public security_deposit?: number;
+  public platform_fee?: number;
+  public tax_amount?: number;
   
   // AI and risk assessment
-  public aiRiskScore?: number;
-  public aiAssessment?: Record<string, any>;
+  public ai_risk_score?: number;
+  public ai_assessment?: Record<string, any>;
   
   // Notes and instructions
-  public specialInstructions?: string;
-  public renterNotes?: string;
-  public ownerNotes?: string;
-  public adminNotes?: string;
+  public special_instructions?: string;
+  public renter_notes?: string;
+  public owner_notes?: string;
+  public admin_notes?: string;
   
   // Condition tracking
-  public initialCondition?: ConditionType;
-  public finalCondition?: ConditionType;
-  public damageReport?: string;
-  public damagePhotos?: string[];
+  public initial_condition?: ConditionType;
+  public final_condition?: ConditionType;
+  public damage_report?: string;
+  public damage_photos?: string[];
   
   // System fields
   public timeline: BookingTimelineEvent[];
   public messages: BookingMessage[];
-  public statusHistory: BookingStatusHistory[];
-  public createdBy?: string;
-  public lastModifiedBy?: string;
-  public createdAt: Date;
-  public updatedAt: Date;
+  public status_history: BookingStatusHistory[];
+  public created_by?: string;
+  public last_modified_by?: string;
+  public created_at: Date;
+  public updated_at: Date;
   
   // Additional metadata
   public metadata?: Record<string, any>;
-  public isRepeatBooking?: boolean;
-  public parentBookingId?: string;
+  public is_repeat_booking?: boolean;
+  public parent_booking_id?: string;
 
   // In-memory storage for demo
   private static bookings: Booking[] = [];
 
-  constructor(data: CreateBookingData & { renterId: string; ownerId: string; pricing: BookingPricing }) {
+  constructor(data: CreateBookingData & { pricing: BookingPricing }) {
     this.id = uuidv4();
-    this.bookingNumber = this.generateBookingNumber();
-    this.renterId = data.renterId;
-    this.ownerId = data.ownerId;
-    this.productId = data.productId;
-    this.startDate = new Date(data.startDate);
-    this.endDate = new Date(data.endDate);
+    this.booking_number = this.generateBookingNumber();
+    this.renter_id = data.renter_id;
+    this.owner_id = data.owner_id;
+    this.product_id = data.product_id;
+    this.start_date = new Date(data.start_date);
+    this.end_date = new Date(data.end_date);
     this.status = 'pending';
-    this.paymentStatus = 'pending';
-    this.pickupMethod = data.pickupMethod;
-    this.pickupAddress = data.pickupAddress;
-    this.deliveryAddress = data.deliveryAddress;
-    this.specialInstructions = data.specialInstructions;
-    this.renterNotes = data.renterNotes;
-    this.insuranceType = data.insuranceType || 'none';
+    this.payment_status = 'pending';
+    this.pickup_method = data.pickup_method;
+    this.pickup_address = data.pickup_address;
+    this.delivery_address = data.delivery_address;
+    this.special_instructions = data.special_instructions;
+    this.renter_notes = data.renter_notes;
+    this.insurance_type = data.insurance_type || 'none';
     this.pricing = data.pricing;
-    this.totalAmount = data.pricing.totalAmount;
-    this.securityDeposit = data.securityDeposit;
+    this.total_amount = data.pricing.total_amount;
+    this.security_deposit = data.security_deposit;
     this.metadata = data.metadata;
     this.timeline = [];
     this.messages = [];
-    this.statusHistory = [];
-    this.createdBy = data.renterId;
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
+    this.status_history = [];
+    this.created_by = data.renter_id;
+    this.created_at = new Date();
+    this.updated_at = new Date();
+    this.is_repeat_booking = data.is_repeat_booking;
+    this.parent_booking_id = data.parent_booking_id;
 
     // Add initial timeline event
-    this.addTimelineEvent('booking_created', data.renterId, 'Booking request submitted');
+    this.addTimelineEvent('booking_created', data.renter_id, 'Booking request submitted');
     
     // Add initial status history
-    this.addStatusHistoryEntry(undefined, 'pending', data.renterId, 'Booking created');
+    this.addStatusHistoryEntry(undefined, 'pending', data.renter_id, 'Booking created');
   }
 
   // Generate unique booking number
@@ -129,7 +131,7 @@ export class Booking {
   }
 
   // Static methods for CRUD operations
-  static async create(data: CreateBookingData & { renterId: string; ownerId: string; pricing: BookingPricing }): Promise<Booking> {
+  static async create(data: CreateBookingData & { renter_id: string; owner_id: string; pricing: BookingPricing }): Promise<Booking> {
     const booking = new Booking(data);
     Booking.bookings.push(booking);
     return booking;
@@ -139,8 +141,8 @@ export class Booking {
     return Booking.bookings.find(b => b.id === id) || null;
   }
 
-  static async findByBookingNumber(bookingNumber: string): Promise<Booking | null> {
-    return Booking.bookings.find(b => b.bookingNumber === bookingNumber) || null;
+  static async findByBookingNumber(booking_number: string): Promise<Booking | null> {
+    return Booking.bookings.find(b => b.booking_number === booking_number) || null;
   }
 
   static async findAll(): Promise<Booking[]> {
@@ -165,58 +167,58 @@ export class Booking {
     let filtered = Booking.bookings;
 
     // Apply filters
-    if (filters.renterId) {
-      filtered = filtered.filter(b => b.renterId === filters.renterId);
+    if (filters.renter_id) {
+      filtered = filtered.filter(b => b.renter_id === filters.renter_id);
     }
 
-    if (filters.ownerId) {
-      filtered = filtered.filter(b => b.ownerId === filters.ownerId);
+    if (filters.owner_id) {
+      filtered = filtered.filter(b => b.owner_id === filters.owner_id);
     }
 
-    if (filters.productId) {
-      filtered = filtered.filter(b => b.productId === filters.productId);
+    if (filters.product_id) {
+      filtered = filtered.filter(b => b.product_id === filters.product_id);
     }
 
     if (filters.status) {
       filtered = filtered.filter(b => b.status === filters.status);
     }
 
-    if (filters.paymentStatus) {
-      filtered = filtered.filter(b => b.paymentStatus === filters.paymentStatus);
+    if (filters.payment_status) {
+      filtered = filtered.filter(b => b.payment_status === filters.payment_status);
     }
 
-    if (filters.insuranceType) {
-      filtered = filtered.filter(b => b.insuranceType === filters.insuranceType);
+    if (filters.insurance_type) {
+      filtered = filtered.filter(b => b.insurance_type === filters.insurance_type);
     }
 
-    if (filters.bookingNumber) {
-      filtered = filtered.filter(b => b.bookingNumber.toLowerCase().includes(filters.bookingNumber!.toLowerCase()));
+    if (filters.booking_number) {
+      filtered = filtered.filter(b => b.booking_number.toLowerCase().includes(filters.booking_number!.toLowerCase()));
     }
 
-    if (filters.minAmount) {
-      filtered = filtered.filter(b => b.totalAmount >= filters.minAmount!);
+    if (filters.min_amount) {
+      filtered = filtered.filter(b => b.total_amount >= filters.min_amount!);
     }
 
-    if (filters.maxAmount) {
-      filtered = filtered.filter(b => b.totalAmount <= filters.maxAmount!);
+    if (filters.max_amount) {
+      filtered = filtered.filter(b => b.total_amount <= filters.max_amount!);
     }
 
-    if (filters.hasInsurance !== undefined) {
-      filtered = filtered.filter(b => (b.insuranceType !== 'none') === filters.hasInsurance);
+    if (filters.has_insurance !== undefined) {
+      filtered = filtered.filter(b => (b.insurance_type !== 'none') === filters.has_insurance);
     }
 
-    if (filters.isDamaged !== undefined) {
-      filtered = filtered.filter(b => (b.damageReport !== undefined && b.damageReport !== '') === filters.isDamaged);
+    if (filters.is_damaged !== undefined) {
+      filtered = filtered.filter(b => (b.damage_report !== undefined && b.damage_report !== '') === filters.is_damaged);
     }
 
-    if (filters.startDate) {
-      const filterDate = typeof filters.startDate === 'string' ? new Date(filters.startDate) : filters.startDate;
-      filtered = filtered.filter(b => b.startDate >= (filterDate as Date));
+    if (filters.start_date) {
+      const filterDate = typeof filters.start_date === 'string' ? new Date(filters.start_date) : filters.start_date;
+      filtered = filtered.filter(b => b.start_date >= (filterDate as Date));
     }
 
-    if (filters.endDate) {
-      const filterDate = typeof filters.endDate === 'string' ? new Date(filters.endDate) : filters.endDate;
-      filtered = filtered.filter(b => b.endDate <= (filterDate as Date));
+    if (filters.end_date) {
+      const filterDate = typeof filters.end_date === 'string' ? new Date(filters.end_date) : filters.end_date;
+      filtered = filtered.filter(b => b.end_date <= (filterDate as Date));
     }
 
     // Sorting
@@ -226,24 +228,24 @@ export class Booking {
 
       switch (sortBy) {
         case 'created_at':
-          valueA = a.createdAt;
-          valueB = b.createdAt;
+          valueA = a.created_at;
+          valueB = b.created_at;
           break;
         case 'start_date':
-          valueA = a.startDate;
-          valueB = b.startDate;
+          valueA = a.start_date;
+          valueB = b.start_date;
           break;
         case 'total_amount':
-          valueA = a.totalAmount;
-          valueB = b.totalAmount;
+          valueA = a.total_amount;
+          valueB = b.total_amount;
           break;
         case 'booking_number':
-          valueA = a.bookingNumber;
-          valueB = b.bookingNumber;
+          valueA = a.booking_number;
+          valueB = b.booking_number;
           break;
         default:
-          valueA = a.createdAt;
-          valueB = b.createdAt;
+          valueA = a.created_at;
+          valueB = b.created_at;
       }
 
       if (sortOrder === 'asc') {
@@ -277,25 +279,25 @@ export class Booking {
         (this as any)[key] = data[key as keyof UpdateBookingData];
       }
     });
-    this.updatedAt = new Date();
+    this.updated_at = new Date();
     return this;
   }
 
-  async updateStatus(status: BookingStatus, userId: string, reason?: string): Promise<Booking> {
+  async updateStatus(status: BookingStatus, user_id: string, reason?: string): Promise<Booking> {
     const oldStatus = this.status;
     this.status = status;
-    this.lastModifiedBy = userId;
-    this.updatedAt = new Date();
+    this.last_modified_by = user_id;
+    this.updated_at = new Date();
 
     // Add timeline event
     const description = reason 
       ? `Status changed from ${oldStatus} to ${status}. Reason: ${reason}`
       : `Status changed from ${oldStatus} to ${status}`;
     
-    this.addTimelineEvent('status_changed', userId, description, { oldStatus, newStatus: status, reason });
+    this.addTimelineEvent('status_changed', user_id, description, { oldStatus, newStatus: status, reason });
     
     // Add status history entry
-    this.addStatusHistoryEntry(oldStatus, status, userId, reason);
+    this.addStatusHistoryEntry(oldStatus, status, user_id, reason);
 
     return this;
   }
@@ -304,51 +306,51 @@ export class Booking {
   private addStatusHistoryEntry(previousStatus: BookingStatus | undefined, newStatus: BookingStatus, changedBy: string, reason?: string): void {
     const historyEntry: BookingStatusHistory = {
       id: uuidv4(),
-      bookingId: this.id,
-      previousStatus,
-      newStatus,
-      changedBy,
+      booking_id: this.id,
+      previous_status: previousStatus,
+      new_status: newStatus,
+      changed_by: changedBy,
       reason,
-      changedAt: new Date()
+      changed_at: new Date()
     };
-    this.statusHistory.push(historyEntry);
+    this.status_history.push(historyEntry);
   }
 
-  async cancel(userId: string, reason?: string): Promise<Booking> {
-    return this.updateStatus('cancelled', userId, reason);
+  async cancel(user_id: string, reason?: string): Promise<Booking> {
+    return this.updateStatus('cancelled', user_id, reason);
   }
 
-  async checkIn(userId: string): Promise<Booking> {
+  async checkIn(user_id: string): Promise<Booking> {
     this.status = 'in_progress';
-    this.lastModifiedBy = userId;
-    this.updatedAt = new Date();
-    this.addTimelineEvent('checked_in', userId, 'Rental period started');
-    this.addStatusHistoryEntry('confirmed', 'in_progress', userId, 'Check-in completed');
+    this.last_modified_by = user_id;
+    this.updated_at = new Date();
+    this.addTimelineEvent('checked_in', user_id, 'Rental period started');
+    this.addStatusHistoryEntry('confirmed', 'in_progress', user_id, 'Check-in completed');
     return this;
   }
 
-  async checkOut(userId: string): Promise<Booking> {
+  async checkOut(user_id: string): Promise<Booking> {
     this.status = 'completed';
-    this.lastModifiedBy = userId;
-    this.updatedAt = new Date();
-    this.addTimelineEvent('checked_out', userId, 'Rental period completed');
-    this.addStatusHistoryEntry('in_progress', 'completed', userId, 'Check-out completed');
+    this.last_modified_by = user_id;
+    this.updated_at = new Date();
+    this.addTimelineEvent('checked_out', user_id, 'Rental period completed');
+    this.addStatusHistoryEntry('in_progress', 'completed', user_id, 'Check-out completed');
     return this;
   }
 
-  canUpdateStatus(userId: string, newStatus: BookingStatus): boolean {
+  canUpdateStatus(user_id: string, newStatus: BookingStatus): boolean {
     // Owner can confirm/reject pending bookings
-    if (this.ownerId === userId && this.status === 'pending' && ['confirmed', 'cancelled'].includes(newStatus)) {
+    if (this.owner_id === user_id && this.status === 'pending' && ['confirmed', 'cancelled'].includes(newStatus)) {
       return true;
     }
 
     // Both parties can cancel
-    if ((this.renterId === userId || this.ownerId === userId) && newStatus === 'cancelled') {
+    if ((this.renter_id === user_id || this.owner_id === user_id) && newStatus === 'cancelled') {
       return true;
     }
 
     // Both parties can start/end rental
-    if ((this.renterId === userId || this.ownerId === userId) && 
+    if ((this.renter_id === user_id || this.owner_id === user_id) && 
         ((this.status === 'confirmed' && newStatus === 'in_progress') ||
          (this.status === 'in_progress' && newStatus === 'completed'))) {
       return true;
@@ -360,57 +362,57 @@ export class Booking {
   toJSON(): BookingData {
     return {
       id: this.id,
-      bookingNumber: this.bookingNumber,
-      renterId: this.renterId,
-      ownerId: this.ownerId,
-      productId: this.productId,
-      startDate: this.startDate,
-      endDate: this.endDate,
+      booking_number: this.booking_number,
+      renter_id: this.renter_id,
+      owner_id: this.owner_id,
+      product_id: this.product_id,
+      start_date: this.start_date,
+      end_date: this.end_date,
       status: this.status,
-      paymentStatus: this.paymentStatus,
-      insuranceType: this.insuranceType,
-      pickupMethod: this.pickupMethod,
-      pickupAddress: this.pickupAddress,
-      deliveryAddress: this.deliveryAddress,
-      pickupCoordinates: this.pickupCoordinates,
-      deliveryCoordinates: this.deliveryCoordinates,
-      insurancePolicyNumber: this.insurancePolicyNumber,
-      insurancePremium: this.insurancePremium,
-      insuranceDetails: this.insuranceDetails,
-      specialInstructions: this.specialInstructions,
-      renterNotes: this.renterNotes,
-      ownerNotes: this.ownerNotes,
-      adminNotes: this.adminNotes,
+      payment_status: this.payment_status,
+      insurance_type: this.insurance_type,
+      pickup_method: this.pickup_method,
+      pickup_address: this.pickup_address,
+      delivery_address: this.delivery_address,
+      pickup_coordinates: this.pickup_coordinates,
+      delivery_coordinates: this.delivery_coordinates,
+      insurance_policy_number: this.insurance_policy_number,
+      insurance_premium: this.insurance_premium,
+      insurance_details: this.insurance_details,
+      special_instructions: this.special_instructions,
+      renter_notes: this.renter_notes,
+      owner_notes: this.owner_notes,
+      admin_notes: this.admin_notes,
       pricing: {
         ...this.pricing,
-        insuranceFee: typeof this.pricing.insuranceFee === 'number' ? this.pricing.insuranceFee : 0
+        insurance_fee: typeof this.pricing.insurance_fee === 'number' ? this.pricing.insurance_fee : 0
       },
-      totalAmount: this.totalAmount,
-      securityDeposit: this.securityDeposit,
-      platformFee: this.platformFee,
-      taxAmount: this.taxAmount,
-      aiRiskScore: this.aiRiskScore,
-      aiAssessment: this.aiAssessment,
-      initialCondition: this.initialCondition,
-      finalCondition: this.finalCondition,
-      damageReport: this.damageReport,
-      damagePhotos: this.damagePhotos,
-      createdBy: this.createdBy,
-      lastModifiedBy: this.lastModifiedBy,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
+      total_amount: this.total_amount,
+      security_deposit: this.security_deposit,
+      platform_fee: this.platform_fee,
+      tax_amount: this.tax_amount,
+      ai_risk_score: this.ai_risk_score,
+      ai_assessment: this.ai_assessment,
+      initial_condition: this.initial_condition,
+      final_condition: this.final_condition,
+      damage_report: this.damage_report,
+      damage_photos: this.damage_photos,
+      created_by: this.created_by,
+      last_modified_by: this.last_modified_by,
+      created_at: this.created_at,
+      updated_at: this.updated_at,
       metadata: this.metadata,
-      isRepeatBooking: this.isRepeatBooking,
-      parentBookingId: this.parentBookingId
+      is_repeat_booking: this.is_repeat_booking,
+      parent_booking_id: this.parent_booking_id
     };
   }
 
   // Timeline management
-  addTimelineEvent(eventType: string, userId: string, description: string, metadata?: Record<string, any>): void {
+  addTimelineEvent(eventType: string, user_id: string, description: string, metadata?: Record<string, any>): void {
     const event: BookingTimelineEvent = {
       id: uuidv4(),
-      eventType,
-      userId,
+      event_type: eventType,
+      user_id,
       timestamp: new Date(),
       description,
       metadata
@@ -424,21 +426,21 @@ export class Booking {
 
   // Get status history
   async getStatusHistory(): Promise<BookingStatusHistory[]> {
-    return this.statusHistory.sort((a, b) => a.changedAt.getTime() - b.changedAt.getTime());
+    return this.status_history.sort((a, b) => a.changed_at.getTime() - b.changed_at.getTime());
   }
 
   // Message management
-  static async sendMessage(bookingId: string, senderId: string, message: string): Promise<BookingMessage> {
+  static async sendMessage(booking_id: string, sender_id: string, message: string): Promise<BookingMessage> {
     const messageObj: BookingMessage = {
       id: uuidv4(),
-      bookingId,
-      senderId,
+      booking_id,
+      sender_id,
       message,
       timestamp: new Date(),
-      isRead: false
+      is_read: false
     };
 
-    const booking = await Booking.findById(bookingId);
+    const booking = await Booking.findById(booking_id);
     if (booking) {
       booking.messages.push(messageObj);
     }
@@ -446,7 +448,7 @@ export class Booking {
     return messageObj;
   }
 
-  static async getMessages(bookingId: string, page: number = 1, limit: number = 50): Promise<{
+  static async getMessages(booking_id: string, page: number = 1, limit: number = 50): Promise<{
     data: BookingMessage[];
     page: number;
     limit: number;
@@ -455,7 +457,7 @@ export class Booking {
     hasNext: boolean;
     hasPrev: boolean;
   }> {
-    const booking = await Booking.findById(bookingId);
+    const booking = await Booking.findById(booking_id);
     if (!booking) {
       throw new Error('Booking not found');
     }
@@ -479,13 +481,13 @@ export class Booking {
 
   // Analytics
   static async getAnalytics(timeframe: string = '30d'): Promise<{
-    totalBookings: number;
-    totalRevenue: number;
-    averageBookingValue: number;
-    bookingsByStatus: Record<BookingStatus, number>;
-    revenueOverTime: Array<{ date: string; revenue: number; bookings: number }>;
-    insuranceStats: Record<InsuranceType, number>;
-    damageStats: { totalDamaged: number; damageRate: number };
+    total_bookings: number;
+    total_revenue: number;
+    average_booking_value: number;
+    bookings_by_status: Record<BookingStatus, number>;
+    revenue_over_time: Array<{ date: string; revenue: number; bookings: number }>;
+    insurance_stats: Record<InsuranceType, number>;
+    damage_stats: { total_damaged: number; damage_rate: number };
   }> {
     const bookings = Booking.bookings;
     
@@ -494,13 +496,13 @@ export class Booking {
     const daysBack = timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : 90;
     const startDate = new Date(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
     
-    const filteredBookings = bookings.filter(b => b.createdAt >= startDate);
+    const filteredBookings = bookings.filter(b => b.created_at >= startDate);
     
-    const totalBookings = filteredBookings.length;
-    const totalRevenue = filteredBookings.reduce((sum, b) => sum + b.totalAmount, 0);
-    const averageBookingValue = totalBookings > 0 ? totalRevenue / totalBookings : 0;
+    const total_bookings = filteredBookings.length;
+    const total_revenue = filteredBookings.reduce((sum, b) => sum + b.total_amount, 0);
+    const average_booking_value = total_bookings > 0 ? total_revenue / total_bookings : 0;
     
-    const bookingsByStatus: Record<BookingStatus, number> = {
+    const bookings_by_status: Record<BookingStatus, number> = {
       pending: 0,
       confirmed: 0,
       in_progress: 0,
@@ -509,7 +511,7 @@ export class Booking {
       disputed: 0
     };
     
-    const insuranceStats: Record<InsuranceType, number> = {
+    const insurance_stats: Record<InsuranceType, number> = {
       none: 0,
       basic: 0,
       standard: 0,
@@ -517,42 +519,42 @@ export class Booking {
     };
     
     filteredBookings.forEach(b => {
-      bookingsByStatus[b.status]++;
-      if (b.insuranceType) {
-        insuranceStats[b.insuranceType]++;
+      bookings_by_status[b.status]++;
+      if (b.insurance_type) {
+        insurance_stats[b.insurance_type]++;
       }
     });
     
     // Damage statistics
-    const damagedBookings = filteredBookings.filter(b => b.damageReport && b.damageReport.trim() !== '');
-    const damageStats = {
-      totalDamaged: damagedBookings.length,
-      damageRate: totalBookings > 0 ? (damagedBookings.length / totalBookings) * 100 : 0
+    const damagedBookings = filteredBookings.filter(b => b.damage_report && b.damage_report.trim() !== '');
+    const damage_stats = {
+      total_damaged: damagedBookings.length,
+      damage_rate: total_bookings > 0 ? (damagedBookings.length / total_bookings) * 100 : 0
     };
     
     // Mock revenue over time data
-    const revenueOverTime = [];
+    const revenue_over_time = [];
     for (let i = daysBack - 1; i >= 0; i--) {
       const date = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
       const dayBookings = filteredBookings.filter(b => 
-        b.createdAt.toDateString() === date.toDateString()
+        b.created_at.toDateString() === date.toDateString()
       );
       
-      revenueOverTime.push({
+      revenue_over_time.push({
         date: date.toISOString().split('T')[0],
-        revenue: dayBookings.reduce((sum, b) => sum + b.totalAmount, 0),
+        revenue: dayBookings.reduce((sum, b) => sum + b.total_amount, 0),
         bookings: dayBookings.length
       });
     }
 
     return {
-      totalBookings,
-      totalRevenue,
-      averageBookingValue,
-      bookingsByStatus,
-      revenueOverTime,
-      insuranceStats,
-      damageStats
+      total_bookings,
+      total_revenue,
+      average_booking_value,
+      bookings_by_status,
+      revenue_over_time,
+      insurance_stats,
+      damage_stats
     };
   }
 
@@ -563,26 +565,26 @@ export class Booking {
     // Create some demo bookings after products are seeded
     const demoBookings = [
       {
-        renterId: 'demo-user-4',
-        ownerId: 'demo-user-1',
-        productId: 'will-be-replaced-with-actual-product-id',
-        startDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-        endDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days from now
-        pickupMethod: 'pickup' as PickupMethod,
-        pickupAddress: '123 Main St, Downtown',
-        specialInstructions: 'Please have the property cleaned and ready for check-in at 3 PM',
-        renterNotes: 'First time renting, please provide detailed instructions',
-        insuranceType: 'standard' as InsuranceType,
-        securityDeposit: 500,
+        renter_id: 'demo-user-4',
+        owner_id: 'demo-user-1',
+        product_id: 'will-be-replaced-with-actual-product-id',
+        start_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+        end_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days from now
+        pickup_method: 'pickup' as PickupMethod,
+        pickup_address: '123 Main St, Downtown',
+        special_instructions: 'Please have the property cleaned and ready for check-in at 3 PM',
+        renter_notes: 'First time renting, please provide detailed instructions',
+        insurance_type: 'standard' as InsuranceType,
+        security_deposit: 500,
         pricing: {
-          basePrice: 299.99,
+          base_price: 299.99,
           currency: 'USD',
-          totalDays: 3,
+          total_days: 3,
           subtotal: 899.97,
-          platformFee: 89.99,
-          taxAmount: 71.99,
-          insuranceFee: 25.00,
-          totalAmount: 1061.95
+          platform_fee: 89.99,
+          tax_amount: 71.99,
+          insurance_fee: 25.00,
+          total_amount: 1061.95
         }
       }
     ];
@@ -590,15 +592,15 @@ export class Booking {
     for (const bookingData of demoBookings) {
       await Booking.create({
         ...bookingData,
-        startDate: (bookingData.startDate instanceof Date)
-          ? bookingData.startDate.toISOString()
-          : bookingData.startDate,
-        endDate: (bookingData.endDate instanceof Date)
-          ? bookingData.endDate.toISOString()
-          : bookingData.endDate,
+        start_date: (bookingData.start_date instanceof Date)
+          ? bookingData.start_date.toISOString()
+          : bookingData.start_date,
+        end_date: (bookingData.end_date instanceof Date)
+          ? bookingData.end_date.toISOString()
+          : bookingData.end_date,
         pricing: {
           ...bookingData.pricing,
-          insuranceFee: typeof bookingData.pricing.insuranceFee === 'number' ? bookingData.pricing.insuranceFee : 0
+          insurance_fee: typeof bookingData.pricing.insurance_fee === 'number' ? bookingData.pricing.insurance_fee : 0
         }
       });
     }

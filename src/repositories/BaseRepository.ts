@@ -43,7 +43,9 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
    */
   async create(data: CreateData): Promise<ServiceResponse<T>> {
     try {
-      const formattedData = this.formatDatabaseFields(data);
+      // Remove 'user' property if present
+      const { user, ...dbData } = data as any;
+      const formattedData = this.formatDatabaseFields(dbData);
       const [created] = await getDatabase()(this.tableName)
         .insert({
           ...formattedData,

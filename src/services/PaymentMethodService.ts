@@ -173,7 +173,7 @@ class PaymentMethodService {
         return { success: false, error: 'Payment method not found' };
       }
 
-      if (method.userId !== userId) {
+      if (method.user_id !== userId) {
         return { success: false, error: 'Unauthorized to modify this payment method' };
       }
 
@@ -248,7 +248,7 @@ class PaymentMethodService {
    */
   private validateCard(data: CardValidationData): { isValid: boolean; error?: string } {
     // Basic card number validation (Luhn algorithm)
-    if (!this.isValidCardNumber(data.cardNumber)) {
+    if (!this.isValidCardNumber(data.card_number)) {
       return { isValid: false, error: 'Invalid card number' };
     }
 
@@ -257,11 +257,11 @@ class PaymentMethodService {
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1;
 
-    if (data.expYear < currentYear || (data.expYear === currentYear && data.expMonth < currentMonth)) {
+    if (data.exp_year < currentYear || (data.exp_year === currentYear && data.exp_month < currentMonth)) {
       return { isValid: false, error: 'Card has expired' };
     }
 
-    if (data.expMonth < 1 || data.expMonth > 12) {
+    if (data.exp_month < 1 || data.exp_month > 12) {
       return { isValid: false, error: 'Invalid expiry month' };
     }
 
@@ -278,7 +278,7 @@ class PaymentMethodService {
    */
   private validateMobileMoney(data: MobileMoneyValidationData): { isValid: boolean; error?: string } {
     // Phone number validation
-    if (!/^\+?[\d\s-()]{10,15}$/.test(data.phoneNumber)) {
+    if (!/^[+\d\s\-()]{10,15}$/.test(data.phone_number)) {
       return { isValid: false, error: 'Invalid phone number format' };
     }
 
@@ -303,26 +303,26 @@ class PaymentMethodService {
 
     // Type-specific validation
     if (data.type === 'card') {
-      if (!data.lastFour || !data.expMonth || !data.expYear) {
+      if (!data.last_four || !data.exp_month || !data.exp_year) {
         return { isValid: false, error: 'Card details are required for card payment methods' };
       }
 
-      if (data.expMonth < 1 || data.expMonth > 12) {
+      if (data.exp_month < 1 || data.exp_month > 12) {
         return { isValid: false, error: 'Invalid expiry month' };
       }
 
       const currentYear = new Date().getFullYear();
-      if (data.expYear < currentYear || data.expYear > currentYear + 20) {
+      if (data.exp_year < currentYear || data.exp_year > currentYear + 20) {
         return { isValid: false, error: 'Invalid expiry year' };
       }
     }
 
     if (data.type === 'mobile_money') {
-      if (!data.phoneNumber) {
+      if (!data.phone_number) {
         return { isValid: false, error: 'Phone number is required for mobile money payment methods' };
       }
 
-      if (!/^\+?[\d\s-()]{10,15}$/.test(data.phoneNumber)) {
+      if (!/^[+\d\s\-()]{10,15}$/.test(data.phone_number)) {
         return { isValid: false, error: 'Invalid phone number format' };
       }
     }
@@ -375,6 +375,12 @@ class PaymentMethodService {
     if (/^62/.test(cleanNumber)) return 'unionpay';
     
     return 'unknown';
+  }
+
+  async getAll() {
+    // Fetch all payment methods from the database
+    const paymentMethods = await this.repository.findAll();
+    return { success: true, data: paymentMethods };
   }
 }
 

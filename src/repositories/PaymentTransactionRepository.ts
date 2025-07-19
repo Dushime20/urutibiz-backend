@@ -33,19 +33,19 @@ export class PaymentTransactionRepository {
     const sampleTransactions: PaymentTransactionData[] = [
       {
         id: 'txn_001',
-        bookingId: 'booking_001',
-        userId: 'user_001',
-        paymentMethodId: 'pm_001',
-        transactionType: 'booking_payment',
+        booking_id: 'booking_001',
+        user_id: 'user_001',
+        payment_method_id: 'pm_001',
+        transaction_type: 'booking_payment',
         amount: 25000.00,
         currency: 'RWF',
         provider: 'mtn_momo',
-        providerTransactionId: 'MTN_TXN_123456789',
-        providerFee: 500.00,
+        provider_transaction_id: 'MTN_TXN_123456789',
+        provider_fee: 500.00,
         status: 'completed',
-        processedAt: new Date('2025-07-05T10:30:00Z'),
-        createdAt: new Date('2025-07-05T10:25:00Z'),
-        createdBy: 'system',
+        processed_at: new Date('2025-07-05T10:30:00Z'),
+        created_at: new Date('2025-07-05T10:25:00Z'),
+        created_by: 'system',
         metadata: {
           booking_reference: 'BK123456',
           payment_description: 'Equipment rental payment',
@@ -54,19 +54,19 @@ export class PaymentTransactionRepository {
       },
       {
         id: 'txn_002',
-        bookingId: 'booking_002',
-        userId: 'user_002',
-        paymentMethodId: 'pm_002',
-        transactionType: 'security_deposit',
+        booking_id: 'booking_002',
+        user_id: 'user_002',
+        payment_method_id: 'pm_002',
+        transaction_type: 'security_deposit',
         amount: 50000.00,
         currency: 'RWF',
         provider: 'stripe',
-        providerTransactionId: 'pi_1234567890abcdef',
-        providerFee: 1500.00,
+        provider_transaction_id: 'pi_1234567890abcdef',
+        provider_fee: 1500.00,
         status: 'completed',
-        processedAt: new Date('2025-07-05T11:00:00Z'),
-        createdAt: new Date('2025-07-05T10:55:00Z'),
-        createdBy: 'system',
+        processed_at: new Date('2025-07-05T11:00:00Z'),
+        created_at: new Date('2025-07-05T10:55:00Z'),
+        created_by: 'system',
         metadata: {
           hold_until: '2025-08-05',
           auto_release: true
@@ -74,21 +74,21 @@ export class PaymentTransactionRepository {
       },
       {
         id: 'txn_003',
-        userId: 'user_003',
-        transactionType: 'refund',
+        user_id: 'user_003',
+        transaction_type: 'refund',
         amount: 15000.00,
         currency: 'RWF',
-        originalCurrency: 'USD',
-        originalAmount: 15.00,
-        exchangeRate: 1000.00,
-        exchangeRateDate: new Date('2025-07-05'),
+        original_currency: 'USD',
+        original_amount: 15.00,
+        exchange_rate: 1000.00,
+        exchange_rate_date: new Date('2025-07-05'),
         provider: 'airtel_money',
-        providerTransactionId: 'AIRTEL_REF_987654321',
-        providerFee: 300.00,
+        provider_transaction_id: 'AIRTEL_REF_987654321',
+        provider_fee: 300.00,
         status: 'completed',
-        processedAt: new Date('2025-07-05T12:00:00Z'),
-        createdAt: new Date('2025-07-05T11:55:00Z'),
-        createdBy: 'admin_user',
+        processed_at: new Date('2025-07-05T12:00:00Z'),
+        created_at: new Date('2025-07-05T11:55:00Z'),
+        created_by: 'admin_user',
         metadata: {
           refund_reason: 'Cancelled booking',
           original_transaction_id: 'MTN_TXN_123456789',
@@ -97,16 +97,16 @@ export class PaymentTransactionRepository {
       },
       {
         id: 'txn_004',
-        userId: 'user_001',
-        transactionType: 'platform_fee',
+        user_id: 'user_001',
+        transaction_type: 'platform_fee',
         amount: 2500.00,
         currency: 'RWF',
         provider: 'internal',
-        providerFee: 0,
+        provider_fee: 0,
         status: 'pending',
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
-        createdAt: new Date(),
-        createdBy: 'system',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+        created_at: new Date(),
+        created_by: 'system',
         metadata: {
           fee_type: 'service_fee',
           percentage: 10.0,
@@ -136,29 +136,29 @@ export class PaymentTransactionRepository {
     const now = new Date();
     const transaction: PaymentTransactionData = {
       id: this.generateId(),
-      bookingId: data.bookingId || null,
-      userId: data.userId,
-      paymentMethodId: data.paymentMethodId || null,
-      transactionType: data.transactionType,
+      booking_id: data.booking_id || null,
+      user_id: data.user_id,
+      payment_method_id: data.payment_method_id || null,
+      transaction_type: data.transaction_type,
       amount: data.amount,
       currency: data.currency || 'RWF',
       provider: data.provider,
-      providerTransactionId: data.providerTransactionId || null,
-      providerFee: data.providerFee || 0,
+      provider_transaction_id: data.provider_transaction_id || null,
+      provider_fee: data.provider_fee || 0,
       status: data.status || 'pending',
-      processedAt: null,
-      expiresAt: data.expiresAt || null,
-      originalCurrency: data.originalCurrency || null,
-      originalAmount: data.originalAmount || null,
-      exchangeRate: data.exchangeRate || null,
-      exchangeRateDate: data.exchangeRateDate || null,
+      processed_at: null,
+      expires_at: data.expires_at || null,
+      original_currency: data.original_currency || null,
+      original_amount: data.original_amount || null,
+      exchange_rate: data.exchange_rate || null,
+      exchange_rate_date: data.exchange_rate_date || null,
       metadata: data.metadata || null,
-      failureReason: null,
-      providerResponse: null,
-      createdAt: now,
-      updatedAt: null,
-      createdBy: data.createdBy || null,
-      updatedBy: null
+      failure_reason: null,
+      provider_response: null,
+      created_at: now,
+      updated_at: null,
+      created_by: data.created_by || null,
+      updated_by: null
     };
 
     this.transactions.set(transaction.id, transaction);
@@ -179,7 +179,7 @@ export class PaymentTransactionRepository {
   async findByProviderTransactionId(provider: PaymentProvider, providerTransactionId: string): Promise<PaymentTransactionData | null> {
     const transactions = Array.from(this.transactions.values());
     for (const transaction of transactions) {
-      if (transaction.provider === provider && transaction.providerTransactionId === providerTransactionId) {
+      if (transaction.provider === provider && transaction.provider_transaction_id === providerTransactionId) {
         return { ...transaction };
       }
     }
@@ -221,8 +221,8 @@ export class PaymentTransactionRepository {
       const searchTerm = params.search.toLowerCase();
       transactions = transactions.filter(transaction => 
         transaction.id.toLowerCase().includes(searchTerm) ||
-        transaction.providerTransactionId?.toLowerCase().includes(searchTerm) ||
-        transaction.failureReason?.toLowerCase().includes(searchTerm) ||
+        transaction.provider_transaction_id?.toLowerCase().includes(searchTerm) ||
+        transaction.failure_reason?.toLowerCase().includes(searchTerm) ||
         JSON.stringify(transaction.metadata || {}).toLowerCase().includes(searchTerm)
       );
     }
@@ -241,8 +241,8 @@ export class PaymentTransactionRepository {
         return 0;
       });
     } else {
-      // Default sort by createdAt desc
-      transactions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      // Default sort by created_at desc
+      transactions.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
     }
 
     // Apply pagination
@@ -268,14 +268,14 @@ export class PaymentTransactionRepository {
    * Find transactions by user ID
    */
   async findByUserId(userId: string): Promise<PaymentTransactionData[]> {
-    return this.findAll({ userId });
+    return this.findAll({ user_id: userId });
   }
 
   /**
    * Find transactions by booking ID
    */
   async findByBookingId(bookingId: string): Promise<PaymentTransactionData[]> {
-    return this.findAll({ bookingId });
+    return this.findAll({ booking_id: bookingId });
   }
 
   /**
@@ -291,11 +291,11 @@ export class PaymentTransactionRepository {
     const updatedTransaction: PaymentTransactionData = {
       ...transaction,
       ...updates,
-      updatedAt: now,
-      // Set processedAt if status is being updated to a final state
-      processedAt: updates.status && ['completed', 'failed', 'refunded', 'partially_refunded', 'cancelled'].includes(updates.status)
-        ? updates.processedAt || now
-        : transaction.processedAt
+      updated_at: now,
+      // Set processed_at if status is being updated to a final state
+      processed_at: updates.status && ['completed', 'failed', 'refunded', 'partially_refunded', 'cancelled'].includes(updates.status)
+        ? updates.processed_at || now
+        : transaction.processed_at
     };
 
     this.transactions.set(id, updatedTransaction);
@@ -315,7 +315,7 @@ export class PaymentTransactionRepository {
   async delete(id: string): Promise<boolean> {
     const transaction = await this.update(id, { 
       status: 'cancelled',
-      updatedBy: 'system'
+      updated_by: 'system'
     });
     return transaction !== null;
   }
@@ -346,19 +346,19 @@ export class PaymentTransactionRepository {
     
     const uniqueProviders = new Set(userTransactions.map(t => t.provider)).size;
     const lastTransaction = userTransactions.reduce((latest, current) => 
-      current.createdAt > latest.createdAt ? current : latest
+      current.created_at > latest.created_at ? current : latest
     );
 
     return {
-      userId,
-      totalTransactions: userTransactions.length,
-      completedTransactions: completedTransactions.length,
-      failedTransactions: failedTransactions.length,
-      pendingTransactions: pendingTransactions.length,
-      totalCompletedAmount,
-      totalFailedAmount,
-      lastTransactionDate: lastTransaction.createdAt,
-      uniqueProvidersUsed: uniqueProviders
+      user_id: userId,
+      total_transactions: userTransactions.length,
+      completed_transactions: completedTransactions.length,
+      failed_transactions: failedTransactions.length,
+      pending_transactions: pendingTransactions.length,
+      total_completed_amount: totalCompletedAmount,
+      total_failed_amount: totalFailedAmount,
+      last_transaction_date: lastTransaction.created_at,
+      unique_providers_used: uniqueProviders
     };
   }
 
@@ -367,13 +367,13 @@ export class PaymentTransactionRepository {
    */
   private applyFilters(transactions: PaymentTransactionData[], filters: PaymentTransactionFilters): PaymentTransactionData[] {
     return transactions.filter(transaction => {
-      if (filters.userId && transaction.userId !== filters.userId) return false;
-      if (filters.bookingId && transaction.bookingId !== filters.bookingId) return false;
-      if (filters.paymentMethodId && transaction.paymentMethodId !== filters.paymentMethodId) return false;
+      if (filters.user_id && transaction.user_id !== filters.user_id) return false;
+      if (filters.booking_id && transaction.booking_id !== filters.booking_id) return false;
+      if (filters.payment_method_id && transaction.payment_method_id !== filters.payment_method_id) return false;
       
-      if (filters.transactionType) {
-        const types = Array.isArray(filters.transactionType) ? filters.transactionType : [filters.transactionType];
-        if (!types.includes(transaction.transactionType)) return false;
+      if (filters.transaction_type) {
+        const types = Array.isArray(filters.transaction_type) ? filters.transaction_type : [filters.transaction_type];
+        if (!types.includes(transaction.transaction_type)) return false;
       }
       
       if (filters.status) {
@@ -387,12 +387,12 @@ export class PaymentTransactionRepository {
       }
       
       if (filters.currency && transaction.currency !== filters.currency) return false;
-      if (filters.amountMin && transaction.amount < filters.amountMin) return false;
-      if (filters.amountMax && transaction.amount > filters.amountMax) return false;
-      if (filters.createdAfter && transaction.createdAt < filters.createdAfter) return false;
-      if (filters.createdBefore && transaction.createdAt > filters.createdBefore) return false;
-      if (filters.processedAfter && (!transaction.processedAt || transaction.processedAt < filters.processedAfter)) return false;
-      if (filters.processedBefore && (!transaction.processedAt || transaction.processedAt > filters.processedBefore)) return false;
+      if (filters.amount_min && transaction.amount < filters.amount_min) return false;
+      if (filters.amount_max && transaction.amount > filters.amount_max) return false;
+      if (filters.created_after && transaction.created_at < filters.created_after) return false;
+      if (filters.created_before && transaction.created_at > filters.created_before) return false;
+      if (filters.processed_after && (!transaction.processed_at || transaction.processed_at < filters.processed_after)) return false;
+      if (filters.processed_before && (!transaction.processed_at || transaction.processed_at > filters.processed_before)) return false;
       
       return true;
     });

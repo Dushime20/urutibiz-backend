@@ -36,148 +36,148 @@ export type CurrencyCode = 'RWF' | 'USD' | 'EUR' | 'KES' | 'UGX' | 'TZS';
 // Main Payment Transaction Interface
 export interface PaymentTransactionData {
   id: string;
-  bookingId?: string | null;
-  userId: string;
-  paymentMethodId?: string | null;
+  booking_id?: string | null;
+  user_id: string;
+  payment_method_id?: string | null;
   
   // Transaction details
-  transactionType: TransactionType;
+  transaction_type: TransactionType;
   amount: number;
   currency: CurrencyCode;
   
   // External provider details
   provider: PaymentProvider;
-  providerTransactionId?: string | null;
-  providerFee: number;
+  provider_transaction_id?: string | null;
+  provider_fee: number;
   
   // Status and processing
   status: PaymentStatus;
-  processedAt?: Date | null;
-  expiresAt?: Date | null;
+  processed_at?: Date | null;
+  expires_at?: Date | null;
   
   // Multi-currency support
-  originalCurrency?: CurrencyCode | null;
-  originalAmount?: number | null;
-  exchangeRate?: number | null;
-  exchangeRateDate?: Date | null;
+  original_currency?: CurrencyCode | null;
+  original_amount?: number | null;
+  exchange_rate?: number | null;
+  exchange_rate_date?: Date | null;
   
   // Additional data and error handling
   metadata?: Record<string, any> | null;
-  failureReason?: string | null;
-  providerResponse?: string | null;
+  failure_reason?: string | null;
+  provider_response?: string | null;
   
   // Audit fields
-  createdAt: Date;
-  updatedAt?: Date | null;
-  createdBy?: string | null;
-  updatedBy?: string | null;
+  created_at: Date;
+  updated_at?: Date | null;
+  created_by?: string | null;
+  updated_by?: string | null;
 }
 
 // Create Payment Transaction Interface
 export interface CreatePaymentTransactionData {
-  bookingId?: string;
-  userId: string;
-  paymentMethodId?: string;
+  booking_id?: string;
+  user_id: string;
+  payment_method_id?: string;
   
   // Transaction details
-  transactionType: TransactionType;
+  transaction_type: TransactionType;
   amount: number;
   currency?: CurrencyCode;
   
   // External provider details
   provider: PaymentProvider;
-  providerTransactionId?: string;
-  providerFee?: number;
+  provider_transaction_id?: string;
+  provider_fee?: number;
   
   // Status and processing
   status?: PaymentStatus;
-  expiresAt?: Date;
+  expires_at?: Date;
   
   // Multi-currency support
-  originalCurrency?: CurrencyCode;
-  originalAmount?: number;
-  exchangeRate?: number;
-  exchangeRateDate?: Date;
+  original_currency?: CurrencyCode;
+  original_amount?: number;
+  exchange_rate?: number;
+  exchange_rate_date?: Date;
   
   // Additional data
   metadata?: Record<string, any>;
-  createdBy?: string;
+  created_by?: string;
 }
 
 // Update Payment Transaction Interface
 export interface UpdatePaymentTransactionData {
   // Status and processing
   status?: PaymentStatus;
-  processedAt?: Date;
-  expiresAt?: Date;
+  processed_at?: Date;
+  expires_at?: Date;
   
   // Provider details
-  providerTransactionId?: string;
-  providerFee?: number;
-  providerResponse?: string;
+  provider_transaction_id?: string;
+  provider_fee?: number;
+  provider_response?: string;
   
   // Multi-currency support
-  originalCurrency?: CurrencyCode;
-  originalAmount?: number;
-  exchangeRate?: number;
-  exchangeRateDate?: Date;
+  original_currency?: CurrencyCode;
+  original_amount?: number;
+  exchange_rate?: number;
+  exchange_rate_date?: Date;
   
   // Error handling
-  failureReason?: string;
+  failure_reason?: string;
   
   // Additional data
   metadata?: Record<string, any>;
-  updatedBy?: string;
+  updated_by?: string;
 }
 
 // Payment Transaction Filters for Queries
 export interface PaymentTransactionFilters {
-  userId?: string;
-  bookingId?: string;
-  paymentMethodId?: string;
-  transactionType?: TransactionType | TransactionType[];
+  user_id?: string;
+  booking_id?: string;
+  payment_method_id?: string;
+  transaction_type?: TransactionType | TransactionType[];
   status?: PaymentStatus | PaymentStatus[];
   provider?: PaymentProvider | PaymentProvider[];
   currency?: CurrencyCode;
-  amountMin?: number;
-  amountMax?: number;
-  createdAfter?: Date;
-  createdBefore?: Date;
-  processedAfter?: Date;
-  processedBefore?: Date;
+  amount_min?: number;
+  amount_max?: number;
+  created_after?: Date;
+  created_before?: Date;
+  processed_after?: Date;
+  processed_before?: Date;
 }
 
 // Payment Transaction Search and Pagination
 export interface PaymentTransactionSearchParams extends PaymentTransactionFilters {
   page?: number;
   limit?: number;
-  sortBy?: keyof PaymentTransactionData;
-  sortOrder?: 'asc' | 'desc';
+  sort_by?: keyof PaymentTransactionData;
+  sort_order?: 'asc' | 'desc';
   search?: string; // For searching in metadata, failure_reason, etc.
 }
 
 // Payment Transaction Summary/Analytics Interfaces
 export interface TransactionSummary {
-  userId: string;
-  totalTransactions: number;
-  completedTransactions: number;
-  failedTransactions: number;
-  pendingTransactions: number;
-  totalCompletedAmount: number;
-  totalFailedAmount: number;
-  lastTransactionDate: Date;
-  uniqueProvidersUsed: number;
+  user_id: string;
+  total_transactions: number;
+  completed_transactions: number;
+  failed_transactions: number;
+  pending_transactions: number;
+  total_completed_amount: number;
+  total_failed_amount: number;
+  last_transaction_date: Date;
+  unique_providers_used: number;
 }
 
 export interface PaymentTransactionStats {
-  totalAmount: number;
-  totalCount: number;
-  averageAmount: number;
-  statusBreakdown: Record<PaymentStatus, number>;
-  providerBreakdown: Record<PaymentProvider, number>;
-  currencyBreakdown: Record<CurrencyCode, number>;
-  transactionTypeBreakdown: Record<TransactionType, number>;
-  monthlyTrends: Array<{
+  total_amount: number;
+  total_count: number;
+  average_amount: number;
+  status_breakdown: Record<PaymentStatus, number>;
+  provider_breakdown: Record<PaymentProvider, number>;
+  currency_breakdown: Record<CurrencyCode, number>;
+  transaction_type_breakdown: Record<TransactionType, number>;
+  monthly_trends: Array<{
     month: string;
     count: number;
     amount: number;
@@ -214,28 +214,28 @@ export interface PaymentTransactionStatsResponse {
 
 // Payment Processing Interfaces
 export interface ProcessPaymentRequest {
-  userId: string;
-  bookingId?: string;
-  paymentMethodId: string;
+  user_id?: string; // Optional - will be set from authentication token
+  booking_id?: string;
+  payment_method_id: string;
   amount: number;
   currency?: CurrencyCode;
-  transactionType: TransactionType;
+  transaction_type: TransactionType;
   metadata?: Record<string, any>;
 }
 
 export interface ProcessPaymentResponse {
   success: boolean;
-  transactionId?: string;
+  transaction_id?: string;
   status: PaymentStatus;
-  providerTransactionId?: string;
+  provider_transaction_id?: string;
   message?: string;
   error?: string;
-  redirectUrl?: string; // For 3D Secure or other redirects
+  redirect_url?: string; // For 3D Secure or other redirects
 }
 
 // Refund Interfaces
 export interface RefundRequest {
-  transactionId: string;
+  transaction_id: string;
   amount?: number; // Partial refund if specified, full refund if not
   reason: string;
   metadata?: Record<string, any>;
@@ -243,9 +243,9 @@ export interface RefundRequest {
 
 export interface RefundResponse {
   success: boolean;
-  refundTransactionId?: string;
-  originalTransactionId: string;
-  refundAmount: number;
+  refund_transaction_id?: string;
+  original_transaction_id: string;
+  refund_amount: number;
   status: PaymentStatus;
   message?: string;
   error?: string;
@@ -256,8 +256,8 @@ export interface PaymentWebhookEvent {
   id: string;
   type: 'payment.completed' | 'payment.failed' | 'payment.refunded' | 'payment.disputed';
   provider: PaymentProvider;
-  transactionId: string;
-  providerTransactionId: string;
+  transaction_id: string;
+  provider_transaction_id: string;
   status: PaymentStatus;
   timestamp: Date;
   data: Record<string, any>;
@@ -275,7 +275,7 @@ export interface PaymentTransactionValidationRules {
   provider: {
     supported: PaymentProvider[];
   };
-  transactionType: {
+  transaction_type: {
     supported: TransactionType[];
   };
 }
@@ -296,7 +296,7 @@ export class PaymentProviderError extends Error {
   constructor(
     message: string,
     public provider: PaymentProvider,
-    public providerCode?: string,
+    public provider_code?: string,
     public details?: Record<string, any>
   ) {
     super(message);
@@ -306,8 +306,8 @@ export class PaymentProviderError extends Error {
 
 // Currency Conversion Interfaces
 export interface CurrencyConversion {
-  fromCurrency: CurrencyCode;
-  toCurrency: CurrencyCode;
+  from_currency: CurrencyCode;
+  to_currency: CurrencyCode;
   rate: number;
   date: Date;
   source: string; // e.g., 'xe.com', 'fixer.io', 'manual'
@@ -315,17 +315,17 @@ export interface CurrencyConversion {
 
 export interface ConvertAmountRequest {
   amount: number;
-  fromCurrency: CurrencyCode;
-  toCurrency: CurrencyCode;
+  from_currency: CurrencyCode;
+  to_currency: CurrencyCode;
 }
 
 export interface ConvertAmountResponse {
-  originalAmount: number;
-  convertedAmount: number;
-  fromCurrency: CurrencyCode;
-  toCurrency: CurrencyCode;
-  exchangeRate: number;
-  exchangeRateDate: Date;
+  original_amount: number;
+  converted_amount: number;
+  from_currency: CurrencyCode;
+  to_currency: CurrencyCode;
+  exchange_rate: number;
+  exchange_rate_date: Date;
 }
 
 // Export all types for external use

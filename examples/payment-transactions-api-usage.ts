@@ -142,12 +142,11 @@ export async function processPayment() {
   console.log('Processing payment...');
   
   const paymentRequest = {
-    userId: 'user_123',
-    bookingId: 'booking_456',
-    paymentMethodId: 'pm_789',
+    booking_id: 'booking_456',
+    payment_method_id: 'pm_789',
     amount: 25000.00,
     currency: 'RWF',
-    transactionType: 'booking_payment',
+    transaction_type: 'booking_payment',
     metadata: {
       payment_intent: 'immediate',
       retry_count: 0
@@ -200,14 +199,12 @@ export async function processPartialRefund(transactionId: string) {
   console.log(`Processing partial refund for transaction ${transactionId}...`);
   
   const refundRequest = {
-    amount: 15000.00, // Partial amount
-    reason: 'Equipment returned early - partial usage',
+    amount: 10000.00, // Partial refund amount
+    reason: 'Partial refund due to early return',
     metadata: {
       refund_type: 'partial',
-      original_amount: 25000.00,
-      days_used: 3,
-      days_paid: 5,
-      calculated_refund: 15000.00
+      processed_by: 'admin_user',
+      refund_reason: 'Customer returned item early'
     }
   };
 

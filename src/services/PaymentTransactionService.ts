@@ -44,7 +44,7 @@ export class PaymentTransactionService {
     const transaction = await this.repository.create(data);
 
     // Log transaction creation (in production, use proper logging)
-    console.log(`Payment transaction created: ${transaction.id} for user ${transaction.userId}`);
+    console.log(`Payment transaction created: ${transaction.id} for user ${transaction.user_id}`);
 
     return transaction;
   }
@@ -156,12 +156,12 @@ export class PaymentTransactionService {
 
       // Create initial transaction record
       const transaction = await this.createTransaction({
-        userId: request.userId,
-        bookingId: request.bookingId,
-        paymentMethodId: request.paymentMethodId,
+        user_id: request.user_id,
+        booking_id: request.booking_id,
+        payment_method_id: request.payment_method_id,
         amount: request.amount,
         currency: request.currency,
-        transactionType: request.transactionType,
+        transaction_type: request.transaction_type,
         provider: 'stripe', // Default provider - should be determined by payment method
         status: 'pending',
         metadata: request.metadata
@@ -173,18 +173,18 @@ export class PaymentTransactionService {
       // Update transaction with result
       await this.updateTransaction(transaction.id, {
         status: processingResult.status,
-        providerTransactionId: processingResult.providerTransactionId,
-        providerResponse: JSON.stringify(processingResult.providerResponse),
-        failureReason: processingResult.failureReason
+        provider_transaction_id: processingResult.provider_transaction_id,
+        provider_response: JSON.stringify(processingResult.provider_response),
+        failure_reason: processingResult.failure_reason
       });
 
       return {
         success: processingResult.status === 'completed',
-        transactionId: transaction.id,
+        transaction_id: transaction.id,
         status: processingResult.status,
-        providerTransactionId: processingResult.providerTransactionId,
+        provider_transaction_id: processingResult.provider_transaction_id,
         message: processingResult.status === 'completed' ? 'Payment processed successfully' : 'Payment failed',
-        error: processingResult.failureReason
+        error: processingResult.failure_reason
       };
     } catch (error) {
       console.error('Payment processing error:', error);
@@ -202,7 +202,7 @@ export class PaymentTransactionService {
    */
   async processRefund(request: RefundRequest): Promise<RefundResponse> {
     try {
-      const originalTransaction = await this.getTransactionById(request.transactionId);
+      const originalTransaction = await this.getTransactionById(request.transaction_id);
       
       if (!originalTransaction) {
         throw new PaymentTransactionError('Original transaction not found', 'TRANSACTION_NOT_FOUND');
@@ -221,12 +221,12 @@ export class PaymentTransactionService {
 
       // Create refund transaction
       const refundTransaction = await this.createTransaction({
-        userId: originalTransaction.userId,
-        bookingId: originalTransaction.bookingId || undefined,
-        paymentMethodId: originalTransaction.paymentMethodId || undefined,
+        user_id: originalTransaction.user_id,
+        booking_id: originalTransaction.booking_id || undefined,
+        payment_method_id: originalTransaction.payment_method_id || undefined,
         amount: refundAmount,
         currency: originalTransaction.currency,
-        transactionType: refundAmount === originalTransaction.amount ? 'refund' : 'partial_refund',
+        transaction_type: refundAmount === originalTransaction.amount ? 'refund' : 'partial_refund',
         provider: originalTransaction.provider,
         status: 'pending',
         metadata: {
@@ -242,19 +242,19 @@ export class PaymentTransactionService {
       // Update refund transaction
       await this.updateTransaction(refundTransaction.id, {
         status: refundResult.status,
-        providerTransactionId: refundResult.providerTransactionId,
-        providerResponse: JSON.stringify(refundResult.providerResponse),
-        failureReason: refundResult.failureReason
+        provider_transaction_id: refundResult.provider_transaction_id,
+        provider_response: JSON.stringify(refundResult.provider_response),
+        failure_reason: refundResult.failure_reason
       });
 
       return {
         success: refundResult.status === 'completed',
-        refundTransactionId: refundTransaction.id,
-        originalTransactionId: originalTransaction.id,
-        refundAmount,
+        refund_transaction_id: refundTransaction.id,
+        original_transaction_id: originalTransaction.id,
+        refund_amount: refundAmount,
         status: refundResult.status,
         message: refundResult.status === 'completed' ? 'Refund processed successfully' : 'Refund failed',
-        error: refundResult.failureReason
+        error: refundResult.failure_reason
       };
     } catch (error) {
       console.error('Refund processing error:', error);
@@ -316,7 +316,7 @@ export class PaymentTransactionService {
       statusBreakdown[transaction.status]++;
       providerBreakdown[transaction.provider] = (providerBreakdown[transaction.provider] || 0) + 1;
       currencyBreakdown[transaction.currency] = (currencyBreakdown[transaction.currency] || 0) + 1;
-      transactionTypeBreakdown[transaction.transactionType] = (transactionTypeBreakdown[transaction.transactionType] || 0) + 1;
+      transactionTypeBreakdown[transaction.transaction_type] = (transactionTypeBreakdown[transaction.transaction_type] || 0) + 1;
     });
 
     // Monthly trends (simplified - last 12 months)
@@ -362,11 +362,11 @@ export class PaymentTransactionService {
    * Validate transaction data
    */
   private async validateTransactionData(data: CreatePaymentTransactionData): Promise<void> {
-    if (!data.userId) {
+    if (!data.user_id) {
       throw new PaymentTransactionError('User ID is required', 'VALIDATION_ERROR');
     }
 
-    if (!data.transactionType) {
+    if (!data.transaction_type) {
       throw new PaymentTransactionError('Transaction type is required', 'VALIDATION_ERROR');
     }
 
@@ -396,11 +396,11 @@ export class PaymentTransactionService {
    * Validate payment request
    */
   private async validatePaymentRequest(request: ProcessPaymentRequest): Promise<void> {
-    if (!request.userId) {
+    if (!request.user_id) {
       throw new PaymentTransactionError('User ID is required', 'VALIDATION_ERROR');
     }
 
-    if (!request.paymentMethodId) {
+    if (!request.payment_method_id) {
       throw new PaymentTransactionError('Payment method ID is required', 'VALIDATION_ERROR');
     }
 
@@ -408,7 +408,7 @@ export class PaymentTransactionService {
       throw new PaymentTransactionError('Amount must be greater than 0', 'VALIDATION_ERROR');
     }
 
-    if (!request.transactionType) {
+    if (!request.transaction_type) {
       throw new PaymentTransactionError('Transaction type is required', 'VALIDATION_ERROR');
     }
   }

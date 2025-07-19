@@ -4,6 +4,7 @@
 
 import { Router } from 'express';
 import { PaymentTransactionController } from '../controllers/paymentTransaction.controller';
+import { requireAdmin, requireAuth } from '@/middleware';
 
 /**
  * Express router for payment transaction endpoints
@@ -26,7 +27,7 @@ const controller = new PaymentTransactionController();
  * @access  Private (requires authentication in production)
  * @body    CreatePaymentTransactionData
  */
-router.post('/', controller.createTransaction);
+router.post('/',requireAuth, controller.createTransaction);
 
 /**
  * @route   GET /api/payment-transactions
@@ -34,7 +35,7 @@ router.post('/', controller.createTransaction);
  * @access  Private (requires authentication in production)
  * @query   page, limit, sortBy, sortOrder, search, userId, bookingId, etc.
  */
-router.get('/', controller.getTransactions);
+router.get('/',requireAuth, controller.getTransactions);
 
 /**
  * @route   GET /api/payment-transactions/:id
@@ -42,7 +43,7 @@ router.get('/', controller.getTransactions);
  * @access  Private (requires authentication in production)
  * @params  id - Transaction ID
  */
-router.get('/:id', controller.getTransaction);
+router.get('/:id',requireAuth, controller.getTransaction);
 
 /**
  * @route   PUT /api/payment-transactions/:id
@@ -51,7 +52,7 @@ router.get('/:id', controller.getTransaction);
  * @params  id - Transaction ID
  * @body    UpdatePaymentTransactionData
  */
-router.put('/:id', controller.updateTransaction);
+router.put('/:id',requireAuth, controller.updateTransaction);
 
 /**
  * @route   DELETE /api/payment-transactions/:id
@@ -71,7 +72,7 @@ router.delete('/:id', controller.deleteTransaction);
  * @access  Private (requires authentication in production)
  * @params  userId - User ID
  */
-router.get('/user/:userId', controller.getTransactionsByUser);
+router.get('/user/:userId',requireAuth, controller.getTransactionsByUser);
 
 /**
  * @route   GET /api/payment-transactions/booking/:bookingId
@@ -99,7 +100,7 @@ router.get('/user/:userId/summary', controller.getUserTransactionSummary);
  * @access  Private (requires authentication in production)
  * @body    ProcessPaymentRequest
  */
-router.post('/process', controller.processPayment);
+router.post('/process',requireAuth, controller.processPayment);
 
 /**
  * @route   POST /api/payment-transactions/:id/refund
@@ -108,7 +109,7 @@ router.post('/process', controller.processPayment);
  * @params  id - Transaction ID
  * @body    RefundRequest (without transactionId)
  */
-router.post('/:id/refund', controller.processRefund);
+router.post('/:id/refund',requireAuth, controller.processRefund);
 
 /**
  * @route   PATCH /api/payment-transactions/:id/status
@@ -129,7 +130,7 @@ router.patch('/:id/status', controller.updateTransactionStatus);
  * @access  Private (requires authentication in production)
  * @query   Optional filters: userId, bookingId, transactionType, status, provider, currency, createdAfter, createdBefore
  */
-router.get('/stats', controller.getTransactionStats);
+router.get('/stats',requireAuth, controller.getTransactionStats);
 
 // =====================================================
 // UTILITY ROUTES
@@ -140,7 +141,7 @@ router.get('/stats', controller.getTransactionStats);
  * @desc    Health check endpoint
  * @access  Public
  */
-router.get('/health', controller.healthCheck);
+router.get('/health',requireAuth, controller.healthCheck);
 
 // Export the router
 export default router;

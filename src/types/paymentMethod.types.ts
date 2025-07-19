@@ -8,56 +8,56 @@ export type CardBrand = 'visa' | 'mastercard' | 'amex' | 'discover' | 'diners' |
 
 export interface PaymentMethodData {
   id: string;
-  userId: string;
+  user_id: string;
   type: PaymentMethodType;
   provider?: PaymentProvider;
   
   // Card details (encrypted/tokenized)
-  lastFour?: string;
-  cardBrand?: CardBrand;
-  expMonth?: number;
-  expYear?: number;
+  last_four?: string;
+  card_brand?: CardBrand;
+  exp_month?: number;
+  exp_year?: number;
   
   // Mobile money details
-  phoneNumber?: string;
+  phone_number?: string;
   
   // Tokenization and provider integration
-  providerToken?: string; // Stripe customer ID, etc.
-  paymentProviderId?: string; // Reference to payment_providers table
+  provider_token?: string; // Stripe customer ID, etc.
+  payment_provider_id?: string; // Reference to payment_providers table
   
   // Status and configuration
-  isDefault: boolean;
-  isVerified: boolean;
+  is_default: boolean;
+  is_verified: boolean;
   currency: string;
   
   // Audit fields
-  createdAt: Date;
-  updatedAt?: Date;
+  created_at: Date;
+  updated_at?: Date;
   
   // Additional metadata
   metadata?: Record<string, any>;
 }
 
 export interface CreatePaymentMethodData {
-  userId: string;
+  user_id?: string; // Optional - will be set from authentication token
   type: PaymentMethodType;
   provider?: PaymentProvider;
   
   // Card details
-  lastFour?: string;
-  cardBrand?: CardBrand;
-  expMonth?: number;
-  expYear?: number;
+  last_four?: string;
+  card_brand?: CardBrand;
+  exp_month?: number;
+  exp_year?: number;
   
   // Mobile money details
-  phoneNumber?: string;
+  phone_number?: string;
   
   // Provider integration
-  providerToken?: string;
-  paymentProviderId?: string;
+  provider_token?: string;
+  payment_provider_id?: string;
   
   // Configuration
-  isDefault?: boolean;
+  is_default?: boolean;
   currency?: string;
   
   // Metadata
@@ -65,30 +65,30 @@ export interface CreatePaymentMethodData {
 }
 
 export interface UpdatePaymentMethodData {
-  isDefault?: boolean;
-  isVerified?: boolean;
-  expMonth?: number;
-  expYear?: number;
-  phoneNumber?: string;
+  is_default?: boolean;
+  is_verified?: boolean;
+  exp_month?: number;
+  exp_year?: number;
+  phone_number?: string;
   metadata?: Record<string, any>;
 }
 
 export interface PaymentMethodFilters {
-  userId?: string;
+  user_id?: string;
   type?: PaymentMethodType;
   provider?: PaymentProvider;
-  isDefault?: boolean;
-  isVerified?: boolean;
+  is_default?: boolean;
+  is_verified?: boolean;
   currency?: string;
-  paymentProviderId?: string;
+  payment_provider_id?: string;
 }
 
 export interface PaymentMethodSearchParams {
-  userId?: string;
+  user_id?: string;
   type?: PaymentMethodType;
   provider?: PaymentProvider;
-  isDefault?: boolean;
-  isVerified?: boolean;
+  is_default?: boolean;
+  is_verified?: boolean;
   currency?: string;
   page?: number;
   limit?: number;
@@ -96,15 +96,15 @@ export interface PaymentMethodSearchParams {
 
 // Validation interfaces
 export interface CardValidationData {
-  cardNumber: string;
-  expMonth: number;
-  expYear: number;
+  card_number: string;
+  exp_month: number;
+  exp_year: number;
   cvv: string;
-  cardholderName: string;
+  cardholder_name: string;
 }
 
 export interface MobileMoneyValidationData {
-  phoneNumber: string;
+  phone_number: string;
   provider: PaymentProvider;
   pin?: string;
 }
@@ -123,8 +123,8 @@ export interface StripePaymentMethodResponse {
 }
 
 export interface MobileMoneyResponse {
-  transactionId: string;
-  phoneNumber: string;
+  transaction_id: string;
+  phone_number: string;
   provider: string;
   status: 'pending' | 'completed' | 'failed';
   amount?: number;
@@ -133,19 +133,19 @@ export interface MobileMoneyResponse {
 
 // Analytics and reporting interfaces
 export interface PaymentMethodAnalytics {
-  totalMethods: number;
-  methodsByType: Record<PaymentMethodType, number>;
-  methodsByProvider: Record<PaymentProvider, number>;
-  methodsByCurrency: Record<string, number>;
-  verificationRate: number;
-  defaultMethodsCount: number;
-  recentlyAdded: PaymentMethodData[];
+  total_methods: number;
+  methods_by_type: Record<PaymentMethodType, number>;
+  methods_by_provider: Record<PaymentProvider, number>;
+  methods_by_currency: Record<string, number>;
+  verification_rate: number;
+  default_methods_count: number;
+  recently_added: PaymentMethodData[];
 }
 
 // Security and encryption interfaces
 export interface EncryptedCardData {
-  encryptedNumber: string;
-  tokenizedNumber: string;
-  encryptionKey: string;
+  encrypted_number: string;
+  tokenized_number: string;
+  encryption_key: string;
   salt: string;
 }

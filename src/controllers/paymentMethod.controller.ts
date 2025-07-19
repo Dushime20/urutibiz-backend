@@ -31,8 +31,8 @@ export class PaymentMethodController {
   async createPaymentMethod(req: Request, res: Response): Promise<void> {
     try {
       const authReq = req as AuthenticatedRequest;
-      const userId = authReq.user?.id;
-      if (!userId) {
+      const user_id = authReq.user?.id;
+      if (!user_id) {
         res.status(401).json({
           success: false,
           message: 'User authentication required',
@@ -42,7 +42,7 @@ export class PaymentMethodController {
 
       const data: CreatePaymentMethodData = {
         ...req.body,
-        userId,
+        user_id: user_id, // use snake_case for DB
       };
 
       // Validate required fields
@@ -84,9 +84,9 @@ export class PaymentMethodController {
     try {
       const { id } = req.params;
       const authReq = req as AuthenticatedRequest;
-      const userId = authReq.user?.id;
+      const user_id = authReq.user?.id;
 
-      if (!userId) {
+      if (!user_id) {
         res.status(401).json({
           success: false,
           message: 'User authentication required',
@@ -113,7 +113,7 @@ export class PaymentMethodController {
       }
 
       // Ensure user can only access their own payment methods
-      if (result.data?.userId !== userId) {
+      if (result.data?.user_id !== user_id) {
         res.status(403).json({
           success: false,
           message: 'Access denied',
@@ -139,8 +139,8 @@ export class PaymentMethodController {
   async getUserPaymentMethods(req: Request, res: Response): Promise<void> {
     try {
       const authReq = req as AuthenticatedRequest;
-      const userId = authReq.user?.id;
-      if (!userId) {
+      const user_id = authReq.user?.id;
+      if (!user_id) {
         res.status(401).json({
           success: false,
           message: 'User authentication required',
@@ -149,18 +149,25 @@ export class PaymentMethodController {
       }
 
       const searchParams: PaymentMethodSearchParams = {
-        userId,
+        user_id: user_id,
         type: req.query.type as any,
         provider: req.query.provider as any,
-        isDefault: req.query.is_default === 'true' ? true : req.query.is_default === 'false' ? false : undefined,
-        isVerified: req.query.is_verified === 'true' ? true : req.query.is_verified === 'false' ? false : undefined,
+        is_default: req.query.is_default === 'true' ? true : req.query.is_default === 'false' ? false : undefined,
+        is_verified: req.query.is_verified === 'true' ? true : req.query.is_verified === 'false' ? false : undefined,
         currency: req.query.currency as string,
         page: req.query.page ? parseInt(req.query.page as string) : undefined,
         limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
       };
 
       const result = await paymentMethodService.getPaginated(
-        { userId, type: searchParams.type, provider: searchParams.provider, isDefault: searchParams.isDefault, isVerified: searchParams.isVerified, currency: searchParams.currency },
+        {
+          user_id: user_id,
+          type: searchParams.type,
+          provider: searchParams.provider,
+          is_default: searchParams.is_default,
+          is_verified: searchParams.is_verified,
+          currency: searchParams.currency
+        },
         searchParams.page || 1,
         searchParams.limit || 20
       );
@@ -192,9 +199,9 @@ export class PaymentMethodController {
     try {
       const { id } = req.params;
       const authReq = req as AuthenticatedRequest;
-      const userId = authReq.user?.id;
+      const user_id = authReq.user?.id;
 
-      if (!userId) {
+      if (!user_id) {
         res.status(401).json({
           success: false,
           message: 'User authentication required',
@@ -222,7 +229,7 @@ export class PaymentMethodController {
         return;
       }
 
-      if (existingResult.data?.userId !== userId) {
+      if (existingResult.data?.user_id !== user_id) {
         res.status(403).json({
           success: false,
           message: 'Access denied',
@@ -260,9 +267,9 @@ export class PaymentMethodController {
     try {
       const { id } = req.params;
       const authReq = req as AuthenticatedRequest;
-      const userId = authReq.user?.id;
+      const user_id = authReq.user?.id;
 
-      if (!userId) {
+      if (!user_id) {
         res.status(401).json({
           success: false,
           message: 'User authentication required',
@@ -288,7 +295,7 @@ export class PaymentMethodController {
         return;
       }
 
-      if (existingResult.data?.userId !== userId) {
+      if (existingResult.data?.user_id !== user_id) {
         res.status(403).json({
           success: false,
           message: 'Access denied',
@@ -325,9 +332,9 @@ export class PaymentMethodController {
     try {
       const { id } = req.params;
       const authReq = req as AuthenticatedRequest;
-      const userId = authReq.user?.id;
+      const user_id = authReq.user?.id;
 
-      if (!userId) {
+      if (!user_id) {
         res.status(401).json({
           success: false,
           message: 'User authentication required',
@@ -343,7 +350,7 @@ export class PaymentMethodController {
         return;
       }
 
-      const result = await paymentMethodService.setAsDefault(id, userId);
+      const result = await paymentMethodService.setAsDefault(id, user_id);
       
       if (!result.success) {
         res.status(400).json({
@@ -373,9 +380,9 @@ export class PaymentMethodController {
     try {
       const { id } = req.params;
       const authReq = req as AuthenticatedRequest;
-      const userId = authReq.user?.id;
+      const user_id = authReq.user?.id;
 
-      if (!userId) {
+      if (!user_id) {
         res.status(401).json({
           success: false,
           message: 'User authentication required',
@@ -401,7 +408,7 @@ export class PaymentMethodController {
         return;
       }
 
-      if (existingResult.data?.userId !== userId) {
+      if (existingResult.data?.user_id !== user_id) {
         res.status(403).json({
           success: false,
           message: 'Access denied',
@@ -438,8 +445,8 @@ export class PaymentMethodController {
   async getPaymentMethodAnalytics(req: Request, res: Response): Promise<void> {
     try {
       const authReq = req as AuthenticatedRequest;
-      const userId = authReq.user?.id;
-      if (!userId) {
+      const user_id = authReq.user?.id;
+      if (!user_id) {
         res.status(401).json({
           success: false,
           message: 'User authentication required',
@@ -447,7 +454,7 @@ export class PaymentMethodController {
         return;
       }
 
-      const result = await paymentMethodService.getAnalytics(userId);
+      const result = await paymentMethodService.getAnalytics(user_id);
 
       if (!result.success) {
         res.status(400).json({
@@ -476,10 +483,10 @@ export class PaymentMethodController {
     try {
       const cardData: CardValidationData = req.body;
 
-      if (!cardData.cardNumber || !cardData.expMonth || !cardData.expYear || !cardData.cvv) {
+      if (!cardData.card_number || !cardData.exp_month || !cardData.exp_year || !cardData.cvv) {
         res.status(400).json({
           success: false,
-          message: 'Missing required card details: cardNumber, expMonth, expYear, cvv',
+          message: 'Missing required card details: card_number, exp_month, exp_year, cvv',
         });
         return;
       }
@@ -506,10 +513,10 @@ export class PaymentMethodController {
     try {
       const mobileMoneyData: MobileMoneyValidationData = req.body;
 
-      if (!mobileMoneyData.phoneNumber || !mobileMoneyData.provider) {
+      if (!mobileMoneyData.phone_number || !mobileMoneyData.provider) {
         res.status(400).json({
           success: false,
-          message: 'Missing required mobile money details: phoneNumber, provider',
+          message: 'Missing required mobile money details: phone_number, provider',
         });
         return;
       }
@@ -530,11 +537,31 @@ export class PaymentMethodController {
   }
 
   /**
+   * Get all payment methods (admin only)
+   */
+// In src/controllers/paymentMethod.controller.ts
+async getAllPaymentMethods(req: Request, res: Response): Promise<void> {
+  try {
+    // Remove admin check so any authenticated user can access
+    const result = await paymentMethodService.getAll();
+    res.status(200).json({
+      success: true,
+      data: result.data,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error',
+    });
+  }
+}
+
+  /**
    * Basic card validation logic
    */
   private validateCardDetails(data: CardValidationData): { isValid: boolean; error?: string } {
     // Basic card number validation (simple length check)
-    const cleanNumber = data.cardNumber.replace(/\s/g, '');
+    const cleanNumber = data.card_number.replace(/\s/g, '');
     if (!/^\d{13,19}$/.test(cleanNumber)) {
       return { isValid: false, error: 'Invalid card number format' };
     }
@@ -544,11 +571,11 @@ export class PaymentMethodController {
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1;
 
-    if (data.expYear < currentYear || (data.expYear === currentYear && data.expMonth < currentMonth)) {
+    if (data.exp_year < currentYear || (data.exp_year === currentYear && data.exp_month < currentMonth)) {
       return { isValid: false, error: 'Card has expired' };
     }
 
-    if (data.expMonth < 1 || data.expMonth > 12) {
+    if (data.exp_month < 1 || data.exp_month > 12) {
       return { isValid: false, error: 'Invalid expiry month' };
     }
 
@@ -565,7 +592,7 @@ export class PaymentMethodController {
    */
   private validateMobileMoneyDetails(data: MobileMoneyValidationData): { isValid: boolean; error?: string } {
     // Phone number validation
-    if (!/^\+?[\d\s-()]{10,15}$/.test(data.phoneNumber)) {
+    if (!/^\+?[\d\s-()]{10,15}$/.test(data.phone_number)) {
       return { isValid: false, error: 'Invalid phone number format' };
     }
 

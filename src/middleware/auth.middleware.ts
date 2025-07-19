@@ -56,6 +56,7 @@ function verifyToken(token: string) {
 
 export const authenticateToken: RequestHandler = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
   try {
+    console.log('Auth headers:', req.headers); // Debug: print incoming headers
     const token = extractToken(req.headers.authorization);
     const payload = verifyToken(token);
     // Fetch the full user from DB

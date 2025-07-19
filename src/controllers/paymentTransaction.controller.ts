@@ -5,14 +5,19 @@
 import { Request, Response } from 'express';
 import { PaymentTransactionService } from '../services/PaymentTransactionService';
 import { 
-  CreatePaymentTransactionData,
-  UpdatePaymentTransactionData,
-  PaymentTransactionSearchParams,
-  ProcessPaymentRequest,
-  RefundRequest,
-  PaymentTransactionError,
-  PaymentProviderError
+  ProcessPaymentRequest, 
+  RefundRequest, 
+  PaymentTransactionFilters 
 } from '../types/paymentTransaction.types';
+import { PaymentTransactionError, PaymentProviderError } from '../types/paymentTransaction.types';
+
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    role?: string;
+    [key: string]: any;
+  };
+}
 
 /**
  * Controller for handling payment transaction HTTP requests
@@ -30,7 +35,7 @@ export class PaymentTransactionController {
    */
   public createTransaction = async (req: Request, res: Response): Promise<void> => {
     try {
-      const transactionData: CreatePaymentTransactionData = {
+      const transactionData: any = { // Assuming CreatePaymentTransactionData is removed or replaced
         ...req.body,
         createdBy: req.body.createdBy || 'api_user' // In production, get from auth context
       };
@@ -79,7 +84,7 @@ export class PaymentTransactionController {
    */
   public getTransactions = async (req: Request, res: Response): Promise<void> => {
     try {
-      const searchParams: PaymentTransactionSearchParams = {
+      const searchParams: PaymentTransactionFilters = { // Assuming PaymentTransactionSearchParams is removed or replaced
         page: parseInt(req.query.page as string) || 1,
         limit: parseInt(req.query.limit as string) || 10,
         sortBy: req.query.sortBy as any || 'createdAt',
@@ -164,7 +169,7 @@ export class PaymentTransactionController {
   public updateTransaction = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const updateData: UpdatePaymentTransactionData = {
+      const updateData: any = { // Assuming UpdatePaymentTransactionData is removed or replaced
         ...req.body,
         updatedBy: req.body.updatedBy || 'api_user' // In production, get from auth context
       };
@@ -219,12 +224,26 @@ export class PaymentTransactionController {
    */
   public processPayment = async (req: Request, res: Response): Promise<void> => {
     try {
-      const paymentRequest: ProcessPaymentRequest = req.body;
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user?.id;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User authentication required'
+        });
+        return;
+      }
 
-      if (!paymentRequest.userId || !paymentRequest.paymentMethodId || !paymentRequest.amount || !paymentRequest.transactionType) {
+      const paymentRequest: ProcessPaymentRequest = {
+        ...req.body,
+        user_id: userId // Use authenticated user's ID
+      };
+
+      if (!paymentRequest.payment_method_id || !paymentRequest.amount || !paymentRequest.transaction_type) {
         res.status(400).json({
           success: false,
-          message: 'Missing required payment fields'
+          message: 'Missing required payment fields: payment_method_id, amount, transaction_type'
         });
         return;
       }
@@ -243,9 +262,20 @@ export class PaymentTransactionController {
    */
   public processRefund = async (req: Request, res: Response): Promise<void> => {
     try {
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user?.id;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User authentication required'
+        });
+        return;
+      }
+
       const { id } = req.params;
       const refundRequest: RefundRequest = {
-        transactionId: id,
+        transaction_id: id,
         ...req.body
       };
 
@@ -271,7 +301,27 @@ export class PaymentTransactionController {
    */
   public getUserTransactionSummary = async (req: Request, res: Response): Promise<void> => {
     try {
+      const authReq = req as AuthenticatedRequest;
+      const authenticatedUserId = authReq.user?.id;
       const { userId } = req.params;
+      
+      if (!authenticatedUserId) {
+        res.status(401).json({
+          success: false,
+          message: 'User authentication required'
+        });
+        return;
+      }
+
+      // Users can only access their own transaction summary, unless they're admin
+      if (authenticatedUserId !== userId && authReq.user?.role !== 'admin') {
+        res.status(403).json({
+          success: false,
+          message: 'Access denied'
+        });
+        return;
+      }
+
       const summary = await this.service.getUserTransactionSummary(userId);
 
       if (!summary) {
@@ -297,17 +347,37 @@ export class PaymentTransactionController {
    */
   public getTransactionStats = async (req: Request, res: Response): Promise<void> => {
     try {
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user?.id;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User authentication required'
+        });
+        return;
+      }
+
       // Build filters from query parameters
       const filters = {
-        userId: req.query.userId as string,
-        bookingId: req.query.bookingId as string,
-        transactionType: req.query.transactionType as any,
+        user_id: req.query.user_id as string || userId, // Default to authenticated user if not specified
+        booking_id: req.query.booking_id as string,
+        transaction_type: req.query.transaction_type as any,
         status: req.query.status as any,
         provider: req.query.provider as any,
         currency: req.query.currency as any,
-        createdAfter: req.query.createdAfter ? new Date(req.query.createdAfter as string) : undefined,
-        createdBefore: req.query.createdBefore ? new Date(req.query.createdBefore as string) : undefined
+        created_after: req.query.created_after ? new Date(req.query.created_after as string) : undefined,
+        created_before: req.query.created_before ? new Date(req.query.created_before as string) : undefined
       };
+
+      // Non-admin users can only see their own stats
+      if (authReq.user?.role !== 'admin' && filters.user_id !== userId) {
+        res.status(403).json({
+          success: false,
+          message: 'Access denied'
+        });
+        return;
+      }
 
       // Remove undefined values
       Object.keys(filters).forEach(key => {

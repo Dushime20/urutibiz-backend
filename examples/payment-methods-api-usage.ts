@@ -37,58 +37,82 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
 // =====================================================
 
 /**
- * Example 1: Create a Credit Card Payment Method
+ * Example 1: Create a credit card payment method
  */
-export async function createCreditCard() {
-  console.log('\n=== Creating Credit Card Payment Method ===');
+export async function createCreditCardPaymentMethod() {
+  console.log('Creating credit card payment method...');
   
-  const cardData = {
+  const paymentMethodData = {
     type: 'card',
-    provider: 'visa',
-    lastFour: '4242',
-    cardBrand: 'visa',
-    expMonth: 12,
-    expYear: 2025,
-    providerToken: 'tok_visa_4242424242424242',
-    paymentProviderId: 'provider-uuid-here',
-    isDefault: true,
+    provider: 'stripe',
+    last_four: '4242',
+    card_brand: 'visa',
+    exp_month: 12,
+    exp_year: 2025,
+    is_default: true,
     currency: 'RWF',
     metadata: {
-      nickname: 'Primary Visa Card',
-      addedFrom: 'web_app',
-      userAgent: 'Mozilla/5.0...'
+      cardholder_name: 'John Doe',
+      billing_address: {
+        line1: '123 Main St',
+        city: 'Kigali',
+        country: 'RW'
+      }
     }
   };
 
-  return await apiCall('/payment-methods', {
-    method: 'POST',
-    body: JSON.stringify(cardData)
-  });
+  try {
+    const response = await fetch(`${BASE_URL}/payment-methods`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_TOKEN}`
+      },
+      body: JSON.stringify(paymentMethodData)
+    });
+    const data = await response.json();
+    console.log('Credit card payment method created:', data);
+    return data.data;
+  } catch (error: any) {
+    console.error('Error creating credit card payment method:', error.response?.data || error.message);
+    throw error;
+  }
 }
 
 /**
- * Example 2: Create a Mobile Money Payment Method
+ * Example 2: Create a mobile money payment method
  */
-export async function createMobileMoney() {
-  console.log('\n=== Creating Mobile Money Payment Method ===');
+export async function createMobileMoneyPaymentMethod() {
+  console.log('Creating mobile money payment method...');
   
-  const mobileMoneyData = {
+  const paymentMethodData = {
     type: 'mobile_money',
     provider: 'mtn_momo',
-    phoneNumber: '+250781234567',
-    providerToken: 'mtn_token_encrypted_123',
+    phone_number: '+250788123456',
+    is_default: false,
     currency: 'RWF',
     metadata: {
-      nickname: 'MTN Mobile Money',
-      registeredName: 'John Doe',
-      accountType: 'personal'
+      account_name: 'John Doe',
+      account_type: 'personal'
     }
   };
 
-  return await apiCall('/payment-methods', {
-    method: 'POST',
-    body: JSON.stringify(mobileMoneyData)
-  });
+  try {
+    const response = await fetch(`${BASE_URL}/payment-methods`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_TOKEN}`
+      },
+      body: JSON.stringify(paymentMethodData)
+    });
+    const data = await response.json();
+    console.log('Mobile money payment method created:', data);
+    return data.data;
+  } catch (error: any) {
+    console.error('Error creating mobile money payment method:', error.response?.data || error.message);
+    throw error;
+  }
 }
 
 /**
@@ -346,16 +370,16 @@ export async function completePaymentMethodWorkflow() {
   
   try {
     // Step 1: Create payment methods
-    const cardResult = await createCreditCard();
-    const mobileResult = await createMobileMoney();
+    const cardResult = await createCreditCardPaymentMethod();
+    const mobileResult = await createMobileMoneyPaymentMethod();
     
     if (!cardResult.success || !mobileResult.success) {
       console.error('Failed to create payment methods');
       return;
     }
 
-    const cardId = cardResult.data.id;
-    const mobileId = mobileResult.data.id;
+    const cardId = cardResult.id;
+    const mobileId = mobileResult.id;
 
     // Step 2: Get all payment methods
     await getAllPaymentMethods();
@@ -461,8 +485,8 @@ export async function bulkOperationsExample() {
 
 export const PaymentMethodExamples = {
   // Core CRUD
-  createCreditCard,
-  createMobileMoney,
+  createCreditCardPaymentMethod,
+  createMobileMoneyPaymentMethod,
   createAirtelMoney,
   getAllPaymentMethods,
   getFilteredPaymentMethods,

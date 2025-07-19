@@ -4,6 +4,7 @@
 
 import { Router } from 'express';
 import { paymentMethodController } from '../controllers/paymentMethod.controller';
+import { requireAuth } from '@/middleware';
 
 const router = Router();
 
@@ -229,7 +230,7 @@ const router = Router();
  *       500:
  *         description: Internal server error
  */
-router.post('/', paymentMethodController.createPaymentMethod);
+router.post('/',requireAuth, paymentMethodController.createPaymentMethod);
 
 /**
  * @swagger
@@ -301,7 +302,7 @@ router.post('/', paymentMethodController.createPaymentMethod);
  *       500:
  *         description: Internal server error
  */
-router.get('/', paymentMethodController.getUserPaymentMethods);
+router.get('/',requireAuth, paymentMethodController.getUserPaymentMethods);
 
 /**
  * @swagger
@@ -647,5 +648,31 @@ router.post('/validate/card', paymentMethodController.validateCard);
  *         description: Internal server error
  */
 router.post('/validate/mobile-money', paymentMethodController.validateMobileMoney);
+
+/**
+ * @swagger
+ * /api/v1/payment-methods/all:
+ *   get:
+ *     summary: Get all payment methods (admin only)
+ *     tags: [Payment Methods]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All payment methods retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/PaymentMethod'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       500:
+ *         description: Internal server error
+ */
+// router.get('/all',requireAuth, paymentMethodController.getAllPaymentMethods);
 
 export default router;

@@ -10,197 +10,60 @@ import {
   PaymentMethodType,
   PaymentProvider
 } from '@/types/paymentMethod.types';
-import { v4 as uuidv4 } from 'uuid';
+import { getDatabase } from '@/config/database';
 
-// Demo repository - In-memory implementation for now
 export class PaymentMethodRepository {
-  private static paymentMethods: PaymentMethodData[] = [];
+  private db = getDatabase();
 
   /**
-   * Create a new payment method
+   * Return all payment methods in the database
    */
-  async create(data: CreatePaymentMethodData): Promise<PaymentMethodData> {
-    // If this is set as default, unset other default methods for the user
-    if (data.isDefault) {
-      await this.unsetDefaultForUser(data.userId);
-    }
-
-    const paymentMethod: PaymentMethodData = {
-      id: uuidv4(),
-      ...data,
-      isDefault: data.isDefault || false,
-      isVerified: false, // New methods start unverified
-      currency: data.currency || 'USD',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    PaymentMethodRepository.paymentMethods.push(paymentMethod);
-    return paymentMethod;
+  async findAll(): Promise<PaymentMethodData[]> {
+    return await this.db<PaymentMethodData>('payment_methods').select('*');
   }
 
   /**
    * Find payment method by ID
    */
   async findById(id: string): Promise<PaymentMethodData | null> {
-    return PaymentMethodRepository.paymentMethods.find(method => method.id === id) || null;
+    const result = await this.db<PaymentMethodData>('payment_methods').where({ id }).first();
+    return result || null;
   }
 
   /**
    * Find all payment methods for a user
    */
   async findByUserId(userId: string): Promise<PaymentMethodData[]> {
-    return PaymentMethodRepository.paymentMethods
-      .filter(method => method.userId === userId)
-      .sort((a, b) => {
-        // Default methods first, then by creation date
-        if (a.isDefault && !b.isDefault) return -1;
-        if (!a.isDefault && b.isDefault) return 1;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
+    return await this.db<PaymentMethodData>('payment_methods').where({ user_id: userId }).select('*');
   }
 
   /**
-   * Find user's default payment method
+   * Create a new payment method
    */
-  async findDefaultByUserId(userId: string): Promise<PaymentMethodData | null> {
-    return PaymentMethodRepository.paymentMethods.find(
-      method => method.userId === userId && method.isDefault
-    ) || null;
-  }
-
-  /**
-   * Find payment methods with filters
-   */
-  async findWithFilters(filters: PaymentMethodFilters): Promise<PaymentMethodData[]> {
-    let filtered = PaymentMethodRepository.paymentMethods;
-
-    if (filters.userId) {
-      filtered = filtered.filter(method => method.userId === filters.userId);
-    }
-    if (filters.type) {
-      filtered = filtered.filter(method => method.type === filters.type);
-    }
-    if (filters.provider) {
-      filtered = filtered.filter(method => method.provider === filters.provider);
-    }
-    if (filters.isDefault !== undefined) {
-      filtered = filtered.filter(method => method.isDefault === filters.isDefault);
-    }
-    if (filters.isVerified !== undefined) {
-      filtered = filtered.filter(method => method.isVerified === filters.isVerified);
-    }
-    if (filters.currency) {
-      filtered = filtered.filter(method => method.currency === filters.currency);
-    }
-    if (filters.paymentProviderId) {
-      filtered = filtered.filter(method => method.paymentProviderId === filters.paymentProviderId);
-    }
-
-    return filtered;
-  }
-
-  /**
-   * Find paginated payment methods
-   */
-  async findPaginated(
-    filters: PaymentMethodFilters,
-    page: number = 1,
-    limit: number = 20,
-    sortBy: string = 'created_at',
-    sortOrder: 'asc' | 'desc' = 'desc'
-  ): Promise<{
-    data: PaymentMethodData[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
-  }> {
-    let filtered = await this.findWithFilters(filters);
-
-    // Sort
-    filtered.sort((a, b) => {
-      let aValue: any, bValue: any;
-      
-      switch (sortBy) {
-        case 'created_at':
-          aValue = new Date(a.createdAt).getTime();
-          bValue = new Date(b.createdAt).getTime();
-          break;
-        case 'type':
-          aValue = a.type;
-          bValue = b.type;
-          break;
-        case 'provider':
-          aValue = a.provider || '';
-          bValue = b.provider || '';
-          break;
-        default:
-          aValue = (a as any)[sortBy];
-          bValue = (b as any)[sortBy];
-      }
-
-      if (sortOrder === 'desc') {
-        return bValue > aValue ? 1 : -1;
-      }
-      return aValue > bValue ? 1 : -1;
-    });
-
-    // Paginate
-    const total = filtered.length;
-    const totalPages = Math.ceil(total / limit);
-    const offset = (page - 1) * limit;
-    const data = filtered.slice(offset, offset + limit);
-
-    return {
-      data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages
-      }
-    };
+  async create(data: CreatePaymentMethodData): Promise<PaymentMethodData> {
+    const [created] = await this.db<PaymentMethodData>('payment_methods')
+      .insert({ ...data, created_at: new Date(), updated_at: new Date() })
+      .returning('*');
+    return created;
   }
 
   /**
    * Update payment method
    */
   async update(id: string, data: UpdatePaymentMethodData): Promise<PaymentMethodData | null> {
-    const methodIndex = PaymentMethodRepository.paymentMethods.findIndex(method => method.id === id);
-    
-    if (methodIndex === -1) {
-      return null;
-    }
-
-    const existingMethod = PaymentMethodRepository.paymentMethods[methodIndex];
-
-    // If setting as default, unset other default methods for the user
-    if (data.isDefault && !existingMethod.isDefault) {
-      await this.unsetDefaultForUser(existingMethod.userId);
-    }
-
-    const updatedMethod = {
-      ...existingMethod,
-      ...data,
-      updatedAt: new Date()
-    };
-
-    PaymentMethodRepository.paymentMethods[methodIndex] = updatedMethod;
-    return updatedMethod;
+    const [updated] = await this.db<PaymentMethodData>('payment_methods')
+      .where({ id })
+      .update({ ...data, updated_at: new Date() })
+      .returning('*');
+    return updated || null;
   }
 
   /**
    * Delete payment method
    */
   async delete(id: string): Promise<boolean> {
-    const initialLength = PaymentMethodRepository.paymentMethods.length;
-    PaymentMethodRepository.paymentMethods = PaymentMethodRepository.paymentMethods.filter(
-      method => method.id !== id
-    );
-    return PaymentMethodRepository.paymentMethods.length < initialLength;
+    const deleted = await this.db<PaymentMethodData>('payment_methods').where({ id }).del();
+    return deleted > 0;
   }
 
   /**
@@ -251,7 +114,7 @@ export class PaymentMethodRepository {
   }> {
     const methods = userId 
       ? await this.findByUserId(userId)
-      : PaymentMethodRepository.paymentMethods;
+      : await this.findAll();
 
     const methodsByType: Record<PaymentMethodType, number> = {
       'card': 0,
@@ -294,7 +157,7 @@ export class PaymentMethodRepository {
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
 
-    return PaymentMethodRepository.paymentMethods.filter(method => {
+    return (await this.findAll()).filter(method => {
       if (method.type !== 'card' || !method.expYear || !method.expMonth) {
         return false;
       }
@@ -318,7 +181,7 @@ export class PaymentMethodRepository {
     const futureYear = twoMonthsFromNow.getFullYear();
     const futureMonth = twoMonthsFromNow.getMonth() + 1;
 
-    return PaymentMethodRepository.paymentMethods.filter(method => {
+    return (await this.findAll()).filter(method => {
       if (method.type !== 'card' || !method.expYear || !method.expMonth) {
         return false;
       }
@@ -330,6 +193,55 @@ export class PaymentMethodRepository {
 
       return isCurrentOrFutureYear && isWithinTimeframe;
     });
+  }
+
+  async findPaginated(
+    filters: PaymentMethodFilters,
+    page: number = 1,
+    limit: number = 20,
+    sortBy: string = 'created_at',
+    sortOrder: 'asc' | 'desc' = 'desc'
+  ): Promise<{
+    data: PaymentMethodData[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    // Remove undefined filters
+    const cleanedFilters: Record<string, any> = {};
+    for (const key in filters) {
+      if (filters[key] !== undefined) {
+        cleanedFilters[key] = filters[key];
+      }
+    }
+
+    // Count query (no orderBy)
+    const countQuery = this.db<PaymentMethodData>('payment_methods').where(cleanedFilters);
+    const total = await countQuery.count<{ count: string }[]>('* as count');
+    const totalCount = parseInt(total[0].count, 10);
+    const totalPages = Math.ceil(totalCount / limit);
+    const offset = (page - 1) * limit;
+
+    // Data query (with orderBy)
+    const data = await this.db<PaymentMethodData>('payment_methods')
+      .where(cleanedFilters)
+      .orderBy(sortBy, sortOrder)
+      .offset(offset)
+      .limit(limit)
+      .select('*');
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        totalPages
+      }
+    };
   }
 }
 

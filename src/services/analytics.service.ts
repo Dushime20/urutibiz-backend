@@ -16,16 +16,39 @@ import {
 } from '@/types/analytics.types';
 import knex from 'knex';
 
-// Get the initialized Knex instance (singleton pattern)
+// Initialize database connection
 let db: ReturnType<typeof knex>;
 try {
-  // If already initialized elsewhere, use that instance
-  db = require('@/config/database').database || knex({});
-} catch {
-  // fallback: create a dummy instance (should not be used in production)
-  db = knex({});
+  // Use the existing database instance from config
+  db = require('@/config/database').getDatabase();
+} catch (error) {
+  logger.error('Failed to initialize database for analytics:', error);
+  // Create a fallback instance with proper configuration
+  db = knex({
+    client: 'postgresql',
+    connection: {
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432'),
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'urutibiz'
+    }
+  });
 }
-const redis = getRedisClient();
+
+// Lazy Redis client initialization
+let redisClient: ReturnType<typeof getRedisClient> | null = null;
+const getRedis = () => {
+  if (!redisClient) {
+    try {
+      redisClient = getRedisClient();
+    } catch (error) {
+      logger.warn('Redis not available for analytics caching:', error);
+      return null;
+    }
+  }
+  return redisClient;
+};
 
 type ViewTrend = { date: string; views: string };
 type TrendRow = { date: string; total_bookings: string; revenue: string; avg_value: string; cancellation_rate: string };
@@ -959,10 +982,14 @@ export class AnalyticsService {
 
   private static async cacheAnalytics(params: BookingAnalyticsParams, response: BookingAnalyticsResponse): Promise<void> {
     try {
+      const redis = getRedis();
+      if (!redis) return; // Skip caching if Redis is not available
+      
       const cacheKey = `analytics:booking:${JSON.stringify(params)}`;
       await redis.setEx(cacheKey, 3600, JSON.stringify(response));
     } catch (error) {
       logger.warn('Failed to cache analytics:', error);
+      // Non-critical error - continue without caching
     }
   }
 }

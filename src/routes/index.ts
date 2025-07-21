@@ -6,6 +6,7 @@ import userRoutes from './users.routes';
 import productRoutes from './products.routes';
 import bookingRoutes from './bookings.routes';
 import userVerificationRoutes from './userVerification.routes';
+import adminRoutes from './admin.routes';
 import adminVerificationRoutes from './adminVerification.routes';
 import documentManagementRoutes from './documentManagement.routes';
 import categoriesRoutes from './categories.routes';
@@ -50,7 +51,8 @@ router.get('/test', (_req, res) => {
 router.use('/products', productRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/user-verification', userVerificationRoutes);
-router.use('/admin', adminVerificationRoutes);
+router.use('/admin', adminRoutes); // Use the main admin routes
+router.use('/admin/verification', adminVerificationRoutes); // Mount admin verification as a sub-route
 router.use('/documents', documentManagementRoutes);
 router.use('/categories', categoriesRoutes);
 router.use('/product-images', productImagesRoutes);

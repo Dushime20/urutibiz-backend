@@ -83,8 +83,8 @@ export interface BookingData {
   // Audit information
   created_by?: string;
   last_modified_by?: string;
-  created_at: string;
-  updated_at: string;
+  created_at: Date;
+  updated_at?: Date;
   confirmed_at?: string;
   started_at?: string;
   completed_at?: string;
@@ -94,6 +94,8 @@ export interface BookingData {
   metadata?: Record<string, any>;
   is_repeat_booking?: boolean;
   parent_booking_id?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface CreateBookingData {

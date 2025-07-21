@@ -24,14 +24,14 @@ export class AdminController extends BaseController {
    *       200:
    *         description: Dashboard statistics
    */
-  public async getDashboardStats(req: Request, res: Response) {
+  public async getDashboard(req: Request, res: Response) {
     try {
-      const timeframe = (req.query.timeframe as string) || '30d';
-      const stats = await AdminService.getDashboardStats(timeframe);
-      return ResponseHelper.success(res, 'Dashboard statistics retrieved successfully', stats);
+      const { timeframe = '30d' } = req.query;
+      const stats = await AdminService.getDashboardStats(timeframe as string);
+      return ResponseHelper.success(res, 'Dashboard stats retrieved successfully', stats);
     } catch (error: any) {
-      logger.error(`Error in getDashboardStats: ${error.message}`);
-      return ResponseHelper.error(res, 'Failed to retrieve dashboard statistics', error);
+      logger.error(`Error in getDashboard: ${error.message}`);
+      return ResponseHelper.error(res, 'Failed to retrieve dashboard stats', error);
     }
   }
 
@@ -47,12 +47,8 @@ export class AdminController extends BaseController {
    */
   public async getAnalytics(req: Request, res: Response) {
     try {
-      const { type = 'overview', period = '30d', granularity = 'day' } = req.query;
-      const analytics = await AnalyticsService.getAnalytics(
-        type as string,
-        period as string,
-        granularity as string
-      );
+      const { period = '30d', granularity = 'day' } = req.query;
+      const analytics = await AdminService.getAnalytics(period as string, granularity as string);
       return ResponseHelper.success(res, 'Analytics retrieved successfully', analytics);
     } catch (error: any) {
       logger.error(`Error in getAnalytics: ${error.message}`);
@@ -70,12 +66,12 @@ export class AdminController extends BaseController {
    *       200:
    *         description: Real-time metrics
    */
-  public async getRealtimeMetrics(_req: Request, res: Response) {
+  public async getRealTimeMetrics(req: Request, res: Response) {
     try {
-      const metrics = await AdminService.getRealtimeMetrics();
+      const metrics = await AdminService.getRealTimeMetrics();
       return ResponseHelper.success(res, 'Real-time metrics retrieved successfully', metrics);
     } catch (error: any) {
-      logger.error(`Error in getRealtimeMetrics: ${error.message}`);
+      logger.error(`Error in getRealTimeMetrics: ${error.message}`);
       return ResponseHelper.error(res, 'Failed to retrieve real-time metrics', error);
     }
   }
@@ -84,19 +80,19 @@ export class AdminController extends BaseController {
    * @swagger
    * /admin/activity:
    *   get:
-   *     summary: Get admin activity feed
+   *     summary: Get activity feed
    *     tags: [Admin]
    *     responses:
    *       200:
    *         description: Activity feed
    */
-  public async getActivityFeed(req: Request, res: Response) {
+  public async getActivity(req: Request, res: Response) {
     try {
-      const { page = 1, limit = 20 } = req.query;
-      const activityFeed = await AdminService.getActivityFeed(Number(page), Number(limit));
-      return ResponseHelper.success(res, 'Activity feed retrieved successfully', activityFeed);
+      const { page = 1, limit = 50 } = req.query;
+      const activity = await AdminService.getActivityFeed(Number(page), Number(limit));
+      return ResponseHelper.success(res, 'Activity feed retrieved successfully', activity);
     } catch (error: any) {
-      logger.error(`Error in getActivityFeed: ${error.message}`);
+      logger.error(`Error in getActivity: ${error.message}`);
       return ResponseHelper.error(res, 'Failed to retrieve activity feed', error);
     }
   }

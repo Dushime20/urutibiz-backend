@@ -579,4 +579,18 @@ router.get('/moderation/metrics', ModerationController.getMetrics);
  */
 router.post('/moderation/trigger', ModerationController.triggerModeration);
 
+// Bookings routes
+router.get('/bookings', adminController.getBookings);
+router.get('/bookings/:id', adminController.getBookingDetails);
+
+// Users routes
+router.get('/users', adminController.getUsers);
+router.get('/users/:id', adminController.getUserDetails);
+
+// Dashboard and Analytics routes
+router.get('/dashboard', adminController.getDashboard);
+router.get('/analytics', adminController.getAnalytics);
+router.get('/metrics/realtime', adminController.getRealTimeMetrics);
+router.get('/activity', adminController.getActivity);
+
 export default router;

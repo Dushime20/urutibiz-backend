@@ -1,10 +1,12 @@
 import { OptimizedBaseRepository } from './BaseRepository.optimized';
 import Booking from '@/models/Booking.model';
 import { BookingData, CreateBookingData, UpdateBookingData } from '@/types/booking.types';
+import { getDatabase } from '@/config/database';
 
 class BookingRepository extends OptimizedBaseRepository<BookingData, CreateBookingData, UpdateBookingData> {
   protected readonly tableName = 'bookings';
   protected readonly modelClass = Booking;
+  private knex = getDatabase();
   
   constructor() {
     super();
@@ -32,6 +34,24 @@ class BookingRepository extends OptimizedBaseRepository<BookingData, CreateBooki
   async getBookingsByStatus(status: string, limit: number = 100) {
     const result = await this.batchFindBy('status', [status], limit);
     return result.success ? result.data : [];
+  }
+
+  /**
+   * Check if a user already has an active booking for a given item
+   * An "active" booking is one that is either pending, confirmed, or in_progress
+   */
+  async findActiveByUserAndItem(renter_id: string, product_id: string) {
+    try {
+      const booking = await this.knex('bookings')
+        .where({ renter_id, product_id })
+        .whereIn('status', ['pending', 'confirmed', 'in_progress'])
+        .first();
+      
+      return booking || null;
+    } catch (error) {
+      console.error('Error checking for active booking:', error);
+      throw new Error('Failed to check for existing booking');
+    }
   }
 }
 

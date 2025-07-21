@@ -56,6 +56,7 @@ export interface ProductData {
   features?: string[];
   base_price_per_week?: number;
   base_price_per_month?: number;
+  security_deposit?: number;
 }
 
 export interface CreateProductData {

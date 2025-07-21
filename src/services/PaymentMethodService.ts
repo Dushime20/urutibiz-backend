@@ -201,13 +201,13 @@ class PaymentMethodService {
         : [];
 
       const analytics: PaymentMethodAnalytics = {
-        totalMethods: stats.totalMethods,
-        methodsByType: stats.methodsByType,
-        methodsByProvider: stats.methodsByProvider,
-        methodsByCurrency: {}, // Could be implemented if needed
-        verificationRate: stats.totalMethods > 0 ? (stats.verifiedCount / stats.totalMethods) * 100 : 0,
-        defaultMethodsCount: stats.defaultCount,
-        recentlyAdded
+        total_methods: stats.totalMethods,
+        methods_by_type: stats.methodsByType,
+        methods_by_provider: stats.methodsByProvider,
+        methods_by_currency: {}, // Could be implemented if needed
+        verification_rate: stats.totalMethods > 0 ? (stats.verifiedCount / stats.totalMethods) * 100 : 0,
+        default_methods_count: stats.defaultCount,
+        recently_added
       };
 
       return { success: true, data: analytics };

@@ -12,6 +12,14 @@ import {
 } from '@/types/paymentMethod.types';
 import { getDatabase } from '@/config/database';
 
+async function findDefaultByUserId(user_id: string) {
+  const db = getDatabase();
+  const result = await db('payment_methods')
+    .where({ user_id, is_default: true })
+    .first();
+  return result || null;
+}
+
 export class PaymentMethodRepository {
   private db = getDatabase();
 

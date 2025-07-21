@@ -26,6 +26,8 @@ import {
 } from '@/types';
 import { InsuranceType } from '@/types/booking.types';
 import { ResponseHelper } from '@/utils/response';
+import { v4 as uuidv4 } from 'uuid';
+import { getDatabase } from '@/config/database';
 
 // Performance: Cache configuration
 const CACHE_TTL = {
@@ -148,6 +150,12 @@ export class BookingsController extends BaseController {
       check_out_time,
       parent_booking_id
     }: CreateBookingData = req.body;
+
+    // Check product availability before booking
+    const isAvailable = await BookingService.isProductAvailable(product_id, start_date, end_date);
+    if (!isAvailable) {
+      return ResponseHelper.error(res, 'Product is not available for the selected dates', 409);
+    }
 
     // Performance: Concurrent booking prevention using lock
     const lockKey = `booking_${product_id}_${start_date}_${end_date}`;
@@ -532,14 +540,14 @@ export class BookingsController extends BaseController {
    */
   public checkOut = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     const booking = await Booking.findById(id);
     if (!booking) {
       return this.handleNotFound(res, 'Booking');
     }
 
-    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+    if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to check-out this booking');
     }
 
@@ -547,14 +555,14 @@ export class BookingsController extends BaseController {
       return this.handleBadRequest(res, 'Booking must be in progress to check-out');
     }
 
-    const updatedBooking = await booking.checkOut(userId);
+    const updatedBooking = await booking.checkOut(user_id);
 
     // Record status change in audit trail
     await this.recordStatusChange(
       id,
       booking.status,
       'completed',
-      userId,
+      user_id,
       undefined,
       'Booking check-out completed'
     );
@@ -562,7 +570,7 @@ export class BookingsController extends BaseController {
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
-    this.logAction('CHECKOUT_BOOKING', userId, id);
+    this.logAction('CHECKOUT_BOOKING', user_id, id);
 
     return ResponseHelper.success(res, 'Check-out completed successfully', updatedBooking.toJSON());
   });
@@ -573,7 +581,7 @@ export class BookingsController extends BaseController {
    */
   public getBookingTimeline = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     // Performance: Check timeline cache
     const cacheKey = `timeline_${id}`;
@@ -588,7 +596,7 @@ export class BookingsController extends BaseController {
       return this.handleNotFound(res, 'Booking');
     }
 
-    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+    if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to view this booking timeline');
     }
 
@@ -600,7 +608,7 @@ export class BookingsController extends BaseController {
       timestamp: Date.now()
     });
 
-    this.logAction('GET_BOOKING_TIMELINE', userId, id);
+    this.logAction('GET_BOOKING_TIMELINE', user_id, id);
 
     return ResponseHelper.success(res, 'Booking timeline retrieved successfully', timeline);
   });
@@ -656,14 +664,14 @@ export class BookingsController extends BaseController {
       notes?: string;
       photos?: string[];
     } = req.body;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     const booking = await Booking.findById(id);
     if (!booking) {
       return this.handleNotFound(res, 'Booking');
     }
 
-    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+    if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to record condition for this booking');
     }
 
@@ -680,14 +688,14 @@ export class BookingsController extends BaseController {
       if (photos) updateData.damagePhotos = photos;
     }
     
-    updateData.lastModifiedBy = userId;
+    updateData.lastModifiedBy = user_id;
 
     const updatedBooking = await booking.update(updateData);
 
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
-    this.logAction('RECORD_CONDITION', userId, id, { conditionType, condition });
+    this.logAction('RECORD_CONDITION', user_id, id, { conditionType, condition });
 
     return ResponseHelper.success(res, 'Product condition recorded successfully', updatedBooking.toJSON());
   });
@@ -707,14 +715,14 @@ export class BookingsController extends BaseController {
       policyNumber?: string;
       insuranceDetails?: Record<string, any>;
     } = req.body;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     const booking = await Booking.findById(id);
     if (!booking) {
       return this.handleNotFound(res, 'Booking');
     }
 
-    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+    if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to update insurance for this booking');
     }
 
@@ -742,7 +750,7 @@ export class BookingsController extends BaseController {
       insuranceDetails,
       pricing: newPricing,
       totalAmount: newPricing.totalAmount,
-      lastModifiedBy: userId
+      lastModifiedBy: user_id
     };
 
     const updatedBooking = await booking.update({
@@ -751,13 +759,13 @@ export class BookingsController extends BaseController {
       insuranceDetails,
       pricing: newPricing,
       totalAmount: newPricing.totalAmount,
-      lastModifiedBy: userId
+      lastModifiedBy: user_id
     } as any); // Cast to any to bypass type error, or update UpdateBookingData type accordingly
 
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
-    this.logAction('UPDATE_INSURANCE', userId, id, { insuranceType, policyNumber });
+    this.logAction('UPDATE_INSURANCE', user_id, id, { insuranceType, policyNumber });
 
     return ResponseHelper.success(res, 'Booking insurance updated successfully', updatedBooking.toJSON());
   });
@@ -769,7 +777,7 @@ export class BookingsController extends BaseController {
   public setBookingPaymentMethod = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
     const { paymentMethodId }: { paymentMethodId: string } = req.body;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     if (!paymentMethodId) {
       return this.handleBadRequest(res, 'Payment method ID is required');
@@ -780,7 +788,7 @@ export class BookingsController extends BaseController {
       return this.handleNotFound(res, 'Booking');
     }
 
-    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+    if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to modify this booking');
     }
 
@@ -790,23 +798,23 @@ export class BookingsController extends BaseController {
       return this.handleBadRequest(res, 'Payment method not found');
     }
 
-    if (paymentMethodResult.data?.userId !== userId) {
+    if (paymentMethodResult.data?.user_id !== user_id) {
       return this.handleUnauthorized(res, 'Payment method does not belong to user');
     }
 
-    if (!paymentMethodResult.data?.isVerified) {
+    if (!paymentMethodResult.data?.is_verified) {
       return this.handleBadRequest(res, 'Payment method must be verified before use');
     }
 
     // Update booking with payment method
     const updatedBooking = await booking.update({
       payment_method_id: paymentMethodId,
-      last_modified_by: userId
+      last_modified_by: user_id
     });
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
-    this.logAction('SET_PAYMENT_METHOD', userId, id, { paymentMethodId });
+    this.logAction('SET_PAYMENT_METHOD', user_id, id, { paymentMethodId });
 
     return ResponseHelper.success(res, 'Payment method set successfully', updatedBooking.toJSON());
   });
@@ -817,20 +825,20 @@ export class BookingsController extends BaseController {
    */
   public getBookingPaymentMethods = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user_id = req.user.id;
 
     const booking = await Booking.findById(id);
     if (!booking) {
       return this.handleNotFound(res, 'Booking');
     }
 
-    if (!this.checkBookingAccess(booking, userId) && req.user.role !== 'admin') {
+    if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to view this booking');
     }
 
     // Get user's verified payment methods
     const result = await paymentMethodService.getPaginated(
-      { userId, isVerified: true },
+      { user_id: user_id, is_verified: true },
       1,
       50
     );
@@ -839,7 +847,7 @@ export class BookingsController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to fetch payment methods', 400);
     }
 
-    this.logAction('GET_BOOKING_PAYMENT_METHODS', userId, id);
+    this.logAction('GET_BOOKING_PAYMENT_METHODS', user_id, id);
 
     return ResponseHelper.success(res, 'Payment methods retrieved successfully', result.data);
   });
@@ -928,7 +936,18 @@ export class BookingsController extends BaseController {
       insurance_type: insurance_type || 'none',
       security_deposit,
       ai_risk_score: aiRiskScore,
-      pricing,
+      pricing: {
+        base_price: product.base_price_per_day,
+        currency: product.base_currency,
+        total_days: Math.ceil((new Date(end_date).getTime() - new Date(start_date).getTime()) / (1000 * 60 * 60 * 24)),
+        subtotal: base_amount,
+        platform_fee: pricing.platformFee,
+        tax_amount: pricing.taxAmount,
+        insurance_fee: pricing.insuranceFee,
+        total_amount: total_amount,
+        security_deposit: typeof product.security_deposit === 'number' ? product.security_deposit : 0,
+        discount_amount: 0 // Could be calculated based on promotions
+      },
       total_amount, // ensure not null
       base_amount,  // ensure not null
       metadata,
@@ -961,7 +980,27 @@ export class BookingsController extends BaseController {
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(renter_id, owner_id);
     // Log action would be handled in the main method
-    return ResponseHelper.success(res, 'Booking created successfully', created.data, 201);
+    // After booking is created and before returning success:
+    const booking = await Booking.create(finalBookingData);
+    // Mark product as unavailable for each day in the booking range
+    const db = getDatabase();
+    const start = new Date(finalBookingData.start_date);
+    const end = new Date(finalBookingData.end_date);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      await db('product_availability')
+        .insert({
+          id: uuidv4(),
+          product_id: finalBookingData.product_id,
+          date: dateStr,
+          availability_type: 'unavailable',
+          created_at: new Date(),
+          notes: 'Booked'
+        })
+        .onConflict(['product_id', 'date'])
+        .merge({ availability_type: 'unavailable', notes: 'Booked' });
+    }
+    return ResponseHelper.success(res, 'Booking created successfully', booking, 201);
   }
 
   /**
@@ -1045,7 +1084,7 @@ export class BookingsController extends BaseController {
    * Check booking access authorization
    */
   private checkBookingAccess(booking: any, userId: string): boolean {
-    return booking.renterId === userId || booking.ownerId === userId;
+    return booking.renter_id === userId || booking.owner_id === userId;
   }
 
   /**

@@ -61,6 +61,12 @@ export default class UserVerificationService {
     } catch (err) {
       aiProfileScore = 0;
     }
+    // Get user's phone number for verification record
+    const user = await db('users').where({ id: userId }).first();
+    const userPhoneNumber = user?.phone_number || user?.phone; // Try both phone_number and phone fields
+    
+    console.log(`📱 User ${userId} phone number: ${userPhoneNumber}`);
+    
     const [row] = await db('user_verifications')
       .insert({
         id: uuidv4(),
@@ -73,6 +79,7 @@ export default class UserVerificationService {
         district: data.district,
         country: data.country,
         selfie_image_url: data.selfieImageUrl,
+        phone_number: userPhoneNumber, // Include user's phone number
         ocr_data: ocrData,
         liveness_score: livenessScore,
         ai_profile_score: aiProfileScore,
@@ -167,6 +174,12 @@ export default class UserVerificationService {
       aiProfileScore = 0;
     }
 
+    // Get user's phone number for verification record
+    const user = await db('users').where({ id: userId }).first();
+    const userPhoneNumber = user?.phone_number || user?.phone;
+    
+    console.log(`📱 Resubmitting verification for user ${userId} with phone: ${userPhoneNumber}`);
+    
     // Update the verification record
     const [row] = await db('user_verifications')
       .where({ id: verificationId, user_id: userId })
@@ -179,6 +192,7 @@ export default class UserVerificationService {
         district: data.district,
         country: data.country,
         selfie_image_url: data.selfieImageUrl,
+        phone_number: userPhoneNumber, // Include user's phone number
         ocr_data: ocrData,
         liveness_score: livenessScore,
         ai_profile_score: aiProfileScore,
@@ -249,9 +263,20 @@ export default class UserVerificationService {
       // If all required types are verified, set kyc_status to 'verified', else 'pending_review'
       const isFullyVerified = await UserVerificationService.isUserFullyKycVerified(row.user_id);
       const newKycStatus = isFullyVerified ? 'verified' : 'pending_review';
-      await db('users').where({ id: row.user_id }).update({
+      
+      // Update user status - if KYC is verified, also set phone_verified to true
+      // since we have all verified information including phone number
+      const updateData: any = {
         kyc_status: newKycStatus
-      });
+      };
+      
+      if (newKycStatus === 'verified') {
+        // Use helper method to ensure phone verification is updated
+        await UserVerificationService.updatePhoneVerificationOnKycComplete(row.user_id);
+      }
+      
+      await db('users').where({ id: row.user_id }).update(updateData);
+      
       // Send KYC status change notification
       await NotificationService.sendKycStatusChange(row.user_id, newKycStatus);
     }
@@ -267,6 +292,49 @@ export default class UserVerificationService {
       .first();
   
     return !!row; // true if found, false otherwise
+  }
+
+  /**
+   * Helper: Update user's phone verification when KYC is verified
+   * This ensures phone_verified is set to true when we have all verified information
+   */
+  static async updatePhoneVerificationOnKycComplete(userId: string): Promise<void> {
+    const db = getDatabase();
+
+    // Get the latest verification record to extract phone number
+    const latestVerification = await db('user_verifications')
+      .where({ user_id: userId })
+      .orderBy('created_at', 'desc')
+      .first();
+
+    if (!latestVerification) {
+      console.log(`⚠️ No verification records found for user ${userId}`);
+      return;
+    }
+
+    const updateData: any = {
+      phone_verified: true
+    };
+
+    // Update phone number if available in verification record
+    if (latestVerification.phone_number) {
+      const user = await db('users').where({ id: userId }).first();
+      if (!user.phone_number || user.phone_number !== latestVerification.phone_number) {
+        updateData.phone_number = latestVerification.phone_number;
+        console.log(`📱 Updating phone number for user ${userId}: ${latestVerification.phone_number}`);
+      }
+    } else {
+      // If no phone number in verification, try to get it from user's existing data
+      const user = await db('users').where({ id: userId }).first();
+      if (user.phone_number && !user.phone_verified) {
+        console.log(`📱 User ${userId} already has phone number: ${user.phone_number}, marking as verified`);
+      } else if (!user.phone_number) {
+        console.log(`⚠️ User ${userId} has no phone number in verification or user record`);
+      }
+    }
+
+    await db('users').where({ id: userId }).update(updateData);
+    console.log(`✅ Updated phone verification for user ${userId}`);
   }
 
   static fromDb(row: any): UserVerification {
@@ -516,6 +584,16 @@ export default class UserVerificationService {
       updateData.verified_by = userId; // Self-verified through AI
       updateData.verified_at = new Date();
       updateData.notes = 'Auto-verified through image similarity comparison';
+      
+      // If AI auto-verifies, also update user's KYC and phone verification status
+      // since we now have all verified information
+      const isFullyVerified = await UserVerificationService.isUserFullyKycVerified(userId);
+      if (isFullyVerified) {
+        await db('users').where({ id: userId }).update({ kyc_status: 'verified' });
+        // Use helper method to ensure phone verification is updated
+        await UserVerificationService.updatePhoneVerificationOnKycComplete(userId);
+        console.log(`✅ Auto-verified user ${userId}: Updated KYC status and phone verification`);
+      }
     } else {
       updateData.verified_by = null;
       updateData.verified_at = null;

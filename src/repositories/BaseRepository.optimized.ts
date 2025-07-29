@@ -100,7 +100,7 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
       const entities = results.map(result => {
         // Remove total_count before creating entity
         const { total_count, ...entityData } = result;
-        return new this.modelClass(entityData);
+        return (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(entityData) : new this.modelClass(entityData);
       });
 
       const paginationResult: PaginationResult<T> = {
@@ -166,7 +166,7 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
             .insert(formattedData)
             .returning('*');
 
-          return created.map(item => new this.modelClass(item));
+          return created.map(item => (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(item) : new this.modelClass(item));
         });
 
         results.push(...batchResults);
@@ -236,7 +236,7 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
         .limit(limit)
         .orderBy('created_at', 'desc');
 
-      const entities = results.map(result => new this.modelClass(result));
+              const entities = results.map(result => (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(result) : new this.modelClass(result));
 
       // Cache results
       queryCache.set(cacheKey, {
@@ -309,7 +309,7 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
         .insert(insertData)
         .returning('*');
 
-      const entity = new this.modelClass(created);
+              const entity = (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(created) : new this.modelClass(created);
       
       // Invalidate related caches
       this.invalidateTableCache();
@@ -346,7 +346,7 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
         .where('id', id)
         .first();
 
-      const entity = result ? new this.modelClass(result) : null;
+      const entity = result ? (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(result) : new this.modelClass(result) : null;
 
       // Cache the result
       if (entity) {
@@ -397,7 +397,7 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
         .select();
 
       const results = entities.map(entity => 
-        new this.modelClass(this.formatDatabaseFields(entity))
+        (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(entity) : new this.modelClass(this.formatDatabaseFields(entity))
       );
 
       // Cache results
@@ -444,7 +444,7 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
 
       const entity = await query.first();
       
-      const result = entity ? new this.modelClass(this.formatDatabaseFields(entity)) : null;
+      const result = entity ? (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(entity) : new this.modelClass(this.formatDatabaseFields(entity)) : null;
       
       // Cache results
       queryCache.set(cacheKey, { data: result, timestamp: Date.now() });
@@ -490,7 +490,7 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
         .where(dbField, value)
         .first();
 
-      const result = entity ? new this.modelClass(this.formatDatabaseFields(entity)) : null;
+      const result = entity ? (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(entity) : new this.modelClass(this.formatDatabaseFields(entity)) : null;
 
       return {
         success: true,
@@ -525,7 +525,7 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
 
       const entities = await query.select();
       const results = entities.map(entity => 
-        new this.modelClass(this.formatDatabaseFields(entity))
+        (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(entity) : new this.modelClass(this.formatDatabaseFields(entity))
       );
 
       return {
@@ -567,7 +567,7 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
         };
       }
 
-      const result = new this.modelClass(this.formatDatabaseFields(updated));
+      const result = (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(updated) : new this.modelClass(this.formatDatabaseFields(updated));
 
       // Invalidate cache
       this.invalidateTableCache();

@@ -227,7 +227,16 @@ export class PaymentTransactionRepository {
 
     return transactions.map(t => {
       if (t.metadata) {
-        t.metadata = JSON.parse(t.metadata);
+        try {
+          // Check if metadata is already an object
+          if (typeof t.metadata === 'string') {
+            t.metadata = JSON.parse(t.metadata);
+          }
+          // If it's already an object, leave it as is
+        } catch (error) {
+          console.log('⚠️ Warning: Could not parse metadata JSON:', t.metadata);
+          t.metadata = null;
+        }
       }
       return t as PaymentTransactionData;
     });
@@ -243,7 +252,16 @@ export class PaymentTransactionRepository {
 
     return transactions.map(t => {
       if (t.metadata) {
-        t.metadata = JSON.parse(t.metadata);
+        try {
+          // Check if metadata is already an object
+          if (typeof t.metadata === 'string') {
+            t.metadata = JSON.parse(t.metadata);
+          }
+          // If it's already an object, leave it as is
+        } catch (error) {
+          console.log('⚠️ Warning: Could not parse metadata JSON:', t.metadata);
+          t.metadata = null;
+        }
       }
       return t as PaymentTransactionData;
     });

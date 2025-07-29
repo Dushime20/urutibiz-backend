@@ -34,7 +34,7 @@ export class User implements Partial<UserData> {
     this.lastName = data.lastName;
     this.role = data.role || 'renter';
     this.status = data.status || 'pending';
-    this.phone = data.phone;
+    this.phone = data.phone || data.phone_number; // Handle both phone and phone_number
     this.countryId = data.countryId;
     this.emailVerified = data.emailVerified || false;
     this.phoneVerified = data.phoneVerified || false;
@@ -64,7 +64,7 @@ export class User implements Partial<UserData> {
       lastName: row.last_name,
       role: row.role,
       status: row.status,
-      phone: row.phone,
+      phone: row.phone_number || row.phone, // Fix: Use phone_number column
       countryId: row.country_id,
       emailVerified: row.email_verified,
       phoneVerified: row.phone_verified,
@@ -109,6 +109,8 @@ export class User implements Partial<UserData> {
       lastName: this.lastName,
       role: this.role,
       status: this.status,
+      phone: this.phone, // Include phone field
+      phoneVerified: this.phoneVerified, // Include phone verification status
       idVerificationStatus: (this as any).id_verification_status || (this as any).idVerificationStatus,
       kyc_status: this.kyc_status || 'unverified', // <-- Ensure this is included
       createdAt: this.createdAt,

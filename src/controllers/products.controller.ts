@@ -810,17 +810,27 @@ export class ProductsController extends BaseController {
   private async fetchProductReviews(product_id: string, page: number, limit: number) {
     const db = require('@/config/database').getDatabase();
     
+    // Get reviews for this product by joining with bookings
     const [reviews, total_count] = await Promise.all([
-      db('product_reviews')
-        .select('id', 'user_id', 'rating', 'comment', 'created_at')
-        .where({ product_id: product_id })
-        .orderBy('created_at', 'desc')
+      db('reviews')
+        .select(
+          'reviews.id',
+          'reviews.reviewer_id as user_id',
+          'reviews.overall_rating as rating',
+          'reviews.comment',
+          'reviews.title',
+          'reviews.created_at'
+        )
+        .join('bookings', 'reviews.booking_id', 'bookings.id')
+        .where('bookings.product_id', product_id)
+        .orderBy('reviews.created_at', 'desc')
         .limit(limit)
         .offset((page - 1) * limit),
       
-      db('product_reviews')
-        .count('id as count')
-        .where({ product_id: product_id })
+      db('reviews')
+        .count('reviews.id as count')
+        .join('bookings', 'reviews.booking_id', 'bookings.id')
+        .where('bookings.product_id', product_id)
         .first()
     ]);
 

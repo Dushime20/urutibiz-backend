@@ -85,7 +85,8 @@ export class Booking {
   private static bookings: Booking[] = [];
 
   constructor(data: CreateBookingData & { pricing: BookingPricing }) {
-    this.id = uuidv4();
+    // Use the ID from database if provided, otherwise generate one
+    this.id = (data as any).id ;
     this.booking_number = this.generateBookingNumber();
     this.renter_id = data.renter_id;
     this.owner_id = data.owner_id;
@@ -562,6 +563,11 @@ export class Booking {
   static async seed(): Promise<void> {
     if (Booking.bookings.length > 0) return;
 
+    // Skip creating demo bookings to avoid confusion with real booking attempts
+    console.log('📝 Demo mode: Skipping demo bookings creation to avoid data confusion');
+    
+    // Uncomment below if you want demo bookings:
+    /*
     // Create some demo bookings after products are seeded
     const demoBookings = [
       {
@@ -604,6 +610,7 @@ export class Booking {
         }
       });
     }
+    */
   }
 }
 

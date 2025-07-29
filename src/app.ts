@@ -196,12 +196,13 @@ class App {
       // Seed demo data for demo mode
       try {
         const Product = (await import('@/models/Product.model')).default;
-        const Booking = (await import('@/models/Booking.model')).default;
+        // Skip booking seeding to avoid confusion with real booking attempts
+        // const Booking = (await import('@/models/Booking.model')).default;
         
         await Product.seed();
-        await Booking.seed();
+        // await Booking.seed(); // Commented out to avoid persistent mock bookings
         
-        logger.info('✅ Demo data seeded successfully');
+        logger.info('✅ Demo data seeded successfully (products only, no mock bookings)');
       } catch (seedError) {
         logger.warn('⚠️ Failed to seed demo data:', seedError instanceof Error ? seedError.message : 'Unknown error');
       }

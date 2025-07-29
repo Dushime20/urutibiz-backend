@@ -46,6 +46,7 @@ export interface ProductData {
   view_count: number;
   rating?: number;
   review_count: number;
+  average_rating?: number;
   ai_score?: number;
   ai_tags?: string[];
   display_price?: number;

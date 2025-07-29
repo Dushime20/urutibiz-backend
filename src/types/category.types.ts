@@ -10,5 +10,7 @@ export interface Category {
   iconName?: string;
   sortOrder?: number;
   isActive: boolean;
+  status: 'active' | 'inactive' | 'deleted';
   createdAt: string;
+  updatedAt?: string;
 }

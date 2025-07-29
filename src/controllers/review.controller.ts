@@ -26,10 +26,53 @@ export class ReviewController {
     try {
       const reviewData: CreateReviewData = req.body;
       
+      // Log the incoming request data
+      console.log('Review creation request:', {
+        body: req.body,
+        user: (req as any).user,
+        headers: req.headers
+      });
+      
       // Add reviewer ID from authenticated user (in production, from auth middleware)
       if (!reviewData.reviewerId && (req as any).user?.id) {
         reviewData.reviewerId = (req as any).user.id;
+        console.log('Set reviewerId from authenticated user:', reviewData.reviewerId);
       }
+
+      // Validate required fields before proceeding
+      if (!reviewData.bookingId) {
+        console.error('Missing bookingId in review data');
+        return res.status(400).json({
+          success: false,
+          error: 'bookingId is required'
+        });
+      }
+
+      if (!reviewData.reviewedUserId) {
+        console.error('Missing reviewedUserId in review data');
+        return res.status(400).json({
+          success: false,
+          error: 'reviewedUserId is required'
+        });
+      }
+
+      if (!reviewData.overallRating) {
+        console.error('Missing overallRating in review data');
+        return res.status(400).json({
+          success: false,
+          error: 'overallRating is required'
+        });
+      }
+
+      if (!reviewData.reviewerId) {
+        console.error('Missing reviewerId in review data');
+        return res.status(400).json({
+          success: false,
+          error: 'reviewerId is required (user must be authenticated)'
+        });
+      }
+
+      console.log('Validated review data:', reviewData);
 
       const review = await this.reviewService.createReview(reviewData);
       
@@ -39,6 +82,13 @@ export class ReviewController {
         message: 'Review created successfully'
       });
     } catch (error) {
+      console.error('Review creation error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        requestBody: req.body,
+        user: (req as any).user
+      });
+      
       res.status(400).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to create review'

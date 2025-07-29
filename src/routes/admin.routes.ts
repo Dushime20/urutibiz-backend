@@ -579,18 +579,34 @@ router.get('/moderation/metrics', ModerationController.getMetrics);
  */
 router.post('/moderation/trigger', ModerationController.triggerModeration);
 
+// Products routes
+router.get('/products', adminController.getProducts);
+router.get('/products/:id', adminController.getProductDetails);
+router.post('/products/:id/moderate', adminController.moderateProduct);
+
 // Bookings routes
 router.get('/bookings', adminController.getBookings);
 router.get('/bookings/:id', adminController.getBookingDetails);
+router.post('/bookings/:id/override', adminController.overrideBookingStatus);
 
 // Users routes
 router.get('/users', adminController.getUsers);
 router.get('/users/:id', adminController.getUserDetails);
+router.post('/users/:id/moderate', adminController.moderateUser);
+
+// Disputes routes
+router.get('/disputes', adminController.getDisputes);
+router.post('/disputes/:id/assign', adminController.assignDispute);
+router.post('/disputes/:id/resolve', adminController.resolveDispute);
 
 // Dashboard and Analytics routes
 router.get('/dashboard', adminController.getDashboard);
 router.get('/analytics', adminController.getAnalytics);
 router.get('/metrics/realtime', adminController.getRealTimeMetrics);
 router.get('/activity', adminController.getActivity);
+
+// Financial routes
+router.get('/financial/reports', adminController.getFinancialReports);
+router.post('/financial/payouts/process', adminController.processPayouts);
 
 export default router;

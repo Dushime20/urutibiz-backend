@@ -297,6 +297,10 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
       const formattedData = this.formatDatabaseFields(dbData);
       const insertData = {
         ...formattedData,
+        // Do NOT stringify features (text[])
+        features: formattedData.features, // pass as array
+        pickup_methods: formattedData.pickup_methods ? JSON.stringify(formattedData.pickup_methods) : undefined,
+        specifications: formattedData.specifications ? JSON.stringify(formattedData.specifications) : undefined,
         location: dbLocation ? getDatabase().raw('ST_GeomFromText(?)', [dbLocation]) : null,
         created_at: getDatabase().fn.now(),
         updated_at: getDatabase().fn.now()

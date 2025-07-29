@@ -24,7 +24,9 @@ const baseConfig: Knex.Config = {
 const knexConfig: { [key: string]: Knex.Config } = {
   development: baseConfig,
   demo: baseConfig,
+  test: baseConfig,
+  production: baseConfig,
   // Add production config if needed
 };
 
-module.exports = knexConfig;
+export default knexConfig;

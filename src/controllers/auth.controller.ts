@@ -31,6 +31,12 @@ export default class AuthController {
 
   static async resetPassword(req: Request, res: Response) {
     const result = await AuthService.resetPassword(req.body);
-    res.status(200).json(result);
+    res.status(result.success ? 200 : 400).json(result);
+  }
+
+  static async validateResetToken(req: Request, res: Response) {
+    const { token } = req.params;
+    const result = await AuthService.validateResetToken(token);
+    res.status(result.success ? 200 : 400).json(result);
   }
 }

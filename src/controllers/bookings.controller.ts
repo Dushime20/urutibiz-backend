@@ -858,6 +858,8 @@ export class BookingsController extends BaseController {
    * Process booking creation with optimizations
    */
   private async processBookingCreation(res: Response, renterId: string, user: any, bookingData: Omit<CreateBookingData, 'renter_id'>) {
+    console.log('processBookingCreation called with:', { renterId, bookingData });
+    
     const renter_id = renterId;
     const { 
       product_id,
@@ -882,23 +884,29 @@ export class BookingsController extends BaseController {
     } = bookingData;
 
     // Performance: Parallel product fetch and KYC check
+    console.log('Fetching product and checking KYC...');
     const [productResult, isVerified] = await Promise.all([
       ProductService.getById(product_id),
       UserVerificationService.isUserFullyKycVerified(renter_id)
     ]);
 
+    console.log('Product result:', productResult);
+    console.log('KYC verification result:', isVerified);
+
     if (!productResult.success || !productResult.data) {
-      return ResponseHelper.error(null as any, 'Product not found', 404);
+      console.error('Product not found:', product_id);
+      return ResponseHelper.error(res, 'Product not found', 404);
     }
 
     const product = productResult.data;
+    console.log('Product found:', { id: product.id, owner_id: product.owner_id, title: product.title });
 
     if (product.owner_id === renter_id) {
-      return ResponseHelper.error(null as any, 'You cannot book your own product', 400);
+      return ResponseHelper.error(res, 'You cannot book your own product', 400);
     }
 
     if (!isVerified) {
-      return ResponseHelper.error(null as any, 'You must complete KYC verification to book or rent.', 403);
+      return ResponseHelper.error(res, 'You must complete KYC verification to book or rent.', 403);
     }
 
     // Performance: Optimized pricing calculation
@@ -917,7 +925,7 @@ export class BookingsController extends BaseController {
 
     const finalBookingData = {
       renter_id,
-      owner_id,
+      owner_id: product.owner_id, // Get owner_id from product, not from request
       product_id,
       booking_number: bookingNumber,
       start_date: new Date(start_date).toISOString(),
@@ -958,14 +966,32 @@ export class BookingsController extends BaseController {
       user // Attach the authenticated user object for business rules
     };
 
-    const created = await BookingService.create(finalBookingData);
-    if (!created.success || !created.data) {
-      return ResponseHelper.error(res, created.error || 'Failed to create booking', 400);
+    // Remove features if present (should not be in bookings)
+    if ('features' in finalBookingData) {
+      delete (finalBookingData as any).features;
     }
-    // Add this null check before sending success response
-    if (!created.data) {
-      return ResponseHelper.error(res, 'Booking creation failed: no data returned', 500);
+
+    console.log('Creating booking with data:', finalBookingData);
+    
+    let created;
+    try {
+      created = await BookingService.create(finalBookingData);
+      console.log('Booking creation result:', created);
+      
+      if (!created.success || !created.data) {
+        console.error('Booking creation failed:', created.error);
+        return ResponseHelper.error(res, created.error || 'Failed to create booking', 400);
+      }
+      // Add this null check before sending success response
+      if (!created.data) {
+        console.error('Booking creation failed: no data returned');
+        return ResponseHelper.error(res, 'Booking creation failed: no data returned', 500);
+      }
+    } catch (error) {
+      console.error('Error in BookingService.create:', error);
+      return ResponseHelper.error(res, 'Internal server error during booking creation', 500);
     }
+    
     // Record initial status in audit trail
     if (created.data.id) {
       await this.recordStatusChange(
@@ -977,11 +1003,10 @@ export class BookingsController extends BaseController {
         'Booking created'
       );
     }
+    
     // Performance: Invalidate related caches
-    this.invalidateBookingCaches(renter_id, owner_id);
-    // Log action would be handled in the main method
-    // After booking is created and before returning success:
-    const booking = await Booking.create(finalBookingData);
+    this.invalidateBookingCaches(renter_id, product.owner_id);
+    
     // Mark product as unavailable for each day in the booking range
     const db = getDatabase();
     const start = new Date(finalBookingData.start_date);
@@ -1000,7 +1025,9 @@ export class BookingsController extends BaseController {
         .onConflict(['product_id', 'date'])
         .merge({ availability_type: 'unavailable', notes: 'Booked' });
     }
-    return ResponseHelper.success(res, 'Booking created successfully', booking, 201);
+    
+    // Return the booking data from the service (which contains the database ID)
+    return ResponseHelper.success(res, 'Booking created successfully', created.data, 201);
   }
 
   /**
@@ -1049,7 +1076,9 @@ export class BookingsController extends BaseController {
     const endDateObj = new Date(endDate);
     const totalDays = Math.max(1, Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)));
     
-    const subtotal = product.basePrice * totalDays;
+    // Fix: Use correct product property names
+    const basePrice = parseFloat(product.base_price_per_day || product.basePrice || '0');
+    const subtotal = basePrice * totalDays;
     const platformFee = subtotal * 0.1; // 10% platform fee
     const taxAmount = subtotal * 0.08; // 8% tax
     
@@ -1067,15 +1096,15 @@ export class BookingsController extends BaseController {
     const totalAmount = subtotal + platformFee + taxAmount + insuranceFee;
 
     return {
-      basePrice: product.basePrice,
-      currency: product.currency || 'USD',
+      basePrice: basePrice,
+      currency: product.base_currency || product.currency || 'USD',
       totalDays,
       subtotal,
       platformFee,
       taxAmount,
       insuranceFee,
       totalAmount,
-      securityDeposit: product.securityDeposit || 0,
+      securityDeposit: product.security_deposit || product.securityDeposit || 0,
       discountAmount: 0 // Could be calculated based on promotions
     };
   }

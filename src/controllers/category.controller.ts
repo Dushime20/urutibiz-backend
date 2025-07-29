@@ -22,4 +22,74 @@ export default class CategoryController {
     const categories = await CategoryService.listCategories();
     res.json(categories);
   }
+
+  static async updateCategory(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const category = await CategoryService.updateCategory(id, req.body);
+      if (!category) return res.status(404).json({ error: 'Category not found' });
+      res.json(category);
+    } catch (err) {
+      res.status(400).json({ error: 'Failed to update category', details: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  static async deleteCategory(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const hardDelete = req.query.hard === 'true'; // Check for ?hard=true query parameter
+      
+      const success = await CategoryService.deleteCategory(id, hardDelete);
+      
+      if (!success) {
+        return res.status(404).json({ error: 'Category not found' });
+      }
+      
+      const message = hardDelete 
+        ? 'Category permanently deleted successfully' 
+        : 'Category deleted successfully (soft delete)';
+      
+      res.json({ 
+        success: true, 
+        message,
+        hardDelete 
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      
+      if (errorMessage.includes('subcategories') || errorMessage.includes('products')) {
+        return res.status(400).json({ 
+          error: 'Cannot delete category', 
+          details: errorMessage 
+        });
+      }
+      
+      res.status(500).json({ 
+        error: 'Failed to delete category', 
+        details: errorMessage 
+      });
+    }
+  }
+
+  static async restoreCategory(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const category = await CategoryService.restoreCategory(id);
+      
+      if (!category) {
+        return res.status(404).json({ error: 'Category not found' });
+      }
+      
+      res.json({ 
+        success: true, 
+        message: 'Category restored successfully',
+        data: category
+      });
+    } catch (err) {
+      res.status(500).json({ 
+        error: 'Failed to restore category', 
+        details: err instanceof Error ? err.message : String(err) 
+      });
+    }
+  }
 }

@@ -19,6 +19,7 @@ import verificationDocumentTypeRoutes from './verificationDocumentType.routes';
 import paymentProviderRoutes from './paymentProvider.routes';
 import paymentMethodRoutes from './paymentMethod.routes';
 import paymentTransactionRoutes from './paymentTransaction.routes';
+// Import review routes
 import reviewRoutes from './review.routes';
 import productPriceRoutes from './productPrice.routes';
 import categoryRegulationRoutes from './categoryRegulation.routes';
@@ -64,7 +65,8 @@ router.use('/verification-document-types', verificationDocumentTypeRoutes);
 router.use('/payment-providers', paymentProviderRoutes);
 router.use('/payment-methods', paymentMethodRoutes);
 router.use('/payment-transactions', paymentTransactionRoutes);
-router.use('/reviews', reviewRoutes);
+// Mount review routes
+router.use('/review', reviewRoutes);
 router.use('/product-prices', productPriceRoutes);
 router.use('/category-regulations', categoryRegulationRoutes);
 router.use('/insurance-providers', insuranceProviderRoutes);

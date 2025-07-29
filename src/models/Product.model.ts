@@ -25,7 +25,7 @@ export class Product implements ProductData {
   public category_id: string;
   public status: ProductStatus;
   public condition: ProductCondition;
-  public base_price: number;
+  public base_price_per_day: number;
   public base_currency: string;
   public pickup_methods: PickupMethod[];
   public location: ProductLocation;
@@ -35,6 +35,7 @@ export class Product implements ProductData {
   public view_count: number;
   public rating?: number;
   public review_count: number;
+  public average_rating?: number;
   public ai_score?: number;
   public ai_tags?: string[];
   public display_price?: number;
@@ -57,15 +58,16 @@ export class Product implements ProductData {
     this.category_id = data.category_id;
     this.status = (data as any).status !== undefined ? (data as any).status : 'draft';
     this.condition = data.condition;
-    this.base_price = data.base_price_per_day;
+    this.base_price_per_day = data.base_price_per_day;
     this.base_currency = data.base_currency;
     this.pickup_methods = data.pickup_methods;
     this.location = data.location;
     this.images = [];
     this.specifications = data.specifications;
     this.availability = [];
-    this.view_count = 0;
-    this.review_count = 0;
+    this.view_count = (data as any).view_count || 0;
+    this.review_count = (data as any).review_count || 0;
+    this.average_rating = (data as any).average_rating || 0;
     this.features = data.features || [];
     this.base_price_per_week = data.base_price_per_week;
     this.base_price_per_month = data.base_price_per_month;
@@ -121,11 +123,11 @@ export class Product implements ProductData {
     }
 
     if (filters.min_price !== undefined) {
-      filtered = filtered.filter(p => p.base_price >= filters.min_price!);
+      filtered = filtered.filter(p => p.base_price_per_day >= filters.min_price!);
     }
 
     if (filters.max_price !== undefined) {
-      filtered = filtered.filter(p => p.base_price <= filters.max_price!);
+      filtered = filtered.filter(p => p.base_price_per_day <= filters.max_price!);
     }
 
     if (filters.currency) {
@@ -198,7 +200,7 @@ export class Product implements ProductData {
       category_id: this.category_id,
       status: this.status,
       condition: this.condition,
-      base_price_per_day: this.base_price, // Only return this for daily price
+      base_price_per_day: this.base_price_per_day, // Only return this for daily price
       base_currency: this.base_currency,
       pickup_methods: this.pickup_methods,
       location: this.location,
@@ -208,6 +210,7 @@ export class Product implements ProductData {
       view_count: this.view_count,
       rating: this.rating,
       review_count: this.review_count,
+      average_rating: this.average_rating,
       ai_score: this.ai_score,
       ai_tags: this.ai_tags,
       display_price: this.display_price,

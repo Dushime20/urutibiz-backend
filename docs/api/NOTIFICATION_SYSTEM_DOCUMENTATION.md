@@ -282,7 +282,7 @@ FCM_API_URL=https://fcm.googleapis.com/fcm/send
 ```bash
 NOTIFICATION_MAX_RETRIES=3
 NOTIFICATION_RETRY_DELAY=300000
-BRAND_COLOR=#007bff
+BRAND_COLOR=#00aaa9
 COMPANY_NAME=UrutiBiz
 APP_URL=https://urutibiz.com
 ```

@@ -2,7 +2,7 @@
 // PAYMENT TRANSACTION SERVICE
 // =====================================================
 
-import { PaymentTransactionRepository } from '../repositories/PaymentTransactionRepository';
+import { PaymentTransactionRepository } from '../repositories/PaymentTransactionRepository.knex';
 import { 
   PaymentTransactionData, 
   CreatePaymentTransactionData, 

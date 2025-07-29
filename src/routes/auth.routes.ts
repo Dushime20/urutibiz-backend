@@ -457,4 +457,55 @@ router.post('/forgot-password', AuthController.forgotPassword);
  */
 router.post('/reset-password', AuthController.resetPassword);
 
+/**
+ * @swagger
+ * /auth/validate-reset-token/{token}:
+ *   get:
+ *     summary: Validate password reset token
+ *     description: |
+ *       Check if a password reset token is valid and not expired.
+ *       **Security Features:**
+ *       - Token validation
+ *       - Expiration checking
+ *       - Usage status verification
+ *     tags: [Authentication]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Password reset token to validate
+ *     responses:
+ *       200:
+ *         description: Token is valid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Valid token"
+ *       400:
+ *         description: Token is invalid or expired
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid or expired token"
+ *       500:
+ *         description: Server error
+ */
+router.get('/validate-reset-token/:token', AuthController.validateResetToken);
+
 export default router;

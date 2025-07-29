@@ -14,39 +14,58 @@ import {
   ModerationAction,
   AIAnalysisResult
 } from '../types/review.types';
-import { ReviewRepository } from '../repositories/ReviewRepository';
+import { ReviewRepositoryKnex } from '../repositories/ReviewRepository.knex';
 
 export class ReviewService {
-  private reviewRepository: ReviewRepository;
+  private reviewRepository: ReviewRepositoryKnex;
 
   constructor() {
-    this.reviewRepository = new ReviewRepository();
+    this.reviewRepository = new ReviewRepositoryKnex();
   }
 
   /**
    * Create a new review
    */
   async createReview(reviewData: CreateReviewData): Promise<ReviewData> {
-    // Validate business rules
-    await this.validateCreateReview(reviewData);
+    console.log('ReviewService.createReview called with data:', reviewData);
+    
+    try {
+      // Validate business rules
+      console.log('Validating review data...');
+      await this.validateCreateReview(reviewData);
+      console.log('Review validation passed');
 
-    // Perform AI analysis on review content
-    const aiAnalysis = await this.performAIAnalysis(reviewData);
+      // Perform AI analysis on review content
+      console.log('Performing AI analysis...');
+      const aiAnalysis = await this.performAIAnalysis(reviewData);
+      console.log('AI analysis completed:', aiAnalysis);
 
-    // Create review with AI analysis results
-    const review = await this.reviewRepository.create({
-      ...reviewData,
-      ...(aiAnalysis.sentimentScore && { aiSentimentScore: aiAnalysis.sentimentScore }),
-      ...(aiAnalysis.toxicityScore && { aiToxicityScore: aiAnalysis.toxicityScore }),
-      ...(aiAnalysis.helpfulnessScore && { aiHelpfulnessScore: aiAnalysis.helpfulnessScore }),
-      isFlagged: aiAnalysis.flagRecommendation,
-      moderationStatus: aiAnalysis.flagRecommendation ? 'flagged' : 'pending'
-    } as CreateReviewData);
+      // Create review with AI analysis results
+      console.log('Creating review in database...');
+      const review = await this.reviewRepository.create({
+        ...reviewData,
+        ...(aiAnalysis.sentimentScore && { aiSentimentScore: aiAnalysis.sentimentScore }),
+        ...(aiAnalysis.toxicityScore && { aiToxicityScore: aiAnalysis.toxicityScore }),
+        ...(aiAnalysis.helpfulnessScore && { aiHelpfulnessScore: aiAnalysis.helpfulnessScore }),
+        isFlagged: aiAnalysis.flagRecommendation,
+        moderationStatus: aiAnalysis.flagRecommendation ? 'flagged' : 'pending'
+      } as CreateReviewData);
 
-    // Log review creation
-    console.log(`Review created: ${review.id} by reviewer ${review.reviewerId}`);
+      // Log review creation
+      console.log(`Review created successfully: ${review.id} by reviewer ${review.reviewerId}`);
 
-    return review;
+      // Update product review count and average rating
+      await this.updateProductReviewStats(reviewData.bookingId);
+
+      return review;
+    } catch (error) {
+      console.error('Error in ReviewService.createReview:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        reviewData
+      });
+      throw error;
+    }
   }
 
   /**
@@ -263,27 +282,42 @@ export class ReviewService {
    * Validate review creation
    */
   private async validateCreateReview(reviewData: CreateReviewData): Promise<void> {
+    console.log('Starting review validation with data:', reviewData);
+    
     // Check if reviewer and reviewed user are different
     if (reviewData.reviewerId === reviewData.reviewedUserId) {
+      console.error('Self-review attempt:', { reviewerId: reviewData.reviewerId, reviewedUserId: reviewData.reviewedUserId });
       throw new Error('Users cannot review themselves');
     }
+    console.log('Self-review check passed');
 
     // Check if review already exists for this booking and reviewer
+    console.log('Checking for existing reviews...');
     const existingReviews = await this.reviewRepository.findByBookingId(reviewData.bookingId);
+    console.log('Found existing reviews:', existingReviews.length);
+    
     const existingReview = existingReviews.find(r => 
       r.reviewerId === reviewData.reviewerId && 
       r.reviewedUserId === reviewData.reviewedUserId
     );
 
     if (existingReview) {
+      console.error('Duplicate review found:', existingReview);
       throw new Error('Review already exists for this booking and user combination');
     }
+    console.log('Duplicate review check passed');
 
     // Validate rating values
+    console.log('Validating ratings...');
     this.validateRatings(reviewData);
+    console.log('Rating validation passed');
 
     // Validate content length
+    console.log('Validating content...');
     this.validateContent(reviewData);
+    console.log('Content validation passed');
+    
+    console.log('All validation checks passed');
   }
 
   /**
@@ -345,6 +379,14 @@ export class ReviewService {
    * Validate rating values
    */
   private validateRatings(data: Partial<CreateReviewData | UpdateReviewData>): void {
+    console.log('Validating ratings:', {
+      overallRating: data.overallRating,
+      communicationRating: data.communicationRating,
+      conditionRating: data.conditionRating,
+      valueRating: data.valueRating,
+      deliveryRating: data.deliveryRating
+    });
+    
     const ratings = [
       data.overallRating,
       data.communicationRating,
@@ -353,32 +395,49 @@ export class ReviewService {
       data.deliveryRating
     ].filter(rating => rating !== undefined);
 
+    console.log('Ratings to validate:', ratings);
+
     for (const rating of ratings) {
       if (rating !== null && (rating < 1 || rating > 5 || !Number.isInteger(rating))) {
+        console.error('Invalid rating:', rating);
         throw new Error('Ratings must be integers between 1 and 5');
       }
     }
 
     // Overall rating is required for new reviews
     if ('overallRating' in data && data.overallRating === undefined) {
+      console.error('Missing overall rating');
       throw new Error('Overall rating is required');
     }
+    
+    console.log('Rating validation passed');
   }
 
   /**
    * Validate content length and quality
    */
   private validateContent(data: Partial<CreateReviewData | UpdateReviewData>): void {
+    console.log('Validating content:', {
+      title: data.title,
+      comment: data.comment,
+      titleLength: data.title?.length,
+      commentLength: data.comment?.length
+    });
+    
     if (data.title && data.title.length > 200) {
+      console.error('Title too long:', data.title.length);
       throw new Error('Review title cannot exceed 200 characters');
     }
 
     if (data.comment && data.comment.length > 2000) {
+      console.error('Comment too long:', data.comment.length);
       throw new Error('Review comment cannot exceed 2000 characters');
     }
 
     // Check for spam patterns (basic implementation)
     const content = `${data.title || ''} ${data.comment || ''}`.toLowerCase();
+    console.log('Content for spam check:', content);
+    
     const spamPatterns = [
       /(.)\1{10,}/, // Repeated characters
       /[^\w\s]{5,}/, // Too many special characters
@@ -387,9 +446,12 @@ export class ReviewService {
 
     for (const pattern of spamPatterns) {
       if (pattern.test(content)) {
+        console.error('Spam detected with pattern:', pattern);
         throw new Error('Content appears to be spam');
       }
     }
+    
+    console.log('Content validation passed');
   }
 
   /**
@@ -441,5 +503,51 @@ export class ReviewService {
       keywords: words.slice(0, 10),
       topics: ['general']
     };
+  }
+
+  /**
+   * Update product review count and average rating
+   */
+  private async updateProductReviewStats(bookingId: string): Promise<void> {
+    try {
+      const db = require('@/config/database').getDatabase();
+      
+      // Get the product ID from the booking
+      const booking = await db('bookings')
+        .select('product_id')
+        .where('id', bookingId)
+        .first();
+
+      if (!booking) {
+        console.error('Booking not found for review stats update:', bookingId);
+        return;
+      }
+
+      // Calculate new review count and average rating
+      const stats = await db('reviews')
+        .select(
+          db.raw('COUNT(*) as review_count'),
+          db.raw('AVG(overall_rating) as average_rating')
+        )
+        .join('bookings', 'reviews.booking_id', 'bookings.id')
+        .where('bookings.product_id', booking.product_id)
+        .first();
+
+      // Update the product
+      await db('products')
+        .where('id', booking.product_id)
+        .update({
+          review_count: stats.review_count || 0,
+          average_rating: stats.average_rating || 0,
+          updated_at: db.fn.now()
+        });
+
+      console.log(`Updated product ${booking.product_id} review stats:`, {
+        review_count: stats.review_count,
+        average_rating: stats.average_rating
+      });
+    } catch (error) {
+      console.error('Error updating product review stats:', error);
+    }
   }
 }

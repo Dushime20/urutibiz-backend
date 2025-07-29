@@ -26,7 +26,7 @@
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #007bff, #0056b3);
+      background: linear-gradient(90deg, #00aaa9, #008a89);
   transition: width 0.3s ease;
   border-radius: 4px;
 }
@@ -65,8 +65,8 @@
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  border-color: #00aaa9;
+  box-shadow: 0 0 0 3px rgba(0, 170, 169, 0.1);
 }
 
 .form-group input:disabled,
@@ -96,7 +96,7 @@
 button {
   width: 100%;
   padding: 14px;
-  background: linear-gradient(135deg, #007bff, #0056b3);
+      background: linear-gradient(135deg, #00aaa9, #008a89);
   color: white;
   border: none;
   border-radius: 6px;
@@ -108,9 +108,9 @@ button {
 }
 
 button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0056b3, #004085);
+      background: linear-gradient(135deg, #008a89, #006766);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+      box-shadow: 0 4px 12px rgba(0, 170, 169, 0.3);
 }
 
 button:active:not(:disabled) {
@@ -161,9 +161,9 @@ button.loading::after {
 }
 
 .status-message.uploading {
-  background: linear-gradient(135deg, #e3f2fd, #bbdefb);
-  color: #1976d2;
-  border: 1px solid #90caf9;
+  background: linear-gradient(135deg, #e0f7f7, #b3efef);
+  color: #00aaa9;
+  border: 1px solid #80dcdc;
 }
 
 .status-message.processing {
@@ -184,7 +184,7 @@ button.loading::after {
   padding: 20px;
   background: linear-gradient(135deg, #f8f9fa, #e9ecef);
   border-radius: 8px;
-  border-left: 4px solid #007bff;
+  border-left: 4px solid #00aaa9;
 }
 
 .info-box h4 {
@@ -281,11 +281,11 @@ input[type="file"] {
 }
 
 input[type="file"]:hover {
-  border-color: #007bff;
+  border-color: #00aaa9;
 }
 
 input[type="file"]:focus {
-  border-color: #007bff;
+  border-color: #00aaa9;
   outline: none;
 }
 
@@ -295,7 +295,7 @@ input[type="file"]:focus {
   width: 20px;
   height: 20px;
   border: 2px solid #f3f3f3;
-  border-top: 2px solid #007bff;
+  border-top: 2px solid #00aaa9;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-right: 10px;

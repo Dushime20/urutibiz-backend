@@ -1,15 +1,17 @@
-exports.up = function(knex) {
-  return knex.schema.alterTable('products', function(table) {
-    table.jsonb('features').defaultTo('[]');
-    table.decimal('base_price_per_week', 10, 2);
-    table.decimal('base_price_per_month', 10, 2);
+import { Knex } from 'knex';
+
+exports.up = function(knex: Knex) {
+  return knex.schema.alterTable('products', function(table: Knex.TableBuilder) {
+    table.specificType('features', 'text[]');
+    table.decimal('weekly_price');
+    table.decimal('monthly_price');
   });
 };
 
-exports.down = function(knex) {
-  return knex.schema.alterTable('products', function(table) {
+exports.down = function(knex: Knex) {
+  return knex.schema.alterTable('products', function(table: Knex.TableBuilder) {
     table.dropColumn('features');
-    table.dropColumn('base_price_per_week');
-    table.dropColumn('base_price_per_month');
+    table.dropColumn('weekly_price');
+    table.dropColumn('monthly_price');
   });
 }; 

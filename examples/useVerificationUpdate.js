@@ -483,9 +483,9 @@ button.loading {
 }
 
 .status-message.uploading {
-  background-color: #e3f2fd;
-  color: #1976d2;
-  border: 1px solid #bbdefb;
+  background-color: #e0f7f7;
+  color: #00aaa9;
+  border: 1px solid #b3efef;
 }
 
 .status-message.processing {

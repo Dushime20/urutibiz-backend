@@ -18,7 +18,13 @@ class BookingRepository extends OptimizedBaseRepository<BookingData, CreateBooki
     this.defaultCacheTTL = 60; // 1 minute
     this.cacheKeyPrefix = 'booking';
   }
-  
+
+  // Override create to remove features from payload
+  async create(data: CreateBookingData) {
+    const { features, ...safeData } = data;
+    return await super.create(safeData);
+  }
+
   /**
    * Get bookings by user with optimized pagination
    */
@@ -51,6 +57,28 @@ class BookingRepository extends OptimizedBaseRepository<BookingData, CreateBooki
     } catch (error) {
       console.error('Error checking for active booking:', error);
       throw new Error('Failed to check for existing booking');
+    }
+  }
+
+  /**
+   * Check for overlapping bookings for the same user and product within specific dates
+   * This allows users to rebook the same item after their previous rental has ended
+   */
+  async findConflictingBooking(renter_id: string, product_id: string, start_date: string, end_date: string) {
+    try {
+      const booking = await this.knex('bookings')
+        .where({ renter_id, product_id })
+        .whereIn('status', ['pending', 'confirmed', 'in_progress'])
+        .where(function() {
+          this.where('start_date', '<=', end_date)
+              .andWhere('end_date', '>=', start_date);
+        })
+        .first();
+      
+      return booking || null;
+    } catch (error) {
+      console.error('Error checking for conflicting booking:', error);
+      throw new Error('Failed to check for overlapping booking');
     }
   }
 }

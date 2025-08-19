@@ -21,10 +21,18 @@ export class ProductPriceController {
    */
   async createProductPrice(req: Request, res: Response): Promise<void> {
     try {
+      console.log('[DEBUG] Entered ProductPriceController.createProductPrice');
+      console.log('[DEBUG] Request body:', req.body);
       const data: CreateProductPriceRequest = req.body;
 
       // Validate required fields
       if (!data.product_id || !data.country_id || !data.currency || !data.price_per_day) {
+        const missing: string[] = [];
+        if (!data.product_id) missing.push('product_id');
+        if (!data.country_id) missing.push('country_id');
+        if (!data.currency) missing.push('currency');
+        if (!data.price_per_day) missing.push('price_per_day');
+        console.warn('[DEBUG] Missing required fields for product price creation:', missing);
         res.status(400).json({
           success: false,
           message: 'Missing required fields: product_id, country_id, currency, price_per_day',
@@ -33,6 +41,7 @@ export class ProductPriceController {
       }
 
       if (data.price_per_day <= 0) {
+        console.warn('[DEBUG] price_per_day invalid (<= 0):', data.price_per_day);
         res.status(400).json({
           success: false,
           message: 'Daily price must be greater than 0',
@@ -40,7 +49,14 @@ export class ProductPriceController {
         return;
       }
 
+      console.log('[DEBUG] Creating product price with payload:', {
+        product_id: data.product_id,
+        country_id: data.country_id,
+        currency: data.currency,
+        price_per_day: data.price_per_day
+      });
       const price = await productPriceService.createProductPrice(data);
+      console.log('[DEBUG] Product price created successfully:', price?.id);
       
       res.status(201).json({
         success: true,
@@ -48,10 +64,12 @@ export class ProductPriceController {
         message: 'Product price created successfully',
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message || 'Failed to create product price',
-      });
+      // Normalize unknown errors to avoid cryptic messages like "reading 'constructor'"
+      console.error('[ProductPriceController] createProductPrice error:', error);
+      const message = error instanceof Error
+        ? error.message
+        : (typeof error === 'string' ? error : 'Failed to create product price');
+      res.status(400).json({ success: false, message });
     }
   }
 
@@ -190,10 +208,11 @@ export class ProductPriceController {
         message: 'Product price updated successfully',
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message || 'Failed to update product price',
-      });
+      console.error('[ProductPriceController] updateProductPrice error:', error);
+      const message = error instanceof Error
+        ? error.message
+        : (typeof error === 'string' ? error : 'Failed to update product price');
+      res.status(400).json({ success: false, message });
     }
   }
 
@@ -282,10 +301,11 @@ export class ProductPriceController {
         data: calculation,
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message || 'Failed to calculate rental price',
-      });
+      console.error('[ProductPriceController] calculateRentalPrice error:', error);
+      const message = error instanceof Error
+        ? error.message
+        : (typeof error === 'string' ? error : 'Failed to calculate rental price');
+      res.status(400).json({ success: false, message });
     }
   }
 
@@ -333,10 +353,11 @@ export class ProductPriceController {
         data: comparison,
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message || 'Failed to compare product prices',
-      });
+      console.error('[ProductPriceController] compareProductPricesAcrossCountries error:', error);
+      const message = error instanceof Error
+        ? error.message
+        : (typeof error === 'string' ? error : 'Failed to compare product prices');
+      res.status(400).json({ success: false, message });
     }
   }
 
@@ -391,10 +412,11 @@ export class ProductPriceController {
         message: `Bulk operation '${operation.operation}' completed successfully`,
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message || 'Failed to perform bulk operation',
-      });
+      console.error('[ProductPriceController] bulkUpdateProductPrices error:', error);
+      const message = error instanceof Error
+        ? error.message
+        : (typeof error === 'string' ? error : 'Failed to perform bulk operation');
+      res.status(400).json({ success: false, message });
     }
   }
 
@@ -426,10 +448,11 @@ export class ProductPriceController {
         data: prices,
       });
     } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Failed to search product prices',
-      });
+      console.error('[ProductPriceController] searchProductPrices error:', error);
+      const message = error instanceof Error
+        ? error.message
+        : (typeof error === 'string' ? error : 'Failed to search product prices');
+      res.status(500).json({ success: false, message });
     }
   }
 

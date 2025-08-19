@@ -4,6 +4,8 @@ import App from './app';
 import { getConfig } from './config/config';
 import logger from './utils/logger';
 import { connectDatabase } from './config/database';
+import sequelize from './config/sequelize';
+import { initProductPriceModel } from './models/ProductPrice.model';
 
 
 const config = getConfig();
@@ -16,6 +18,16 @@ async function startServer(): Promise<void> {
   try {
     // Connect to the database before initializing the app
     await connectDatabase();
+
+    // Initialize Sequelize models used by specific services (e.g., product prices)
+    try {
+      initProductPriceModel(sequelize);
+      await sequelize.authenticate();
+      // Do not sync schema automatically in production; rely on Knex migrations
+    } catch (seqErr) {
+      logger.error('❌ Failed to initialize Sequelize models:', seqErr);
+      // Continue startup; product price endpoints will fail if model is not available
+    }
     app = new App();
     
     // Initialize the application

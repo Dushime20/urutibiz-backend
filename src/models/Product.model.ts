@@ -25,8 +25,7 @@ export class Product implements ProductData {
   public category_id: string;
   public status: ProductStatus;
   public condition: ProductCondition;
-  public base_price_per_day: number;
-  public base_currency: string;
+
   public pickup_methods: PickupMethod[];
   public location: ProductLocation;
   public images: ProductImage[];
@@ -42,8 +41,7 @@ export class Product implements ProductData {
   public display_currency?: string;
   public recommendations?: any[];
   public features?: string[];
-  public base_price_per_week?: number;
-  public base_price_per_month?: number;
+
   public created_at: Date;
   public updated_at: Date;
 
@@ -58,8 +56,7 @@ export class Product implements ProductData {
     this.category_id = data.category_id;
     this.status = (data as any).status !== undefined ? (data as any).status : 'draft';
     this.condition = data.condition;
-    this.base_price_per_day = data.base_price_per_day;
-    this.base_currency = data.base_currency;
+
     this.pickup_methods = data.pickup_methods;
     this.location = data.location;
     this.images = [];
@@ -69,8 +66,6 @@ export class Product implements ProductData {
     this.review_count = (data as any).review_count || 0;
     this.average_rating = (data as any).average_rating || 0;
     this.features = data.features || [];
-    this.base_price_per_week = data.base_price_per_week;
-    this.base_price_per_month = data.base_price_per_month;
     this.created_at = new Date();
     this.updated_at = new Date();
   }
@@ -122,17 +117,8 @@ export class Product implements ProductData {
       filtered = filtered.filter(p => p.location.country_id === filters.country_id);
     }
 
-    if (filters.min_price !== undefined) {
-      filtered = filtered.filter(p => p.base_price_per_day >= filters.min_price!);
-    }
-
-    if (filters.max_price !== undefined) {
-      filtered = filtered.filter(p => p.base_price_per_day <= filters.max_price!);
-    }
-
-    if (filters.currency) {
-      filtered = filtered.filter(p => p.base_currency === filters.currency);
-    }
+    // Price filtering is now handled by the product_prices table
+    // These filters are deprecated and should be removed from ProductFilters
 
     if (filters.condition) {
       filtered = filtered.filter(p => p.condition === filters.condition);
@@ -180,18 +166,12 @@ export class Product implements ProductData {
       // Append new features, avoid duplicates
       this.features = Array.from(new Set([...(this.features || []), ...data.features]));
     }
-    if (data.base_price_per_week !== undefined) {
-      this.base_price_per_week = data.base_price_per_week;
-    }
-    if (data.base_price_per_month !== undefined) {
-      this.base_price_per_month = data.base_price_per_month;
-    }
     Object.assign(this, data);
     this.updated_at = new Date();
     return this;
   }
 
-  toJSON(): ProductData & { base_price_per_day: number } {
+  toJSON(): ProductData {
     return {
       id: this.id,
       owner_id: this.owner_id,
@@ -200,8 +180,6 @@ export class Product implements ProductData {
       category_id: this.category_id,
       status: this.status,
       condition: this.condition,
-      base_price_per_day: this.base_price_per_day, // Only return this for daily price
-      base_currency: this.base_currency,
       pickup_methods: this.pickup_methods,
       location: this.location,
       images: this.images,
@@ -217,8 +195,6 @@ export class Product implements ProductData {
       display_currency: this.display_currency,
       recommendations: this.recommendations,
       features: this.features,
-      base_price_per_week: this.base_price_per_week,
-      base_price_per_month: this.base_price_per_month,
       created_at: this.created_at,
       updated_at: this.updated_at
     };
@@ -236,8 +212,6 @@ export class Product implements ProductData {
         description: 'Beautiful oceanfront villa with 4 bedrooms, private pool, and stunning views',
         category_id: 'accommodation',
         condition: 'like_new',
-        base_price_per_day: 299.99,
-        base_currency: 'USD',
         pickup_methods: ['pickup', 'delivery'],
         country_id: 'US',
         specifications: { bedrooms: 4, bathrooms: 3, pool: true },
@@ -256,8 +230,6 @@ export class Product implements ProductData {
         description: 'Experience the thrill of driving a Ferrari 488 GTB',
         category_id: 'transportation',
         condition: 'new',
-        base_price_per_day: 899.99,
-        base_currency: 'USD',
         pickup_methods: ['pickup'],
         country_id: 'US',
         specifications: { seats: 2, color: 'red', transmission: 'automatic' },
@@ -276,8 +248,6 @@ export class Product implements ProductData {
         description: 'Learn to cook authentic Italian cuisine from a Michelin-starred chef',
         category_id: 'experience',
         condition: 'new',
-        base_price_per_day: 150.00,
-        base_currency: 'USD',
         pickup_methods: ['pickup'],
         country_id: 'US',
         specifications: { cuisine: 'Italian', chef: 'Michelin-starred' },

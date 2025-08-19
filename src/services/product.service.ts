@@ -59,8 +59,6 @@ class ProductService {
       if (!data.slug) errors.push({ field: 'slug', message: 'Slug is required' });
       if (!data.description) errors.push({ field: 'description', message: 'Description is required' });
       if (!data.category_id) errors.push({ field: 'category_id', message: 'Category is required' });
-      if (!data.base_price_per_day) errors.push({ field: 'base_price_per_day', message: 'Base price per day is required' });
-      if (!data.base_currency) errors.push({ field: 'base_currency', message: 'Base currency is required' });
       if (!data.pickup_methods || !data.pickup_methods.length) errors.push({ field: 'pickup_methods', message: 'At least one pickup method is required' });
       if (!data.country_id) errors.push({ field: 'country_id', message: 'Country is required' });
       console.log('[DEBUG] validateCreate errors:', errors);

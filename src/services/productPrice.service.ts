@@ -25,6 +25,15 @@ export class ProductPriceService {
    */
   async createProductPrice(data: CreateProductPriceRequest): Promise<ProductPrice> {
     try {
+      if (!data) {
+        throw new Error('Invalid payload');
+      }
+      console.log('[DEBUG] ProductPriceService.createProductPrice payload:', {
+        product_id: data.product_id,
+        country_id: data.country_id,
+        currency: data.currency,
+        price_per_day: data.price_per_day
+      });
       // Check if price already exists for this product/country/currency combination
       const existingPrice = await ProductPriceModel.findOne({
         where: {
@@ -35,21 +44,29 @@ export class ProductPriceService {
       });
 
       if (existingPrice) {
+        console.warn('[DEBUG] Duplicate price found for product/country/currency');
         throw new Error(`Price already exists for product '${data.product_id}' in country '${data.country_id}' with currency '${data.currency}'`);
       }
 
       // Validate currency code
-      if (data.currency.length !== 3) {
+      if (!data.currency || data.currency.length !== 3) {
+        console.warn('[DEBUG] Invalid currency code:', data.currency);
         throw new Error('Currency code must be exactly 3 characters');
       }
 
       // Validate base currency if provided
       if (data.base_currency && data.base_currency.length !== 3) {
+        console.warn('[DEBUG] Invalid base_currency code:', data.base_currency);
         throw new Error('Base currency code must be exactly 3 characters');
       }
 
       // Validate pricing logic
-      if (data.price_per_day <= 0) {
+      if (data.price_per_day === undefined || data.price_per_day === null) {
+        console.warn('[DEBUG] price_per_day missing');
+        throw new Error('price_per_day is required');
+      }
+      if (Number(data.price_per_day) <= 0) {
+        console.warn('[DEBUG] price_per_day invalid (<= 0):', data.price_per_day);
         throw new Error('Daily price must be greater than 0');
       }
 
@@ -99,14 +116,19 @@ export class ProductPriceService {
         notes: data.notes,
       } as any);
 
-      return price.toJSON();
+      const result = price.toJSON();
+      console.log('[DEBUG] ProductPriceService.createProductPrice created id:', result.id);
+      return result;
     } catch (error: any) {
       if (error.name === 'SequelizeValidationError') {
+        console.error('[DEBUG] SequelizeValidationError:', error.errors);
         throw new Error(`Validation error: ${error.errors.map((e: any) => e.message).join(', ')}`);
       }
       if (error.name === 'SequelizeUniqueConstraintError') {
+        console.warn('[DEBUG] SequelizeUniqueConstraintError on product price create');
         throw new Error(`Price already exists for this product/country/currency combination`);
       }
+      console.error('[DEBUG] Unknown error in ProductPriceService.createProductPrice:', error);
       throw error;
     }
   }

@@ -687,7 +687,6 @@ export class ProductsController extends BaseController {
     // Performance: Direct assignment for defined values only
     if (body.title !== undefined) update_data.title = body.title;
     if (body.description !== undefined) update_data.description = body.description;
-    if (body.base_price !== undefined) update_data.base_price = body.base_price;
     if (body.condition !== undefined) update_data.condition = body.condition;
     if (body.status !== undefined) update_data.status = body.status;
     
@@ -701,9 +700,7 @@ export class ProductsController extends BaseController {
       update_data.features = [...new Set([...(currentFeatures), ...body.features])]; // Merge and remove duplicates
     }
 
-    // Handle base_price_per_week and base_price_per_month updates
-    if (body.base_price_per_week !== undefined) update_data.base_price_per_week = body.base_price_per_week;
-    if (body.base_price_per_month !== undefined) update_data.base_price_per_month = body.base_price_per_month;
+    // Pricing fields are managed via product_prices; ignore legacy product-level pricing updates
 
     return update_data;
   }
@@ -712,7 +709,8 @@ export class ProductsController extends BaseController {
    * Calculate availability efficiently
    */
   private calculateAvailability(product: any, start_date: string, end_date: string) {
-    const base_price = product.base_price;
+    // Pricing now comes from product_prices; fall back to 0 for availability preview
+    const base_price = 0;
     const start_date_obj = new Date(start_date);
     const end_date_obj = new Date(end_date);
     const total_days = Math.max(1, Math.ceil((end_date_obj.getTime() - start_date_obj.getTime()) / (1000 * 60 * 60 * 24)));

@@ -36,8 +36,6 @@ export interface ProductData {
   category_id: string;
   status: ProductStatus;
   condition: ProductCondition;
-  base_price_per_day: number;
-  base_currency: string;
   pickup_methods: any[];
   location: ProductLocation;
   images: ProductImage[];
@@ -55,9 +53,6 @@ export interface ProductData {
   created_at: Date;
   updated_at: Date;
   features?: string[];
-  base_price_per_week?: number;
-  base_price_per_month?: number;
-  security_deposit?: number;
 }
 
 export interface CreateProductData {
@@ -67,38 +62,31 @@ export interface CreateProductData {
   description: string;
   category_id: string;
   condition: ProductCondition;
-  base_price_per_day: number;
-  base_currency: string;
   pickup_methods: any[];
   country_id: string;
   location: ProductLocation;
   specifications?: Record<string, any>;
   features?: string[];
-  base_price_per_week?: number;
-  base_price_per_month?: number;
 }
 
 export interface UpdateProductData {
   title?: string;
   description?: string;
   condition?: ProductCondition;
-  base_price?: number;
   pickup_methods?: any[];
   location?: Partial<ProductLocation>;
   specifications?: Record<string, any>;
   status?: ProductStatus;
   features?: string[];
-  base_price_per_week?: number;
-  base_price_per_month?: number;
 }
 
 export interface ProductFilters {
+  currency: any;
+  min_price: number;
+  max_price: number;
   search?: string;
   category_id?: string;
   country_id?: string;
-  min_price?: number;
-  max_price?: number;
-  currency?: string;
   condition?: ProductCondition;
   status?: ProductStatus;
   owner_id?: string;
@@ -145,11 +133,6 @@ export interface Product {
   serial_number?: string;
   year_manufactured?: number;
   condition: ProductCondition;
-  base_price_per_day: number;
-  base_price_per_week?: number;
-  base_price_per_month?: number;
-  security_deposit?: number;
-  currency: string;
   location?: { latitude: number; longitude: number } | any;
   address_line?: string;
   district?: string;

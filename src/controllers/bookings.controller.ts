@@ -154,14 +154,14 @@ export class BookingsController extends BaseController {
     // Check product availability before booking
     const isAvailable = await BookingService.isProductAvailable(product_id, start_date, end_date);
     if (!isAvailable) {
-      return ResponseHelper.error(res, 'Product is not available for the selected dates', 409);
+      return ResponseHelper.conflict(res, 'Product is not available for the selected dates');
     }
 
     // Performance: Concurrent booking prevention using lock
     const lockKey = `booking_${product_id}_${start_date}_${end_date}`;
     
     if (bookingLocks.has(lockKey)) {
-      return ResponseHelper.error(res, 'Another booking is being processed for this time slot. Please try again.', 409);
+      return ResponseHelper.conflict(res, 'Another booking is being processed for this time slot. Please try again.');
     }
 
     const bookingPromise = this.processBookingCreation(res, req.user.id, req.user, {
@@ -224,7 +224,7 @@ export class BookingsController extends BaseController {
     this.logAction('GET_USER_BOOKINGS', user_id, undefined, { role, filters });
 
     if (!result.success || !result.data) {
-      return ResponseHelper.error(res, result.error || 'Failed to fetch bookings', 400);
+      return ResponseHelper.badRequest(res, result.error || 'Failed to fetch bookings');
     }
 
     // Cache the result
@@ -301,7 +301,7 @@ export class BookingsController extends BaseController {
     const result = await BookingStatusHistoryService.getByBookingId(id);
     
     if (!result.success) {
-      return ResponseHelper.error(res, result.error || 'Failed to fetch status history', 400);
+      return ResponseHelper.badRequest(res, result.error || 'Failed to fetch status history');
     }
 
     this.logAction('GET_BOOKING_STATUS_HISTORY', user_id, id);
@@ -329,7 +329,7 @@ export class BookingsController extends BaseController {
     const result = await BookingStatusHistoryService.getStatusAnalytics(id);
     
     if (!result.success) {
-      return ResponseHelper.error(res, result.error || 'Failed to fetch status analytics', 400);
+      return ResponseHelper.badRequest(res, result.error || 'Failed to fetch status analytics');
     }
 
     this.logAction('GET_BOOKING_STATUS_ANALYTICS', user_id, id);
@@ -350,7 +350,7 @@ export class BookingsController extends BaseController {
     const result = await BookingStatusHistoryService.getGlobalStats();
     
     if (!result.success) {
-      return ResponseHelper.error(res, result.error || 'Failed to fetch status statistics', 400);
+      return ResponseHelper.badRequest(res, result.error || 'Failed to fetch status statistics');
     }
 
     this.logAction('GET_GLOBAL_STATUS_STATS', req.user.id);
@@ -734,7 +734,7 @@ export class BookingsController extends BaseController {
     // Recalculate pricing with new insurance
     const product = await ProductService.getById(booking.product_id);
     if (!product.success || !product.data) {
-      return ResponseHelper.error(res, 'Product not found', 404);
+      return ResponseHelper.notFound(res, 'Product not found');
     }
 
     const newPricing = this.calculateBookingPricing(
@@ -753,14 +753,7 @@ export class BookingsController extends BaseController {
       lastModifiedBy: user_id
     };
 
-    const updatedBooking = await booking.update({
-      insuranceType,
-      insurancePolicyNumber: policyNumber,
-      insuranceDetails,
-      pricing: newPricing,
-      totalAmount: newPricing.totalAmount,
-      lastModifiedBy: user_id
-    } as any); // Cast to any to bypass type error, or update UpdateBookingData type accordingly
+    const updatedBooking = await booking.update(updateData as any);
 
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
@@ -844,7 +837,7 @@ export class BookingsController extends BaseController {
     );
 
     if (!result.success) {
-      return ResponseHelper.error(res, result.error || 'Failed to fetch payment methods', 400);
+      return ResponseHelper.badRequest(res, result.error || 'Failed to fetch payment methods');
     }
 
     this.logAction('GET_BOOKING_PAYMENT_METHODS', user_id, id);
@@ -895,18 +888,18 @@ export class BookingsController extends BaseController {
 
     if (!productResult.success || !productResult.data) {
       console.error('Product not found:', product_id);
-      return ResponseHelper.error(res, 'Product not found', 404);
+      return ResponseHelper.notFound(res, 'Product not found');
     }
 
     const product = productResult.data;
     console.log('Product found:', { id: product.id, owner_id: product.owner_id, title: product.title });
 
     if (product.owner_id === renter_id) {
-      return ResponseHelper.error(res, 'You cannot book your own product', 400);
+      return ResponseHelper.forbidden(res, 'You cannot book your own product');
     }
 
     if (!isVerified) {
-      return ResponseHelper.error(res, 'You must complete KYC verification to book or rent.', 403);
+      return ResponseHelper.forbidden(res, 'You must complete KYC verification to book or rent.');
     }
 
     // Performance: Optimized pricing calculation
@@ -945,16 +938,15 @@ export class BookingsController extends BaseController {
       security_deposit,
       ai_risk_score: aiRiskScore,
       pricing: {
-        base_price: product.base_price_per_day,
-        currency: product.base_currency,
+        // Product-level base price/currency were removed; pricing now comes from product_prices
         total_days: Math.ceil((new Date(end_date).getTime() - new Date(start_date).getTime()) / (1000 * 60 * 60 * 24)),
         subtotal: base_amount,
         platform_fee: pricing.platformFee,
         tax_amount: pricing.taxAmount,
         insurance_fee: pricing.insuranceFee,
         total_amount: total_amount,
-        security_deposit: typeof product.security_deposit === 'number' ? product.security_deposit : 0,
-        discount_amount: 0 // Could be calculated based on promotions
+        security_deposit: 0,
+        discount_amount: 0
       },
       total_amount, // ensure not null
       base_amount,  // ensure not null
@@ -980,7 +972,7 @@ export class BookingsController extends BaseController {
       
       if (!created.success || !created.data) {
         console.error('Booking creation failed:', created.error);
-        return ResponseHelper.error(res, created.error || 'Failed to create booking', 400);
+        return ResponseHelper.badRequest(res, created.error || 'Failed to create booking');
       }
       // Add this null check before sending success response
       if (!created.data) {
@@ -1077,7 +1069,8 @@ export class BookingsController extends BaseController {
     const totalDays = Math.max(1, Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)));
     
     // Fix: Use correct product property names
-    const basePrice = parseFloat(product.base_price_per_day || product.basePrice || '0');
+    // Product-level base price was removed; use 0 here. Final pricing comes from product_prices service.
+    const basePrice = 0;
     const subtotal = basePrice * totalDays;
     const platformFee = subtotal * 0.1; // 10% platform fee
     const taxAmount = subtotal * 0.08; // 8% tax
@@ -1097,14 +1090,14 @@ export class BookingsController extends BaseController {
 
     return {
       basePrice: basePrice,
-      currency: product.base_currency || product.currency || 'USD',
+      currency: 'USD',
       totalDays,
       subtotal,
       platformFee,
       taxAmount,
       insuranceFee,
       totalAmount,
-      securityDeposit: product.security_deposit || product.securityDeposit || 0,
+      securityDeposit: 0,
       discountAmount: 0 // Could be calculated based on promotions
     };
   }

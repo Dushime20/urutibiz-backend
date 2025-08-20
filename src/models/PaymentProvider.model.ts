@@ -44,11 +44,10 @@ export const initPaymentProviderModel = (sequelize: Sequelize): typeof PaymentPr
         allowNull: false,
       },
       country_id: {
-        type: DataTypes.STRING(3),
+        type: DataTypes.UUID,
         allowNull: false,
         validate: {
-          len: [2, 3],
-          isAlpha: true,
+          isUUID: 4,
         },
       },
       provider_name: {
@@ -86,14 +85,13 @@ export const initPaymentProviderModel = (sequelize: Sequelize): typeof PaymentPr
         defaultValue: true,
       },
       supported_currencies: {
-        type: DataTypes.JSON,
+        type: DataTypes.ARRAY(DataTypes.STRING(3)),
         allowNull: false,
         validate: {
           isValidArray(value: any) {
             if (!Array.isArray(value) || value.length === 0) {
               throw new Error('Supported currencies must be a non-empty array');
             }
-            // Validate currency codes are 3 letters
             for (const currency of value) {
               if (typeof currency !== 'string' || currency.length !== 3) {
                 throw new Error('Currency codes must be 3-letter strings');
@@ -230,10 +228,7 @@ export const initPaymentProviderModel = (sequelize: Sequelize): typeof PaymentPr
             provider.provider_name = provider.provider_name.toLowerCase().trim();
           }
           
-          // Ensure country_id is uppercase
-          if (provider.country_id) {
-            provider.country_id = provider.country_id.toUpperCase().trim();
-          }
+          // country_id is a UUID; no normalization required
           
           // Ensure provider_type is lowercase
           if (provider.provider_type) {

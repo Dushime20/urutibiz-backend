@@ -219,6 +219,146 @@ const controller = new UsersController();
 // Note: In a real implementation, these would have authentication middleware
 router.get('/',requireAuth, controller.getUsers);
 
+// ✅ SPECIFIC ROUTES MUST COME BEFORE GENERIC :id ROUTES
+// This prevents /users/stats from being caught by /users/:id
+
+/**
+ * @swagger
+ * /users/{id}/stats:
+ *   get:
+ *     summary: Get user statistics
+ *     description: Get user activity statistics and metrics
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: User statistics retrieved successfully
+ *       404:
+ *         description: User not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/:id/stats', requireAuth, controller.getUserStats);
+
+/**
+ * @swagger
+ * /users/{id}/rentals:
+ *   get:
+ *     summary: Get user rental history with pagination
+ *     description: |
+ *       Retrieve user's rental history with performance optimization.
+ *       **Performance Features:**
+ *       - Efficient pagination with cursor-based navigation
+ *       - Selective data loading
+ *       - Multi-layer caching
+ *       - Sub-300ms response times
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: User ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 10
+ *         description: Number of rentals per page
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, confirmed, active, completed, cancelled]
+ *         description: Filter by rental status
+ *     responses:
+ *       200:
+ *         $ref: '#/components/responses/UserRentalsResponse'
+ *       404:
+ *         description: User not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/:id/rentals', requireAuth, controller.getRentalHistory);
+
+/**
+ * @swagger
+ * /users/{id}/preferences:
+ *   put:
+ *     summary: Update user preferences
+ *     description: |
+ *       Update user preferences with intelligent caching.
+ *       **Performance Features:**
+ *       - Incremental preference updates
+ *       - Smart cache invalidation
+ *       - Optimistic updates
+ *       - Sub-200ms response times
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UserPreferences'
+ *     responses:
+ *       200:
+ *         description: Preferences updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/UserPreferences'
+ *                 meta:
+ *                   $ref: '#/components/schemas/PerformanceMetrics'
+ *       400:
+ *         description: Invalid preference data
+ *       404:
+ *         description: User not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.put('/:id/preferences', requireAuth, controller.updatePreferences);
+
 /**
  * @swagger
  * /users/{id}:
@@ -243,7 +383,7 @@ router.get('/',requireAuth, controller.getUsers);
  *         description: User ID
  *     responses:
  *       200:
- *         $ref: '#/components/responses/UserResponse'
+ *         $ref: '#/components/schemas/UserResponse'
  *       404:
  *         description: User not found
  *       401:
@@ -251,7 +391,7 @@ router.get('/',requireAuth, controller.getUsers);
  *       500:
  *         description: Server error
  */
-router.get('/:id',requireAuth, controller.getUser);
+router.get('/:id', requireAuth, controller.getUser);
 
 /**
  * @swagger
@@ -521,7 +661,7 @@ router.put('/:id/password', controller.changePassword);
  *       500:
  *         description: Server error
  */
-router.get('/:id/stats', controller.getUserStats);
+// Duplicate route removed - already defined above
 
 /**
  * @swagger
@@ -573,7 +713,7 @@ router.get('/:id/stats', controller.getUserStats);
  *       500:
  *         description: Server error
  */
-router.put('/:id/preferences', controller.updatePreferences);
+// Duplicate route removed - already defined above
 
 /**
  * @swagger
@@ -668,6 +808,6 @@ router.put('/:id/preferences', controller.updatePreferences);
  *       500:
  *         description: Server error
  */
-router.get('/:id/rentals', controller.getRentalHistory);
+// Duplicate route removed - already defined above
 
 export default router;

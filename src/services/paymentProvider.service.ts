@@ -29,7 +29,7 @@ export class PaymentProviderService {
       // Check if provider already exists for this country
       const existingProvider = await PaymentProviderModel.findOne({
         where: {
-          country_id: data.country_id.toUpperCase(),
+          country_id: data.country_id,
           provider_name: data.provider_name.toLowerCase(),
         },
       });
@@ -58,7 +58,7 @@ export class PaymentProviderService {
       }
 
       const provider = await PaymentProviderModel.create({
-        country_id: data.country_id.toUpperCase(),
+        country_id: data.country_id,
         provider_name: data.provider_name.toLowerCase(),
         provider_type: data.provider_type.toLowerCase(),
         display_name: data.display_name,
@@ -337,7 +337,7 @@ export class PaymentProviderService {
   async getPaymentProvidersByCountry(countryId: string): Promise<CountryPaymentProviders> {
     try {
       const providers = await PaymentProviderModel.findAll({
-        where: { country_id: countryId.toUpperCase() },
+        where: { country_id: countryId },
         order: [['provider_name', 'ASC']],
       });
 
@@ -383,7 +383,7 @@ export class PaymentProviderService {
   ): Promise<PaymentCalculationResult[]> {
     try {
       const whereClause: WhereOptions = {
-        country_id: countryId.toUpperCase(),
+        country_id: countryId,
         is_active: true,
         supported_currencies: {
           [Op.contains]: [currency.toUpperCase()],

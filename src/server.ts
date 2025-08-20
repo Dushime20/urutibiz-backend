@@ -6,6 +6,8 @@ import logger from './utils/logger';
 import { connectDatabase } from './config/database';
 import sequelize from './config/sequelize';
 import { initProductPriceModel } from './models/ProductPrice.model';
+import { initPaymentProviderModel } from './models/PaymentProvider.model';
+import { initInsuranceProviderModel } from './models/InsuranceProvider.model';
 
 
 const config = getConfig();
@@ -22,6 +24,8 @@ async function startServer(): Promise<void> {
     // Initialize Sequelize models used by specific services (e.g., product prices)
     try {
       initProductPriceModel(sequelize);
+      initPaymentProviderModel(sequelize);
+      initInsuranceProviderModel(sequelize);
       await sequelize.authenticate();
       // Do not sync schema automatically in production; rely on Knex migrations
     } catch (seqErr) {

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import adminController from '@/controllers/admin.controller';
 import ModerationController from '@/controllers/moderation.controller';
 import { authenticateToken as authenticate, requireRole } from '@/middleware/auth.middleware';
+import messagingRoutes from './messaging.routes';
+import notificationRoutes from './notification.routes';
 
 const router = Router();
 
@@ -608,5 +610,11 @@ router.get('/activity', adminController.getActivity);
 // Financial routes
 router.get('/financial/reports', adminController.getFinancialReports);
 router.post('/financial/payouts/process', adminController.processPayouts);
+
+// Messaging routes
+router.use('/chats', messagingRoutes);
+
+// Notification routes
+router.use('/notifications', notificationRoutes);
 
 export default router;

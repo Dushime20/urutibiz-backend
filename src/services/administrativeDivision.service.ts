@@ -379,8 +379,17 @@ export class AdministrativeDivisionService {
     try {
       return await AdministrativeDivisionModel.getStats(countryId);
     } catch (error: any) {
-      logger.error(`Error getting division statistics: ${error.message}`);
-      throw error;
+      logger.error(`Error getting division statistics: ${error.message}`, { error, countryId });
+      
+      // Provide more specific error messages
+      if (error.message.includes('relation') || error.message.includes('table')) {
+        throw new Error('Database table structure issue. Please check if all required columns exist.');
+      }
+      if (error.message.includes('column')) {
+        throw new Error('Database column issue. Please check if all required columns exist.');
+      }
+      
+      throw new Error(`Failed to retrieve administrative division statistics: ${error.message}`);
     }
   }
 
@@ -440,8 +449,25 @@ export class AdministrativeDivisionService {
       errors.push('Division level must be between 1 and 10');
     }
 
-    if ('country_id' in data && (!data.country_id || data.country_id.trim().length === 0)) {
-      errors.push('Country ID is required');
+    // Validate country_id with UUID format check
+    if ('country_id' in data) {
+      if (!data.country_id || data.country_id.trim().length === 0) {
+        errors.push('Country ID is required');
+      } else {
+        // Check if it's a valid UUID format
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(data.country_id.trim())) {
+          errors.push('Country ID must be a valid UUID format');
+        }
+      }
+    }
+
+    // Validate parent_id with UUID format check if provided
+    if (data.parent_id && data.parent_id.trim().length > 0) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(data.parent_id.trim())) {
+        errors.push('Parent ID must be a valid UUID format');
+      }
     }
 
     // Validate population if provided

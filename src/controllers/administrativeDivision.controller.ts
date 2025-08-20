@@ -96,6 +96,15 @@ export class AdministrativeDivisionController {
     try {
       const data: CreateAdministrativeDivisionRequest = req.body;
       
+      // Debug logging to see what data is received
+      logger.info(`Creating administrative division with data:`, { 
+        country_id: data.country_id, 
+        name: data.name, 
+        level: data.level,
+        type: data.type,
+        parent_id: data.parent_id 
+      });
+      
       // Validate request data
       AdministrativeDivisionService.validateDivisionData(data);
       
@@ -103,7 +112,11 @@ export class AdministrativeDivisionController {
       
       return ResponseHelper.created(res, 'Administrative division created successfully', division);
     } catch (error: any) {
-      logger.error(`Error in createDivision: ${error.message}`);
+      logger.error(`Error in createDivision: ${error.message}`, { 
+        error: error.message, 
+        stack: error.stack,
+        body: req.body 
+      });
       
       if (error.message.includes('not found')) {
         return ResponseHelper.notFound(res, error.message);

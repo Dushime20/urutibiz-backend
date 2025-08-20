@@ -21,6 +21,24 @@ export class CategoryRegulationCRUD {
    */
   static async create(data: CreateCategoryRegulationData): Promise<ServiceResponse<CategoryRegulationData>> {
     try {
+      // Normalize arrays possibly sent as JSON strings
+      if (typeof (data as any).requirements === 'string') {
+        const raw = (data as any).requirements as unknown as string;
+        try {
+          (data as any).requirements = JSON.parse(raw);
+        } catch {
+          (data as any).requirements = [raw];
+        }
+      }
+      if (typeof (data as any).penalties === 'string') {
+        const raw = (data as any).penalties as unknown as string;
+        try {
+          (data as any).penalties = JSON.parse(raw);
+        } catch {
+          (data as any).penalties = [raw];
+        }
+      }
+
       // Validate input data
       const validation = CategoryRegulationValidator.validateCreateData(data);
       if (!validation.isValid) {
@@ -136,6 +154,24 @@ export class CategoryRegulationCRUD {
     data: UpdateCategoryRegulationData
   ): Promise<ServiceResponse<CategoryRegulationData>> {
     try {
+      // Normalize arrays possibly sent as JSON strings
+      if (typeof (data as any).requirements === 'string') {
+        const raw = (data as any).requirements as unknown as string;
+        try {
+          (data as any).requirements = JSON.parse(raw);
+        } catch {
+          (data as any).requirements = [raw];
+        }
+      }
+      if (typeof (data as any).penalties === 'string') {
+        const raw = (data as any).penalties as unknown as string;
+        try {
+          (data as any).penalties = JSON.parse(raw);
+        } catch {
+          (data as any).penalties = [raw];
+        }
+      }
+
       // Validate ID format
       const idValidation = CategoryRegulationValidator.validateId(id);
       if (idValidation) {

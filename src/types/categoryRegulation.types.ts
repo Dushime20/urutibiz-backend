@@ -72,6 +72,17 @@ export interface CategoryRegulationData {
   documentation_required?: DocumentationType[];
   compliance_level: ComplianceLevel;
   
+  // New fields from frontend
+  title?: string;
+  description?: string;
+  requirements?: string[];
+  penalties?: string[];
+  compliance_deadline?: Date;
+  is_active?: boolean;
+  regulation_type?: 'LICENSING' | 'PERMITTING' | 'COMPLIANCE' | 'SAFETY' | 'ENVIRONMENTAL' | 'OTHER';
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  enforcement_level?: 'LENIENT' | 'MODERATE' | 'STRICT' | 'VERY_STRICT';
+  
   // Timestamps
   created_at: Date;
   updated_at: Date;
@@ -108,6 +119,17 @@ export interface CreateCategoryRegulationData {
   seasonal_restrictions?: SeasonalRestrictions;
   documentation_required?: DocumentationType[];
   compliance_level?: ComplianceLevel;
+  
+  // New fields from frontend
+  title?: string;
+  description?: string;
+  requirements?: string[];
+  penalties?: string[];
+  compliance_deadline?: Date;
+  is_active?: boolean;
+  regulation_type?: 'LICENSING' | 'PERMITTING' | 'COMPLIANCE' | 'SAFETY' | 'ENVIRONMENTAL' | 'OTHER';
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  enforcement_level?: 'LENIENT' | 'MODERATE' | 'STRICT' | 'VERY_STRICT';
 }
 
 /**
@@ -133,6 +155,17 @@ export interface UpdateCategoryRegulationData {
   seasonal_restrictions?: SeasonalRestrictions;
   documentation_required?: DocumentationType[];
   compliance_level?: ComplianceLevel;
+  
+  // New fields from frontend
+  title?: string;
+  description?: string;
+  requirements?: string[];
+  penalties?: string[];
+  compliance_deadline?: Date;
+  is_active?: boolean;
+  regulation_type?: 'LICENSING' | 'PERMITTING' | 'COMPLIANCE' | 'SAFETY' | 'ENVIRONMENTAL' | 'OTHER';
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  enforcement_level?: 'LENIENT' | 'MODERATE' | 'STRICT' | 'VERY_STRICT';
 }
 
 // =====================================================
@@ -159,6 +192,17 @@ export interface CreateCategoryRegulationRequest {
   seasonal_restrictions?: SeasonalRestrictions;
   documentation_required?: DocumentationType[];
   compliance_level?: ComplianceLevel;
+  
+  // New fields from frontend
+  title?: string;
+  description?: string;
+  requirements?: string[];
+  penalties?: string[];
+  compliance_deadline?: Date;
+  is_active?: boolean;
+  regulation_type?: 'LICENSING' | 'PERMITTING' | 'COMPLIANCE' | 'SAFETY' | 'ENVIRONMENTAL' | 'OTHER';
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  enforcement_level?: 'LENIENT' | 'MODERATE' | 'STRICT' | 'VERY_STRICT';
 }
 
 /**
@@ -179,6 +223,17 @@ export interface UpdateCategoryRegulationRequest {
   seasonal_restrictions?: SeasonalRestrictions;
   documentation_required?: DocumentationType[];
   compliance_level?: ComplianceLevel;
+  
+  // New fields from frontend
+  title?: string;
+  description?: string;
+  requirements?: string[];
+  penalties?: string[];
+  compliance_deadline?: Date;
+  is_active?: boolean;
+  regulation_type?: 'LICENSING' | 'PERMITTING' | 'COMPLIANCE' | 'SAFETY' | 'ENVIRONMENTAL' | 'OTHER';
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  enforcement_level?: 'LENIENT' | 'MODERATE' | 'STRICT' | 'VERY_STRICT';
 }
 
 /**
@@ -202,11 +257,22 @@ export interface CategoryRegulationFilters {
   compliance_level?: ComplianceLevel | ComplianceLevel[];
   has_seasonal_restrictions?: boolean;
   documentation_type?: DocumentationType;
+  
+  // New fields from frontend
+  title?: string;
+  description?: string;
+  regulation_type?: 'LICENSING' | 'PERMITTING' | 'COMPLIANCE' | 'SAFETY' | 'ENVIRONMENTAL' | 'OTHER';
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  enforcement_level?: 'LENIENT' | 'MODERATE' | 'STRICT' | 'VERY_STRICT';
+  is_active?: boolean;
+  compliance_deadline_before?: Date;
+  compliance_deadline_after?: Date;
+  
   search?: string;
   include_deleted?: boolean;
   page?: number;
   limit?: number;
-  sort_by?: 'created_at' | 'updated_at' | 'compliance_level' | 'min_age_requirement' | 'max_rental_days' | 'min_coverage_amount';
+  sort_by?: 'created_at' | 'updated_at' | 'compliance_level' | 'min_age_requirement' | 'max_rental_days' | 'min_coverage_amount' | 'title' | 'priority' | 'enforcement_level' | 'compliance_deadline';
   sort_order?: 'asc' | 'desc';
 }
 

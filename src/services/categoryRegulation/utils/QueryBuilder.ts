@@ -76,11 +76,49 @@ export class QueryBuilder {
       where.max_rental_days = rentalDaysConditions;
     }
     
+    // New fields from frontend
+    if (filters.title) {
+      where.title = { [Op.iLike]: `%${filters.title}%` };
+    }
+    
+    if (filters.description) {
+      where.description = { [Op.iLike]: `%${filters.description}%` };
+    }
+    
+    if (filters.regulation_type) {
+      where.regulation_type = filters.regulation_type;
+    }
+    
+    if (filters.priority) {
+      where.priority = filters.priority;
+    }
+    
+    if (filters.enforcement_level) {
+      where.enforcement_level = filters.enforcement_level;
+    }
+    
+    if (filters.is_active !== undefined) {
+      where.is_active = filters.is_active;
+    }
+    
+    if (filters.compliance_deadline_before || filters.compliance_deadline_after) {
+      const deadlineConditions: any = {};
+      if (filters.compliance_deadline_before) {
+        deadlineConditions[Op.lte] = filters.compliance_deadline_before;
+      }
+      if (filters.compliance_deadline_after) {
+        deadlineConditions[Op.gte] = filters.compliance_deadline_after;
+      }
+      where.compliance_deadline = deadlineConditions;
+    }
+    
     if (filters.search) {
       (where as any)[Op.or] = [
         { license_type: { [Op.iLike]: `%${filters.search}%` } },
         { special_requirements: { [Op.iLike]: `%${filters.search}%` } },
         { prohibited_activities: { [Op.iLike]: `%${filters.search}%` } },
+        { title: { [Op.iLike]: `%${filters.search}%` } },
+        { description: { [Op.iLike]: `%${filters.search}%` } },
       ];
     }
 
@@ -113,16 +151,9 @@ export class QueryBuilder {
    * Build standard include associations
    */
   static buildStandardIncludes() {
-    return [
-      {
-        association: 'category',
-        attributes: ['id', 'name', 'description'],
-      },
-      {
-        association: 'country',
-        attributes: ['id', 'code', 'name'],
-      },
-    ];
+    // Return empty array since we removed associations to avoid errors
+    // The model now works independently without Sequelize associations
+    return [];
   }
 
   /**

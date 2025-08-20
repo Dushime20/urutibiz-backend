@@ -33,6 +33,17 @@ export class CategoryRegulation extends Model<CategoryRegulationData, CreateCate
   public documentation_required?: DocumentationType[];
   public compliance_level!: ComplianceLevel;
   
+  // New fields from frontend
+  public title?: string;
+  public description?: string;
+  public requirements?: string[];
+  public penalties?: string[];
+  public compliance_deadline?: Date;
+  public is_active?: boolean;
+  public regulation_type?: 'LICENSING' | 'PERMITTING' | 'COMPLIANCE' | 'SAFETY' | 'ENVIRONMENTAL' | 'OTHER';
+  public priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  public enforcement_level?: 'LENIENT' | 'MODERATE' | 'STRICT' | 'VERY_STRICT';
+  
   // Timestamps
   public created_at!: Date;
   public updated_at!: Date;
@@ -377,6 +388,108 @@ export const initializeCategoryRegulationModel = (sequelize: Sequelize): typeof 
           isIn: {
             args: [['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']],
             msg: 'Compliance level must be LOW, MEDIUM, HIGH, or CRITICAL',
+          },
+        },
+      },
+      
+      // New fields from frontend
+      title: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        validate: {
+          len: {
+            args: [0, 255],
+            msg: 'Title must be 255 characters or less',
+          },
+        },
+      },
+      description: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        validate: {
+          len: {
+            args: [0, 2000],
+            msg: 'Description must be 2000 characters or less',
+          },
+        },
+      },
+      requirements: {
+        type: DataTypes.ARRAY(DataTypes.TEXT),
+        allowNull: true,
+        defaultValue: [],
+        validate: {
+          isValidArray(value: any) {
+            if (value && !Array.isArray(value)) {
+              throw new Error('Requirements must be an array');
+            }
+            if (value && value.some((req: any) => typeof req !== 'string')) {
+              throw new Error('All requirements must be strings');
+            }
+          },
+        },
+      },
+      penalties: {
+        type: DataTypes.ARRAY(DataTypes.TEXT),
+        allowNull: true,
+        defaultValue: [],
+        validate: {
+          isValidArray(value: any) {
+            if (value && !Array.isArray(value)) {
+              throw new Error('Penalties must be an array');
+            }
+            if (value && value.some((pen: any) => typeof pen !== 'string')) {
+              throw new Error('All penalties must be strings');
+            }
+          },
+        },
+      },
+      compliance_deadline: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        validate: {
+          isDate: {
+            args: true,
+            msg: 'Compliance deadline must be a valid date',
+          },
+        },
+      },
+      is_active: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        allowNull: false,
+        validate: {
+          notNull: {
+            msg: 'Is active flag is required',
+          },
+        },
+      },
+      regulation_type: {
+        type: DataTypes.ENUM('LICENSING', 'PERMITTING', 'COMPLIANCE', 'SAFETY', 'ENVIRONMENTAL', 'OTHER'),
+        allowNull: true,
+        validate: {
+          isIn: {
+            args: [['LICENSING', 'PERMITTING', 'COMPLIANCE', 'SAFETY', 'ENVIRONMENTAL', 'OTHER']],
+            msg: 'Regulation type must be one of LICENSING, PERMITTING, COMPLIANCE, SAFETY, ENVIRONMENTAL, or OTHER',
+          },
+        },
+      },
+      priority: {
+        type: DataTypes.ENUM('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'),
+        allowNull: true,
+        validate: {
+          isIn: {
+            args: [['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']],
+            msg: 'Priority must be LOW, MEDIUM, HIGH, or CRITICAL',
+          },
+        },
+      },
+      enforcement_level: {
+        type: DataTypes.ENUM('LENIENT', 'MODERATE', 'STRICT', 'VERY_STRICT'),
+        allowNull: true,
+        validate: {
+          isIn: {
+            args: [['LENIENT', 'MODERATE', 'STRICT', 'VERY_STRICT']],
+            msg: 'Enforcement level must be one of LENIENT, MODERATE, STRICT, or VERY_STRICT',
           },
         },
       },

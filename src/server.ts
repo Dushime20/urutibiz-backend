@@ -8,6 +8,7 @@ import sequelize from './config/sequelize';
 import { initProductPriceModel } from './models/ProductPrice.model';
 import { initPaymentProviderModel } from './models/PaymentProvider.model';
 import { initInsuranceProviderModel } from './models/InsuranceProvider.model';
+import { initializeCategoryRegulationModel } from './models/CategoryRegulation.model';
 
 
 const config = getConfig();
@@ -26,6 +27,7 @@ async function startServer(): Promise<void> {
       initProductPriceModel(sequelize);
       initPaymentProviderModel(sequelize);
       initInsuranceProviderModel(sequelize);
+      initializeCategoryRegulationModel(sequelize);
       await sequelize.authenticate();
       // Do not sync schema automatically in production; rely on Knex migrations
     } catch (seqErr) {

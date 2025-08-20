@@ -139,14 +139,8 @@ export class CategoryRegulationService {
       
       // Include associations
       const include = [
-        {
-          association: 'category',
-          attributes: ['id', 'name', 'description'],
-        },
-        {
-          association: 'country',
-          attributes: ['id', 'code', 'name'],
-        },
+        // Associations removed to avoid errors - model works independently
+        // If you need category/country data, fetch it separately using Knex
       ];
       
       // Execute query with pagination

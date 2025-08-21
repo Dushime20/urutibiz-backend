@@ -6,12 +6,14 @@
 import { Router } from 'express';
 import countryBusinessRulesRoutes from './countryBusinessRules.routes';
 import exchangeRatesRoutes from './exchangeRates.routes';
+import translationRoutes from './translation.routes';
 
 const router = Router();
 
 // Mount sub-routes
 router.use('/country-business-rules', countryBusinessRulesRoutes);
 router.use('/exchange-rates', exchangeRatesRoutes);
+router.use('/', translationRoutes);
 
 // Health check endpoint
 router.get('/health', (_req, res) => {

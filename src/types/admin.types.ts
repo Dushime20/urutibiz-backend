@@ -69,7 +69,7 @@ export interface ProductModerationAction {
   id: string;
   productId: string;
   adminId: string;
-  action: 'approve' | 'reject' | 'suspend' | 'feature' | 'delist';
+  action: 'approve' | 'reject' | 'flag' | 'quarantine' | 'delete' | 'draft';
   reason: string;
   metadata?: Record<string, any>;
   createdAt: Date;

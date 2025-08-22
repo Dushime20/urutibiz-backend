@@ -169,8 +169,11 @@ router.use(requireRole(['admin', 'super_admin']));
  *             properties:
  *               action:
  *                 type: string
+ *                 enum: [approve, reject, flag, quarantine, delete, draft]
+ *                 description: Moderation action to perform
  *               reason:
  *                 type: string
+ *                 description: Reason for the moderation action
  *     responses:
  *       200:
  *         description: Moderation result
@@ -580,6 +583,127 @@ router.get('/moderation/metrics', ModerationController.getMetrics);
  *         description: Moderation result
  */
 router.post('/moderation/trigger', ModerationController.triggerModeration);
+
+// ✅ NEW: Moderation Actions & History
+/**
+ * @swagger
+ * /admin/moderation/actions:
+ *   get:
+ *     summary: Get all moderation actions with filters
+ *     tags: [Moderation]
+ *     parameters:
+ *       - in: query
+ *         name: resourceType
+ *         schema:
+ *           type: string
+ *         description: Filter by resource type (product, user, review, etc.)
+ *       - in: query
+ *         name: action
+ *         schema:
+ *           type: string
+ *         description: Filter by action type (approve, reject, flag, etc.)
+ *       - in: query
+ *         name: moderatorId
+ *         schema:
+ *           type: string
+ *         description: Filter by moderator ID
+ *       - in: query
+ *         name: dateFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter from date
+ *       - in: query
+ *         name: dateTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter to date
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Number of results to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of results to skip
+ *     responses:
+ *       200:
+ *         description: List of moderation actions
+ */
+router.get('/moderation/actions', ModerationController.getModerationActions);
+
+/**
+ * @swagger
+ * /admin/moderation/actions/{resourceType}/{resourceId}:
+ *   get:
+ *     summary: Get moderation history for a specific resource
+ *     tags: [Moderation]
+ *     parameters:
+ *       - in: path
+ *         name: resourceType
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Type of resource (product, user, review, etc.)
+ *       - in: path
+ *         name: resourceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the resource
+ *     responses:
+ *       200:
+ *         description: Moderation history for the resource
+ */
+router.get('/moderation/actions/:resourceType/:resourceId', ModerationController.getModerationHistory);
+
+/**
+ * @swagger
+ * /admin/moderation/actions/moderator/{moderatorId}:
+ *   get:
+ *     summary: Get moderation actions by a specific moderator
+ *     tags: [Moderation]
+ *     parameters:
+ *       - in: path
+ *         name: moderatorId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the moderator
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Number of results to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of results to skip
+ *     responses:
+ *       200:
+ *         description: List of actions by the moderator
+ */
+router.get('/moderation/actions/moderator/:moderatorId', ModerationController.getModeratorActions);
+
+/**
+ * @swagger
+ * /admin/moderation/stats:
+ *   get:
+ *     summary: Get moderation statistics and analytics
+ *     tags: [Moderation]
+ *     responses:
+ *       200:
+ *         description: Moderation statistics
+ */
+router.get('/moderation/stats', ModerationController.getModerationStats);
 
 // Products routes
 router.get('/products', adminController.getProducts);

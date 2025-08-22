@@ -173,11 +173,7 @@ export interface ModerationConfig {
   fraudDetection: {
     enabled: boolean;
     mlModels: boolean;
-    riskThresholds: {
-      low: number;
-      medium: number;
-      high: number;
-    };
+    riskThresholds: { low: number; medium: number; high: number };
   };
   notifications: {
     adminAlerts: boolean;
@@ -185,4 +181,18 @@ export interface ModerationConfig {
     escalationAlerts: boolean;
     reportFrequency: 'realtime' | 'hourly' | 'daily';
   };
+}
+
+/**
+ * Moderation Action Data - Stores individual moderation actions with reasons
+ */
+export interface ModerationActionData {
+  id: string;
+  resourceType: 'user' | 'product' | 'review' | 'booking' | 'message';
+  resourceId: string;
+  action: 'approve' | 'reject' | 'flag' | 'quarantine' | 'delete' | 'draft' | 'ban' | 'suspend' | 'activate' | 'warn';
+  reason?: string;
+  moderatorId: string;
+  metadata?: Record<string, any>;
+  createdAt: Date;
 }

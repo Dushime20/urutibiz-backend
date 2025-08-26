@@ -309,10 +309,12 @@ export class AIRecommendationRepository {
 
       // Overall metrics
       const [overallMetrics] = await baseQuery.clone()
-        .count('* as total_recommendations')
-        .avg('confidence_score as avg_confidence')
-        .sum('was_clicked as total_clicks')
-        .sum('was_booked as total_bookings');
+        .select(
+          this.db.raw('COUNT(*) as total_recommendations'),
+          this.db.raw('AVG(confidence_score) as avg_confidence'),
+          this.db.raw('SUM(CASE WHEN was_clicked THEN 1 ELSE 0 END) as total_clicks'),
+          this.db.raw('SUM(CASE WHEN was_booked THEN 1 ELSE 0 END) as total_bookings')
+        );
 
       const totalRecommendations = parseInt(overallMetrics.total_recommendations as string);
       const totalClicks = parseInt(overallMetrics.total_clicks as string) || 0;
@@ -320,19 +322,23 @@ export class AIRecommendationRepository {
 
       // Performance by type
       const typePerformance = await baseQuery.clone()
-        .select('recommendation_type')
-        .count('* as count')
-        .sum('was_clicked as clicks')
-        .sum('was_booked as bookings')
+        .select(
+          'recommendation_type',
+          this.db.raw('COUNT(*) as count'),
+          this.db.raw('SUM(CASE WHEN was_clicked THEN 1 ELSE 0 END) as clicks'),
+          this.db.raw('SUM(CASE WHEN was_booked THEN 1 ELSE 0 END) as bookings')
+        )
         .groupBy('recommendation_type')
         .orderBy('count', 'desc');
 
       // Performance by date
       const datePerformance = await baseQuery.clone()
-        .select(this.db.raw('DATE(created_at) as date'))
-        .count('* as recommendations')
-        .sum('was_clicked as clicks')
-        .sum('was_booked as bookings')
+        .select(
+          this.db.raw('DATE(created_at) as date'),
+          this.db.raw('COUNT(*) as recommendations'),
+          this.db.raw('SUM(CASE WHEN was_clicked THEN 1 ELSE 0 END) as clicks'),
+          this.db.raw('SUM(CASE WHEN was_booked THEN 1 ELSE 0 END) as bookings')
+        )
         .groupBy(this.db.raw('DATE(created_at)'))
         .orderBy('date', 'desc')
         .limit(30);

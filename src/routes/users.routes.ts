@@ -159,8 +159,9 @@
  */
 
 import { Router } from 'express';
-import { UsersController } from '../controllers/users.controller';
-import { requireAuth } from '@/middleware';
+import { UsersController } from '@/controllers/users.controller';
+import { requireAuth } from '@/middleware/auth.middleware';
+import { uploadSingle } from '@/middleware/upload.middleware';
 
 const router = Router();
 const controller = new UsersController();
@@ -427,16 +428,55 @@ router.get('/:id', requireAuth, controller.getUser);
  *                 type: string
  *                 minLength: 2
  *                 maxLength: 50
+ *                 example: "John"
  *               lastName:
  *                 type: string
  *                 minLength: 2
  *                 maxLength: 50
+ *                 example: "Doe"
  *               phone:
  *                 type: string
  *                 pattern: '^[\+]?[1-9][\d]{0,15}$'
- *               avatarUrl:
+ *                 example: "+250788123456"
+ *               profileImage:
  *                 type: string
  *                 format: uri
+ *                 description: "Profile image URL (maps to profileImageUrl in DB)"
+ *                 example: "https://example.com/avatar.jpg"
+ *               profileImageUrl:
+ *                 type: string
+ *                 format: uri
+ *                 description: "Profile image URL (alternative field name)"
+ *                 example: "https://example.com/avatar.jpg"
+ *               profileImagePublicId:
+ *                 type: string
+ *                 description: "Cloudinary public ID for profile image (auto-generated on upload)"
+ *                 example: "users/123/profile/profile_1234567890"
+ *               district:
+ *                 type: string
+ *                 maxLength: 100
+ *                 description: "District name (e.g., Kigali, Northern Province)"
+ *                 example: "Kigali"
+ *               sector:
+ *                 type: string
+ *                 maxLength: 100
+ *                 description: "Sector name within district"
+ *                 example: "Kacyiru"
+ *               cell:
+ *                 type: string
+ *                 maxLength: 100
+ *                 description: "Cell name within sector"
+ *                 example: "Kacyiru"
+ *               village:
+ *                 type: string
+ *                 maxLength: 100
+ *                 description: "Village name within cell"
+ *                 example: "Kacyiru"
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *                 description: "User's date of birth"
+ *                 example: "1990-01-01"
  *     responses:
  *       200:
  *         $ref: '#/components/responses/UserResponse'
@@ -451,7 +491,7 @@ router.get('/:id', requireAuth, controller.getUser);
  *       500:
  *         description: Server error
  */
-router.put('/:id', controller.updateUser);
+router.put('/:id', requireAuth, controller.updateUser);
 
 /**
  * @swagger
@@ -488,7 +528,7 @@ router.put('/:id', controller.updateUser);
  *       500:
  *         description: Server error
  */
-router.delete('/:id', controller.deleteUser);
+router.delete('/:id', requireAuth, controller.deleteUser);
 
 /**
  * @swagger
@@ -552,7 +592,7 @@ router.delete('/:id', controller.deleteUser);
  *       500:
  *         description: Server error
  */
-router.post('/:id/avatar', controller.uploadAvatar);
+router.post('/:id/avatar', requireAuth, uploadSingle, controller.uploadAvatar);
 
 /**
  * @swagger
@@ -617,7 +657,7 @@ router.post('/:id/avatar', controller.uploadAvatar);
  *       500:
  *         description: Server error
  */
-router.put('/:id/password', controller.changePassword);
+router.put('/:id/password', requireAuth, controller.changePassword);
 
 /**
  * @swagger

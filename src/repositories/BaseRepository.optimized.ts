@@ -549,9 +549,30 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
   async updateById(id: string, data: UpdateData): Promise<ServiceResponse<T | null>> {
     try {
       const db = getDatabase();
-      
-      const updateData = {
-        ...data,
+
+      // Handle geometry location (POINT)
+      let dbLocation = null as any;
+      const anyData = data as any;
+      const location = anyData?.location;
+      if (location && location.latitude && location.longitude) {
+        dbLocation = db.raw('ST_GeomFromText(?)', [`SRID=4326;POINT(${location.longitude} ${location.latitude})`]);
+      }
+
+      // Convert camelCase keys to snake_case for DB columns
+      const formatted = this.formatDatabaseFields(data as any);
+
+      // Normalize array/json fields similar to create()
+      const updateData: any = {
+        ...formatted,
+        // keep features as array (text[])
+        features: formatted.features,
+        // persist included_accessories as text[] (do not stringify)
+        included_accessories: formatted.included_accessories,
+        // ensure pickup_methods stored as json string if column is jsonb/text
+        pickup_methods: formatted.pickup_methods ? JSON.stringify(formatted.pickup_methods) : undefined,
+        specifications: formatted.specifications ? JSON.stringify(formatted.specifications) : undefined,
+        // geometry
+        location: dbLocation !== null ? dbLocation : undefined,
         updated_at: new Date()
       };
 

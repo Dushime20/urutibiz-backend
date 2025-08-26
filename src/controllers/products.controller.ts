@@ -187,6 +187,7 @@ import {
   ProductData
 } from '@/types';
 import { ResponseHelper } from '@/utils/response';
+import { FavoriteEnhancer } from '@/utils/favoriteEnhancer.util';
 
 // Performance: Cache configuration
 const CACHE_TTL = {
@@ -306,6 +307,20 @@ export class ProductsController extends BaseController {
     try {
       const owner_id = req.user.id;
       const product_data = { ...req.body };
+      
+      // Map old condition values to new enum values for backward compatibility
+      if (product_data.condition) {
+        const conditionMapping: Record<string, string> = {
+          'used': 'good',          // Map old 'used' to 'good'
+          'refurbished': 'like_new' // Map old 'refurbished' to 'like_new'
+        };
+        
+        if (conditionMapping[product_data.condition]) {
+          console.log(`[DEBUG] Mapping old condition value "${product_data.condition}" to "${conditionMapping[product_data.condition]}"`);
+          product_data.condition = conditionMapping[product_data.condition];
+        }
+      }
+      
       // Force pickup_methods to be a plain JSON array
       if (product_data.pickup_methods) {
         product_data.pickup_methods = JSON.parse(JSON.stringify(product_data.pickup_methods));
@@ -339,15 +354,18 @@ export class ProductsController extends BaseController {
   });
 
   /**
-   * Optimized product listing with intelligent caching
+   * Optimized product listing with intelligent caching and favorite status
    * GET /api/v1/products
    */
   public getProducts = this.asyncHandler(async (req: Request, res: Response) => {
     const { page, limit } = this.getPaginationParams(req);
     const filters = normalizeProductFilters(req.query);
     
-    // Performance: Generate cache key
-    const cacheKey = `products_${JSON.stringify({ filters, page, limit })}`;
+    // Check if user is authenticated for favorite status
+    const userId = (req as any).user?.id;
+    
+    // Performance: Generate cache key (include userId for personalized caching)
+    const cacheKey = `products_${JSON.stringify({ filters, page, limit, userId })}`;
     const cached = productCache.get(cacheKey);
     
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.PRODUCT_LIST * 1000) {
@@ -362,9 +380,19 @@ export class ProductsController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to fetch products', 400);
     }
 
+    // Enhance products with favorite status
+    let enhancedData = result.data;
+    if (enhancedData.data && Array.isArray(enhancedData.data)) {
+      const enhancedProducts = await FavoriteEnhancer.enhanceProducts(enhancedData.data, userId);
+      enhancedData = {
+        ...enhancedData,
+        data: enhancedProducts
+      };
+    }
+
     // Cache the result
     productCache.set(cacheKey, {
-      data: result.data,
+      data: enhancedData,
       timestamp: Date.now()
     });
 
@@ -373,18 +401,21 @@ export class ProductsController extends BaseController {
       this.cleanExpiredCache(productCache, CACHE_TTL.PRODUCT_LIST);
     }
 
-    return this.formatPaginatedResponse(res, 'Products retrieved successfully', result.data);
+    return this.formatPaginatedResponse(res, 'Products retrieved successfully', enhancedData);
   });
 
   /**
-   * High-performance single product retrieval
+   * High-performance single product retrieval with favorite status
    * GET /api/v1/products/:id
    */
   public getProduct = this.asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     
-    // Performance: Check cache first
-    const cacheKey = `product_${id}`;
+    // Check if user is authenticated for favorite status
+    const userId = (req as any).user?.id;
+    
+    // Performance: Check cache first (include userId for personalized caching)
+    const cacheKey = `product_${id}_${userId || 'anonymous'}`;
     const cached = productCache.get(cacheKey);
     
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.PRODUCT_DETAILS * 1000) {
@@ -396,13 +427,16 @@ export class ProductsController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Product not found', 404);
     }
 
+    // Enhance product with favorite status
+    const enhancedProduct = await FavoriteEnhancer.enhanceProduct(result.data, userId);
+
     // Cache the result
     productCache.set(cacheKey, {
-      data: result.data,
+      data: enhancedProduct,
       timestamp: Date.now()
     });
 
-    return ResponseHelper.success(res, 'Product retrieved successfully', result.data);
+    return ResponseHelper.success(res, 'Product retrieved successfully', enhancedProduct);
   });
 
   /**
@@ -689,6 +723,19 @@ export class ProductsController extends BaseController {
     if (body.description !== undefined) update_data.description = body.description;
     if (body.condition !== undefined) update_data.condition = body.condition;
     if (body.status !== undefined) update_data.status = body.status;
+    // Newly supported fields for update
+    if (body.brand !== undefined) (update_data as any).brand = body.brand;
+    if (body.model !== undefined) (update_data as any).model = body.model;
+    if (body.year_manufactured !== undefined) (update_data as any).year_manufactured = body.year_manufactured;
+    if (body.address_line !== undefined) (update_data as any).address_line = body.address_line;
+    if (body.delivery_fee !== undefined) (update_data as any).delivery_fee = body.delivery_fee;
+    if (body.included_accessories !== undefined) (update_data as any).included_accessories = body.included_accessories;
+    if (body.country_id !== undefined) (update_data as any).country_id = body.country_id;
+    if (body.category_id !== undefined) (update_data as any).category_id = body.category_id;
+    if (body.pickup_methods !== undefined) (update_data as any).pickup_methods = body.pickup_methods;
+    if (body.pickup_available !== undefined) (update_data as any).pickup_available = body.pickup_available;
+    if (body.delivery_available !== undefined) (update_data as any).delivery_available = body.delivery_available;
+    if (body.location !== undefined) (update_data as any).location = body.location;
     
     // Handle features array update
     if (body.features && Array.isArray(body.features)) {

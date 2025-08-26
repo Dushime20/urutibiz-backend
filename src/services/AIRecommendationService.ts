@@ -316,20 +316,27 @@ export class AIRecommendationService {
         this.validateUserId(userId);
         filters.userId = userId;
       }
-      if (timeRange) {
+      if (timeRange && timeRange.from && timeRange.to) {
         this.validateTimeRange(timeRange);
         filters.createdAfter = timeRange.from;
         filters.createdBefore = timeRange.to;
       }
 
+      console.log('🔍 Recommendation analytics filters:', filters);
       const analytics = await this.aiRecommendationRepo.getAnalytics(filters);
+      console.log('✅ Recommendation analytics retrieved successfully');
       
       // Cache the result
       await recommendationCache.setAnalytics(cacheKey, analytics);
       
       return analytics;
     } catch (error) {
-      console.error('Error getting recommendation analytics:', error);
+      console.error('❌ Error getting recommendation analytics:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        filters: { userId, timeRange }
+      });
       throw new AIRecommendationError('Failed to get recommendation analytics');
     }
   }

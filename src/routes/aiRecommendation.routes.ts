@@ -96,12 +96,22 @@ router.post('/interactions', async (req, res) => {
   }
 });
 
+router.get('/interactions', (req, res) =>
+  (aiRecommendationController as any).getInteractions(req, res)
+);
+
+router.get('/interactions/products/views', (req, res) =>
+  (aiRecommendationController as any).getProductViews(req, res)
+);
+
 router.get('/interactions/types', (req, res) => 
   aiRecommendationController.getInteractionTypes(req, res)
 );
 
 console.log('🔧 AI routes registered:');
 console.log('  POST /interactions');
+console.log('  GET /interactions');
+console.log('  GET /interactions/products/views');
 console.log('  GET /interactions/types');
 console.log('  GET /analytics/behavior');
 console.log('  GET /analytics/recommendations');

@@ -257,6 +257,116 @@ export class AIRecommendationController {
   }
 
   /**
+   * List interactions (raw) with filters and pagination
+   * GET /api/ai/interactions
+   */
+  async getInteractions(req: Request, res: Response): Promise<void> {
+    try {
+      const {
+        userId,
+        sessionId,
+        actionType,
+        targetType,
+        targetId,
+        deviceType,
+        createdAfter,
+        createdBefore,
+        limit,
+        offset,
+        sortBy,
+        sortOrder
+      } = req.query as Record<string, string>;
+
+      const filters: any = {};
+      if (userId) filters.userId = userId;
+      if (sessionId) filters.sessionId = sessionId;
+      if (actionType) filters.actionType = actionType;
+      if (targetType) filters.targetType = targetType;
+      if (targetId) filters.targetId = targetId;
+      if (deviceType) filters.deviceType = deviceType;
+      if (createdAfter) filters.createdAfter = new Date(createdAfter);
+      if (createdBefore) filters.createdBefore = new Date(createdBefore);
+      if (limit) filters.limit = Math.min(Math.max(parseInt(limit), 1), 200);
+      if (offset) filters.offset = Math.max(parseInt(offset), 0);
+      if (sortBy) filters.sortBy = sortBy;
+      if (sortOrder) filters.sortOrder = (sortOrder as any);
+
+      const { interactions, total } = await (this.aiRecommendationService as any).userInteractionRepo.findMany(filters);
+
+      res.status(200).json({
+        success: true,
+        data: interactions,
+        meta: {
+          total,
+          limit: filters.limit || 50,
+          offset: filters.offset || 0,
+          hasMore: (filters.offset || 0) + (filters.limit || 50) < total
+        }
+      });
+    } catch (error) {
+      console.error('Error listing interactions:', error);
+      res.status(500).json({
+        error: 'Internal server error',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  }
+
+  /**
+   * Get product views aggregated by product
+   * GET /api/ai/interactions/products/views
+   */
+  async getProductViews(req: Request, res: Response): Promise<void> {
+    try {
+      const { from, to, actionTypes } = req.query as Record<string, string>;
+
+      const timeRange = from && to ? { from: new Date(from), to: new Date(to) } : undefined;
+      const actions = actionTypes
+        ? (actionTypes.split(',').filter(Boolean))
+        : ['view', 'click'];
+
+      const repo = (this.aiRecommendationService as any).userInteractionRepo;
+      const results = await repo.getPopularTargets(
+        actions[0].toUpperCase(),
+        'product',
+        1000,
+        timeRange
+      );
+
+      // If multiple actions requested, merge counts
+      if (actions.length > 1) {
+        for (let i = 1; i < actions.length; i++) {
+          const more = await repo.getPopularTargets(actions[i].toUpperCase(), 'product', 1000, timeRange);
+          const map: Record<string, number> = Object.create(null);
+          results.forEach(r => { map[r.targetId] = (map[r.targetId] || 0) + r.count; });
+          more.forEach(r => { map[r.targetId] = (map[r.targetId] || 0) + r.count; });
+          const merged = Object.entries(map).map(([targetId, count]) => ({ targetId, count }));
+          merged.sort((a, b) => b.count - a.count);
+          // replace results
+          (results as any).length = 0;
+          (results as any).push(...merged);
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        data: results.map((r: any) => ({ productId: r.targetId, views: r.count })),
+        meta: {
+          from: timeRange?.from?.toISOString() || null,
+          to: timeRange?.to?.toISOString() || null,
+          actions
+        }
+      });
+    } catch (error) {
+      console.error('Error getting product views:', error);
+      res.status(500).json({
+        error: 'Internal server error',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  }
+
+  /**
    * Get user behavior analytics
    * GET /api/ai/analytics/behavior
    */

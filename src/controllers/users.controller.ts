@@ -10,14 +10,25 @@
  * @version 2.0.0 - Performance Optimized
  */
 
-import { Response } from 'express';
 import { BaseController } from './BaseController';
-import UserService from '@/services/UserService';
-import { 
-  AuthenticatedRequest
-} from '@/types';
-import { UpdateUserData, UserFilters } from '@/types/user.types';
 import { ResponseHelper } from '@/utils/response';
+import UserService from '@/services/UserService';
+import cloudinary from '@/config/cloudinary';
+import { Response } from 'express';
+import { UpdateUserData, UserFilters, AuthenticatedRequest } from '@/types';
+
+// Define AuthenticatedRequest interface locally since it's not exported
+// interface AuthenticatedRequest<T = any> extends Request {
+//   user: T;
+//   body: any;
+//   query: any;
+//   params: any;
+//   headers: any;
+//   method: string;
+//   url: string;
+//   path: string;
+//   ip: string;
+// }
 
 // Performance: Cache frequently accessed data
 const CACHE_TTL = {
@@ -227,10 +238,10 @@ export class UsersController extends BaseController {
   });
 
   /**
-   * Optimized avatar upload with file validation
+   * Optimized avatar upload with Cloudinary integration
    * POST /api/v1/users/:id/avatar
    */
-  public uploadAvatar = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  public uploadAvatar = this.asyncHandler(async (req: AuthenticatedRequest & { file?: Express.Multer.File }, res: Response) => {
     const { id } = req.params;
 
     // Fast authorization check
@@ -238,29 +249,65 @@ export class UsersController extends BaseController {
       return this.handleUnauthorized(res, 'Not authorized to update this profile');
     }
 
-    const filesReq = req as any;
-    if (!filesReq.file) {
+    // Debug logging
+    console.log('[UsersController] Avatar upload request:', {
+      userId: id,
+      hasFile: !!req.file,
+      fileDetails: req.file ? {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        path: req.file.path
+      } : null,
+      body: req.body,
+      headers: req.headers
+    });
+
+    if (!req.file) {
+      console.log('[UsersController] No file found in request');
       return this.handleBadRequest(res, 'No image file provided');
     }
 
-    // Performance: Generate optimized image URL
-    const imageUrl = `/uploads/avatars/${id}/${Date.now()}_${filesReq.file.filename}`;
+    try {
+      // Upload to Cloudinary directly (mirror product image flow)
+      console.log('[UsersController] Starting Cloudinary upload for file:', req.file.path);
+      const result = await cloudinary.uploader.upload(req.file.path, { folder: `users/${id}/profile` });
 
-    // Performance: Direct update without user existence check
-    const updatedUser = await UserService.update(id, { profileImageUrl: imageUrl });
-    if (!updatedUser.success) {
-      return this.handleNotFound(res, 'User');
+      console.log('[UsersController] Cloudinary upload successful:', {
+        url: result.secure_url,
+        publicId: result.public_id
+      });
+
+      // Update user profile with Cloudinary URL and public ID
+      const updateData = {
+        profileImageUrl: result.secure_url,
+        profileImagePublicId: result.public_id
+      };
+
+      const updatedUser = await UserService.update(id, updateData);
+      if (!updatedUser.success) {
+        console.error('[UsersController] User update failed:', updatedUser.error);
+        return this.handleNotFound(res, 'User');
+      }
+
+      // Performance: Invalidate cache
+      this.invalidateUserCache(id);
+
+      this.logAction('UPLOAD_AVATAR', req.user.id, id, { 
+        imageUrl: result.secure_url,
+        publicId: result.public_id 
+      });
+
+      return ResponseHelper.success(res, 'Avatar uploaded successfully', {
+        user: updatedUser.data,
+        imageUrl: result.secure_url,
+        publicId: result.public_id
+      });
+    } catch (error) {
+      console.error('[UsersController] Avatar upload error:', error);
+      return ResponseHelper.error(res, 'Failed to upload avatar', 500);
     }
-
-    // Performance: Invalidate cache
-    this.invalidateUserCache(id);
-
-    this.logAction('UPLOAD_AVATAR', req.user.id, id, { imageUrl });
-
-    return ResponseHelper.success(res, 'Avatar uploaded successfully', {
-      user: updatedUser.data,
-      imageUrl
-    });
   });
 
   /**
@@ -463,8 +510,47 @@ export class UsersController extends BaseController {
     // Performance: Direct property assignment instead of object spread
     if (req.body.firstName !== undefined) updateData.firstName = req.body.firstName;
     if (req.body.lastName !== undefined) updateData.lastName = req.body.lastName;
-    if (req.body.dateOfBirth !== undefined) updateData.dateOfBirth = req.body.dateOfBirth;
+    if (req.body.bio !== undefined) updateData.bio = req.body.bio;
+    // Accept both camelCase and snake_case for new fields
+    // date_of_birth: ignore empty strings to avoid DB date parse error
+    const dobRaw = (req.body.dateOfBirth !== undefined) ? req.body.dateOfBirth : req.body.date_of_birth;
+    if (dobRaw !== undefined) {
+      if (typeof dobRaw === 'string') {
+        const trimmed = dobRaw.trim();
+        if (trimmed) {
+          updateData.dateOfBirth = trimmed; // Expect YYYY-MM-DD
+        }
+      } else if (dobRaw instanceof Date) {
+        updateData.dateOfBirth = dobRaw;
+      }
+    }
+    if (req.body.gender !== undefined) updateData.gender = req.body.gender;
+    if (req.body.province !== undefined) updateData.province = req.body.province;
+    if (req.body.addressLine !== undefined) updateData.addressLine = req.body.addressLine;
+    if (req.body.address_line !== undefined) updateData.addressLine = req.body.address_line;
+    // Location: expect { latitude, longitude }
+    const loc = req.body.location;
+    if (loc && (loc.latitude || loc.lat) && (loc.longitude || loc.lng)) {
+      updateData.location = {
+        latitude: Number(loc.latitude ?? loc.lat),
+        longitude: Number(loc.longitude ?? loc.lng)
+      };
+    }
     if (req.body.profileImageUrl !== undefined) updateData.profileImageUrl = req.body.profileImageUrl;
+    
+    // Profile image fields
+    if (req.body.profileImage !== undefined) updateData.profileImageUrl = req.body.profileImage;
+    if (req.body.profileImagePublicId !== undefined) updateData.profileImagePublicId = req.body.profileImagePublicId;
+    
+    // Location fields for Rwanda administrative structure
+    if (req.body.district !== undefined) updateData.district = req.body.district;
+    if (req.body.sector !== undefined) updateData.sector = req.body.sector;
+    if (req.body.cell !== undefined) updateData.cell = req.body.cell;
+    if (req.body.village !== undefined) updateData.village = req.body.village;
+    
+    // Handle profile image (map profileImage to profileImageUrl for frontend convenience)
+    // This block is now redundant as profileImageUrl is handled above
+    // if (req.body.profileImage !== undefined) updateData.profileImageUrl = req.body.profileImage;
 
     // Admin-only updates
     if (req.user.role === 'admin' && req.body.status !== undefined) {

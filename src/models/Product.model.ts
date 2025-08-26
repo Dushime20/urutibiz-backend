@@ -31,6 +31,14 @@ export class Product implements ProductData {
   public images: ProductImage[];
   public specifications?: Record<string, any>;
   public availability: ProductAvailability[];
+  public brand?: string;
+  public model?: string;
+  public year_manufactured?: number;
+  public address_line?: string;
+  public delivery_fee?: number;
+  public included_accessories?: string[];
+  public slug?: string;
+  public country_id?: string;
   public view_count: number;
   public rating?: number;
   public review_count: number;
@@ -54,6 +62,14 @@ export class Product implements ProductData {
     this.title = data.title;
     this.description = data.description;
     this.category_id = data.category_id;
+    this.slug = (data as any).slug;
+    this.brand = (data as any).brand;
+    this.model = (data as any).model;
+    this.year_manufactured = (data as any).year_manufactured as any;
+    this.address_line = (data as any).address_line as any;
+    this.delivery_fee = (data as any).delivery_fee as any;
+    this.included_accessories = (data as any).included_accessories as any;
+    this.country_id = (data as any).country_id as any;
     this.status = (data as any).status !== undefined ? (data as any).status : 'draft';
     this.condition = data.condition;
 
@@ -71,6 +87,53 @@ export class Product implements ProductData {
   }
 
   // Static methods for CRUD operations
+  static fromDb(row: any): ProductData {
+    // Normalize fields from DB row to API shape
+    let pickup_methods: any = row.pickup_methods;
+    if (typeof pickup_methods === 'string') {
+      try { pickup_methods = JSON.parse(pickup_methods); } catch { /* keep as is */ }
+    }
+    let specifications: any = row.specifications;
+    if (typeof specifications === 'string') {
+      try { specifications = JSON.parse(specifications); } catch { /* keep as is */ }
+    }
+    return {
+      id: row.id,
+      owner_id: row.owner_id,
+      title: row.title,
+      description: row.description,
+      category_id: row.category_id,
+      status: row.status,
+      condition: row.condition,
+      pickup_methods,
+      location: row.location,
+      images: [],
+      specifications,
+      availability: [],
+      view_count: row.view_count || 0,
+      review_count: row.review_count || 0,
+      average_rating: row.average_rating || 0,
+      features: row.features,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      // Newly exposed fields
+      brand: row.brand,
+      model: row.model,
+      year_manufactured: row.year_manufactured,
+      address_line: row.address_line,
+      delivery_fee: row.delivery_fee,
+      included_accessories: row.included_accessories,
+      // optional extras
+      ai_score: row.ai_score,
+      ai_tags: row.ai_tags,
+      display_price: row.display_price,
+      display_currency: row.display_currency,
+      recommendations: row.recommendations,
+      // ids
+      country_id: row.country_id,
+      slug: row.slug
+    } as any;
+  }
   static async create(data: CreateProductData & { owner_id: string }): Promise<Product> {
     const product = new Product(data);
     Product.products.push(product);
@@ -178,6 +241,14 @@ export class Product implements ProductData {
       title: this.title,
       description: this.description,
       category_id: this.category_id,
+      brand: this.brand,
+      model: this.model,
+      year_manufactured: this.year_manufactured,
+      address_line: this.address_line,
+      delivery_fee: this.delivery_fee,
+      included_accessories: this.included_accessories,
+      country_id: this.country_id,
+      slug: this.slug,
       status: this.status,
       condition: this.condition,
       pickup_methods: this.pickup_methods,

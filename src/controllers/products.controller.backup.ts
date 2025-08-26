@@ -25,6 +25,19 @@ export class ProductsController extends BaseController {
     if (this.handleValidationErrors(req as any, res)) return;
     const ownerId = req.user.id;
     const productData: CreateProductData = req.body;
+    
+    // Map old condition values to new enum values for backward compatibility
+    if (productData.condition) {
+      const conditionMapping: Record<string, string> = {
+        'used': 'good',          // Map old 'used' to 'good'
+        'refurbished': 'like_new' // Map old 'refurbished' to 'like_new'
+      };
+      
+      if (conditionMapping[productData.condition]) {
+        console.log(`[DEBUG] Mapping old condition value "${productData.condition}" to "${conditionMapping[productData.condition]}"`);
+        productData.condition = conditionMapping[productData.condition];
+      }
+    }
 
     // Enforce KYC: Only fully verified users can create products
     const isVerified = await UserVerificationService.isUserFullyKycVerified(ownerId);

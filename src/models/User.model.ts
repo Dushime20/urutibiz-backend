@@ -19,13 +19,31 @@ export class User implements Partial<UserData> {
   public updatedAt: Date;
   public phone: string;
   public countryId: string;
+  public profileImageUrl?: string;
+  public profileImagePublicId?: string; // Cloudinary public ID for profile image
   public emailVerified: boolean;
   public phoneVerified: boolean;
   public passwordHash?: string;
   public kyc_status: 'unverified' | 'verified' | 'rejected';
+  public gender?: string;
+  public province?: string;
+  public addressLine?: string;
+  public location?: { latitude: number; longitude: number };
+  public bio?: string;
+  public dateOfBirth?: Date;
+  // Two-factor authentication
+  public twoFactorEnabled?: boolean;
+  public twoFactorSecret?: string;
+  public twoFactorBackupCodes?: string[];
+  public twoFactorVerified?: boolean;
+  // Location fields for Rwanda administrative structure
+  public district?: string;
+  public sector?: string;
+  public cell?: string;
+  public village?: string;
 
   // In-memory storage for demo
-  private static users: User[] = [];
+  // private static users: User[] = []; // Removed unused variable
 
   constructor(data: any) {
     this.id = data.id || uuidv4();
@@ -42,6 +60,25 @@ export class User implements Partial<UserData> {
     this.createdAt = data.createdAt || new Date();
     this.updatedAt = data.updatedAt || new Date();
     this.kyc_status = data.kyc_status || 'unverified';
+    // Profile image fields
+    this.profileImageUrl = data.profileImageUrl;
+    this.profileImagePublicId = data.profileImagePublicId;
+    // Location fields
+    this.district = data.district;
+    this.sector = data.sector;
+    this.cell = data.cell;
+    this.village = data.village;
+    this.gender = data.gender;
+    this.province = data.province;
+    this.addressLine = data.addressLine || data.address_line;
+    this.location = data.location;
+    this.bio = data.bio;
+    this.dateOfBirth = data.dateOfBirth;
+    // Two-factor authentication
+    this.twoFactorEnabled = data.twoFactorEnabled;
+    this.twoFactorSecret = data.twoFactorSecret;
+    this.twoFactorBackupCodes = data.twoFactorBackupCodes;
+    this.twoFactorVerified = data.twoFactorVerified;
   }
 
   static async findById(id: string): Promise<User | null> {
@@ -71,8 +108,40 @@ export class User implements Partial<UserData> {
       passwordHash: row.password_hash,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      kyc_status: row.kyc_status // <-- Ensure this is mapped
+      kyc_status: row.kyc_status, // <-- Ensure this is mapped
+      profileImageUrl: row.profile_image_url,
+      profileImagePublicId: row.profile_image_public_id,
+      district: row.district,
+      sector: row.sector,
+      cell: row.cell,
+      village: row.village,
+      gender: row.gender,
+      province: row.province,
+      addressLine: row.address_line,
+      bio: row.bio,
+      dateOfBirth: row.date_of_birth,
+      // Two-factor authentication
+      twoFactorEnabled: row.two_factor_enabled,
+      twoFactorSecret: row.two_factor_secret,
+      twoFactorBackupCodes: row.two_factor_backup_codes ? this.safeParseJson(row.two_factor_backup_codes) : undefined,
+      twoFactorVerified: row.two_factor_verified,
+      location: undefined
     });
+  }
+
+  private static safeParseJson(value: any): any {
+    try {
+      if (typeof value === 'string') {
+        return JSON.parse(value);
+      }
+      if (typeof value === 'object' && value !== null) {
+        return value; // Already an object, return as is
+      }
+      return undefined;
+    } catch (error) {
+      console.warn('Failed to parse JSON value:', value);
+      return undefined;
+    }
   }
 
   static async getPaginated(page: number, limit: number, _filters: any): Promise<{
@@ -111,10 +180,23 @@ export class User implements Partial<UserData> {
       status: this.status,
       phone: this.phone, // Include phone field
       phoneVerified: this.phoneVerified, // Include phone verification status
+      profileImageUrl: this.profileImageUrl,
+      profileImagePublicId: this.profileImagePublicId,
       idVerificationStatus: (this as any).id_verification_status || (this as any).idVerificationStatus,
       kyc_status: this.kyc_status || 'unverified', // <-- Ensure this is included
       createdAt: this.createdAt,
-      updatedAt: this.updatedAt
+      updatedAt: this.updatedAt,
+      district: this.district,
+      sector: this.sector,
+      cell: this.cell,
+      village: this.village
+      ,gender: this.gender
+      ,province: this.province
+      ,addressLine: this.addressLine
+      ,bio: this.bio
+      ,dateOfBirth: this.dateOfBirth
+      ,twoFactorEnabled: this.twoFactorEnabled
+      ,twoFactorVerified: this.twoFactorVerified
     };
   }
 

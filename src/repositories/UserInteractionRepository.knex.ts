@@ -19,6 +19,49 @@ export class UserInteractionRepository {
   constructor(private db: Knex) {}
 
   /**
+   * Safely stringify metadata for storage
+   */
+  private static serializeMetadata(metadata: any): string | null {
+    if (metadata == null) return null;
+    // If already a string, ensure it's valid JSON; if not, wrap into an object
+    if (typeof metadata === 'string') {
+      const trimmed = metadata.trim();
+      try {
+        // If it's valid JSON, store as-is
+        JSON.parse(trimmed);
+        return trimmed;
+      } catch (_err) {
+        // Store as { value: "original" }
+        return JSON.stringify({ value: metadata });
+      }
+    }
+    // If it's an object/array/primitive, stringify safely
+    try {
+      return JSON.stringify(metadata);
+    } catch (_err) {
+      return JSON.stringify({ value: String(metadata) });
+    }
+  }
+
+  /**
+   * Safely parse JSON that might not be JSON
+   */
+  private static safeParseJson<T = any>(value: any): T | undefined {
+    if (value == null) return undefined;
+    if (typeof value === 'object') return value as T;
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim();
+    const looksLikeJson = (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+                          (trimmed.startsWith('[') && trimmed.endsWith(']'));
+    if (!looksLikeJson) return undefined;
+    try {
+      return JSON.parse(trimmed) as T;
+    } catch (_err) {
+      return undefined;
+    }
+  }
+
+  /**
    * Create a new user interaction
    */
   async create(interaction: CreateUserInteractionRequest): Promise<UserInteraction> {
@@ -34,7 +77,7 @@ export class UserInteractionRepository {
           referrer_url: interaction.referrerUrl || null,
           user_agent: interaction.userAgent || null,
           device_type: interaction.deviceType || null,
-          metadata: interaction.metadata ? JSON.stringify(interaction.metadata) : null
+          metadata: UserInteractionRepository.serializeMetadata(interaction.metadata)
         })
         .returning('*');
 
@@ -366,7 +409,7 @@ export class UserInteractionRepository {
       referrerUrl: row.referrer_url,
       userAgent: row.user_agent,
       deviceType: row.device_type as DeviceType,
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      metadata: UserInteractionRepository.safeParseJson(row.metadata),
       createdAt: new Date(row.created_at)
     };
   }

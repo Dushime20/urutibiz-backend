@@ -54,19 +54,34 @@ function verifyToken(token: string) {
   }
 }
 
-export const authenticateToken: RequestHandler = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+export const authenticateToken: RequestHandler = async (req: Request, _res: Response, next: NextFunction) => {
   try {
-    console.log('Auth headers:', req.headers); // Debug: print incoming headers
+    console.log('[AUTH] Starting authentication...');
+    console.log('[AUTH] Headers:', JSON.stringify(req.headers, null, 2));
+    
     const token = extractToken(req.headers.authorization);
+    console.log('[AUTH] Extracted token:', token ? 'Token exists' : 'No token');
+    
     const payload = verifyToken(token);
+    console.log('[AUTH] Token payload:', payload);
+    
     // Fetch the full user from DB
+    console.log('[AUTH] Fetching user from DB with ID:', payload.id);
     const user = await User.findById(payload.id);
+    console.log('[AUTH] User from DB:', user ? 'User found' : 'User not found');
+    
     if (!user) {
+      console.log('[AUTH] User not found in DB');
       throw new UnauthorizedError('User not found');
     }
+    
+    // Set user on request
     (req as AuthenticatedRequest).user = user;
+    console.log('[AUTH] User set on request:', user.id, user.email, user.role);
+    
     next();
   } catch (error) {
+    console.error('[AUTH] Authentication error:', error);
     next(error);
   }
 };

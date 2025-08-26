@@ -4,8 +4,10 @@
 
 import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '@/types';
-import { TwoFactorService } from '@/services/twoFactor.service';
+import TwoFactorService from '@/services/twoFactor.service';
 import { ResponseHelper } from '@/utils/response';
+
+
 
 export class TwoFactorController {
   /**

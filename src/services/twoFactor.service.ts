@@ -3,8 +3,8 @@
 // =====================================================
 
 import { authenticator } from 'otplib';
-import QRCode from 'qrcode';
-import bcrypt from 'bcryptjs';
+import * as QRCode from 'qrcode';
+import * as bcrypt from 'bcryptjs';
 import { getDatabase } from '@/config/database';
 import { TwoFactorSetup, TwoFactorStatus, TwoFactorBackupCode } from '@/types/twoFactor.types';
 // ResponseHelper not needed in service layer
@@ -46,7 +46,7 @@ export class TwoFactorService {
         
        // Generate QR code with user-friendly identifier (first name instead of ID)
        const otpauth = authenticator.keyuri(user.first_name, 'UrutiBiz', secret);
-       console.log(`🔧 [2FA SETUP] otpauth URL: ${otpauth}`);
+ 
       const qrCode = await QRCode.toDataURL(otpauth);
       
       // Generate backup codes
@@ -62,12 +62,7 @@ export class TwoFactorService {
           updated_at: new Date()
         });
 
-      // Debug: Generate a test token to verify configuration
-      const testToken = authenticator.generate(secret);
-      console.log(`🔧 [2FA SETUP] Generated secret: ${secret}`);
-      console.log(`🔧 [2FA SETUP] Test token: ${testToken}`);
-      console.log(`🔧 [2FA SETUP] Current time: ${new Date().toISOString()}`);
-      console.log(`🔧 [2FA SETUP] TOTP config:`, authenticator.options);
+
 
       return {
         secret,
@@ -87,8 +82,7 @@ export class TwoFactorService {
     try {
       const db = getDatabase();
       
-      console.log(`🔍 [2FA DEBUG] Verifying token for user: ${userId}`);
-      console.log(`🔍 [2FA DEBUG] Token received: ${token}`);
+
       
       // Get user's 2FA secret
       const user = await db('users')
@@ -97,13 +91,8 @@ export class TwoFactorService {
         .first();
 
       if (!user?.two_factor_secret) {
-        console.log(`❌ [2FA DEBUG] No 2FA secret found for user: ${userId}`);
         throw new Error('No 2FA secret found. Please generate setup first.');
       }
-
-      console.log(`🔍 [2FA DEBUG] User has secret: ${user.two_factor_secret ? 'YES' : 'NO'}`);
-      console.log(`🔍 [2FA DEBUG] Secret length: ${user.two_factor_secret?.length || 0}`);
-      console.log(`🔍 [2FA DEBUG] TOTP config:`, authenticator.options);
 
       // Verify the token with explicit TOTP configuration
       const isValid = authenticator.verify({
@@ -111,23 +100,11 @@ export class TwoFactorService {
         secret: user.two_factor_secret
       });
 
-      console.log(`🔍 [2FA DEBUG] Token validation result: ${isValid}`);
-      console.log(`🔍 [2FA DEBUG] Current time: ${new Date().toISOString()}`);
-      console.log(`🔍 [2FA DEBUG] Token length: ${token.length}`);
-      console.log(`🔍 [2FA DEBUG] Token is numeric: ${/^\d{6}$/.test(token)}`);
-      
-      // Generate expected token for debugging
-      const expectedToken = authenticator.generate(user.two_factor_secret);
-      console.log(`🔍 [2FA DEBUG] Expected token: ${expectedToken}`);
-      console.log(`🔍 [2FA DEBUG] Received token: ${token}`);
-      console.log(`🔍 [2FA DEBUG] Tokens match: ${expectedToken === token}`);
+
 
       if (!isValid) {
-        console.log(`❌ [2FA DEBUG] Token validation failed for user: ${userId}`);
         return false;
       }
-
-      console.log(`✅ [2FA DEBUG] Token validation successful, enabling 2FA for user: ${userId}`);
 
       // Enable 2FA
       await db('users')
@@ -141,7 +118,6 @@ export class TwoFactorService {
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`❌ [2FA DEBUG] Error in verifyAndEnable: ${errorMessage}`);
       throw new Error(`Failed to verify and enable 2FA: ${errorMessage}`);
     }
   }

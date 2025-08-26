@@ -191,8 +191,23 @@ export class AdminService {
         .offset(offset)
         .limit(limit);
 
+      // Ensure profile_image_url and other important fields are included in the response
+      const itemsWithProfileImage = items.map(user => ({
+        ...user,
+        profileImageUrl: user.profile_image_url || null,
+        profileImagePublicId: user.profile_image_public_id || null,
+        // Map snake_case to camelCase for consistency
+        firstName: user.first_name,
+        lastName: user.last_name,
+        phoneNumber: user.phone_number,
+        emailVerified: user.email_verified,
+        phoneVerified: user.phone_verified,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at
+      }));
+
       return {
-        items,
+        items: itemsWithProfileImage,
         pagination: {
           page,
           limit,
@@ -230,7 +245,22 @@ export class AdminService {
         throw new Error('User not found');
       }
 
-      return user;
+      // Ensure profile_image_url and other important fields are included in the response
+      const userWithProfileImage = {
+        ...user,
+        profileImageUrl: user.profile_image_url || null,
+        profileImagePublicId: user.profile_image_public_id || null,
+        // Map snake_case to camelCase for consistency
+        firstName: user.first_name,
+        lastName: user.last_name,
+        phoneNumber: user.phone_number,
+        emailVerified: user.email_verified,
+        phoneVerified: user.phone_verified,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at
+      };
+
+      return userWithProfileImage;
     } catch (error) {
       logger.error('Error fetching user details:', error);
       throw error;

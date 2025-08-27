@@ -1,9 +1,189 @@
 import { Router } from 'express';
 import { requireAuth } from '@/middleware/auth.middleware';
-import { uploadSingle } from '@/middleware/upload.middleware';
+import { uploadSingle, uploadMultiple } from '@/middleware/upload.middleware';
 import controller from '@/controllers/productInspection.controller';
 
 const router = Router();
+
+// List inspectors (requires auth)
+router.get('/inspectors', requireAuth, controller.getInspectors);
+
+// Get disputes raised by the authenticated user
+router.get('/disputes', requireAuth, controller.getMyDisputes);
+
+/**
+ * @swagger
+ * /inspections/{id}/disputes:
+ *   get:
+ *     summary: Get inspection disputes
+ *     description: Retrieve all disputes for a specific inspection
+ *     tags: [Product Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *           description: Inspection ID
+ *     responses:
+ *       200:
+ *         description: Disputes retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/InspectionDispute'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Not authorized to view this inspection
+ *       404:
+ *         description: Inspection not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/:id/disputes', requireAuth, controller.getInspectionDisputes);
+
+// Create inspection item with photo uploads
+router.post('/:id/items/with-photos', requireAuth, uploadMultiple, controller.addInspectionItemWithPhotos);
+
+// =====================================================
+// ANALYTICS AND REPORTS ROUTES
+// =====================================================
+
+/**
+ * @swagger
+ * /inspections/summary:
+ *   get:
+ *     summary: Get inspection summary
+ *     description: Retrieve summary statistics for inspections
+ *     tags: [Product Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: productId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: inspectionType
+ *         schema:
+ *           type: string
+ *           enum: [pre_rental, post_return]
+ *       - in: query
+ *         name: scheduledFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: scheduledTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Summary retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalInspections:
+ *                   type: integer
+ *                 completedInspections:
+ *                   type: integer
+ *                 pendingInspections:
+ *                   type: integer
+ *                 disputedInspections:
+ *                   type: integer
+ *                 totalDamageCost:
+ *                   type: number
+ *                 averageInspectionTime:
+ *                   type: number
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/summary', requireAuth, controller.getInspectionSummary);
+
+/**
+ * @swagger
+ * /inspections/disputes:
+ *   get:
+ *     summary: Get my disputes
+ *     description: Retrieve disputes raised by the authenticated user
+ *     tags: [Product Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [open, under_review, resolved, closed]
+ *           description: Filter disputes by status
+ *       - in: query
+ *         name: inspectionId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *           description: Filter disputes by specific inspection
+ *       - in: query
+ *         name: disputeType
+ *         schema:
+ *           type: string
+ *           enum: [damage_assessment, condition_disagreement, cost_dispute, other]
+ *           description: Filter disputes by type
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *           description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *           description: Number of disputes per page
+ *     responses:
+ *       200:
+ *         description: Disputes retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/InspectionDispute'
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/disputes', requireAuth, controller.getMyDisputes);
 
 /**
  * @swagger
@@ -595,66 +775,5 @@ router.post('/:id/disputes', requireAuth, controller.raiseDispute);
  *         description: Server error
  */
 router.put('/:id/disputes/:disputeId/resolve', requireAuth, controller.resolveDispute);
-
-// =====================================================
-// ANALYTICS AND REPORTS ROUTES
-// =====================================================
-
-/**
- * @swagger
- * /inspections/summary:
- *   get:
- *     summary: Get inspection summary
- *     description: Retrieve summary statistics for inspections
- *     tags: [Product Inspections]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: productId
- *         schema:
- *           type: string
- *           format: uuid
- *       - in: query
- *         name: inspectionType
- *         schema:
- *           type: string
- *           enum: [pre_rental, post_return]
- *       - in: query
- *         name: scheduledFrom
- *         schema:
- *           type: string
- *           format: date
- *       - in: query
- *         name: scheduledTo
- *         schema:
- *           type: string
- *           format: date
- *     responses:
- *       200:
- *         description: Summary retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 totalInspections:
- *                   type: integer
- *                 completedInspections:
- *                   type: integer
- *                 pendingInspections:
- *                   type: integer
- *                 disputedInspections:
- *                   type: integer
- *                 totalDamageCost:
- *                   type: number
- *                 averageInspectionTime:
- *                   type: number
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Server error
- */
-router.get('/summary', requireAuth, controller.getInspectionSummary);
 
 export default router;

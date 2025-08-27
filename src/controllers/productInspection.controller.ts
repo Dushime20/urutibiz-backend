@@ -49,6 +49,78 @@ export class ProductInspectionController extends BaseController {
   });
 
   /**
+   * List inspectors for inspections
+   * GET /api/v1/inspections/inspectors
+   */
+  public getInspectors = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    // Auth is enforced by middleware at route level
+    const role = typeof req.query.role === 'string' && req.query.role.length > 0 ? req.query.role : 'inspector';
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const take = req.query.take ? Number(req.query.take) : undefined;
+    const skip = req.query.skip ? Number(req.query.skip) : undefined;
+
+    const result = await ProductInspectionService.getInspectors({ role, search, take, skip });
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to fetch inspectors', 400);
+    }
+
+    return ResponseHelper.success(res, 'Inspectors retrieved successfully', result.data);
+  });
+
+  /**
+   * Get disputes raised by the authenticated user
+   * GET /api/v1/inspections/disputes
+   */
+  public getMyDisputes = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user.id;
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const inspectionId = typeof req.query.inspectionId === 'string' ? req.query.inspectionId : undefined;
+    const disputeType = typeof req.query.disputeType === 'string' ? req.query.disputeType : undefined;
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const limit = req.query.limit ? Number(req.query.limit) : 20;
+
+    const result = await ProductInspectionService.getMyDisputes(userId, {
+      status,
+      inspectionId,
+      disputeType,
+      page,
+      limit
+    });
+
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to fetch disputes', 400);
+    }
+
+    return ResponseHelper.success(res, 'Disputes retrieved successfully', result.data);
+  });
+
+  /**
+   * Get all disputes for a specific inspection
+   * GET /api/v1/inspections/:id/disputes
+   */
+  public getInspectionDisputes = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Check if user can view this inspection
+    const inspection = await ProductInspectionService.getInspectionById(id);
+    if (!inspection.success || !inspection.data) {
+      return ResponseHelper.error(res, 'Inspection not found', 404);
+    }
+
+    if (!this.canViewInspection(inspection.data, req.user)) {
+      return ResponseHelper.error(res, 'Not authorized to view this inspection', 403);
+    }
+
+    const result = await ProductInspectionService.getInspectionDisputes(id);
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to fetch disputes', 400);
+    }
+
+    return ResponseHelper.success(res, 'Inspection disputes retrieved successfully', result.data);
+  });
+
+  /**
    * Get inspection by ID
    * GET /api/v1/inspections/:id
    */
@@ -63,7 +135,7 @@ export class ProductInspectionController extends BaseController {
 
     // Check authorization - only participants can view inspection
     const inspection = result.data.inspection;
-    if (!this.canViewInspection(inspection, req.user.id)) {
+    if (!this.canViewInspection(inspection, req.user)) {
       return this.handleUnauthorized(res, 'Not authorized to view this inspection');
     }
 
@@ -150,7 +222,7 @@ export class ProductInspectionController extends BaseController {
       return this.handleNotFound(res, 'Inspection');
     }
 
-    if (!this.canUpdateInspection(currentInspection.data.inspection, req.user.id)) {
+    if (!this.canUpdateInspection(currentInspection.data.inspection, req.user)) {
       return this.handleUnauthorized(res, 'Not authorized to update this inspection');
     }
 
@@ -202,6 +274,68 @@ export class ProductInspectionController extends BaseController {
   });
 
   /**
+   * Add inspection item with photo uploads to Cloudinary
+   * POST /api/v1/inspections/:id/items/with-photos
+   */
+  public addInspectionItemWithPhotos = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (this.handleValidationErrors(req as any, res)) return;
+
+    const { id } = req.params;
+    const itemData: CreateInspectionItemRequest = req.body;
+    const files = (req as any).files as Express.Multer.File[];
+
+    // Validate required fields
+    if (!itemData.itemName || !itemData.condition) {
+      return this.handleBadRequest(res, 'Missing required fields: itemName, condition');
+    }
+
+    // Validate condition enum
+    if (!['excellent', 'good', 'fair', 'poor', 'damaged'].includes(itemData.condition)) {
+      return this.handleBadRequest(res, 'Invalid condition. Must be excellent, good, fair, poor, or damaged');
+    }
+
+    // Upload photos to Cloudinary if files are provided
+    let photoUrls: string[] = [];
+    if (files && files.length > 0) {
+      try {
+        const uploadPromises = files.map(async (file) => {
+          const cloudinary = (await import('@/config/cloudinary')).default;
+          const result = await cloudinary.uploader.upload(file.path, {
+            folder: 'inspection-items',
+            resource_type: 'auto',
+            transformation: [
+              { width: 800, height: 600, crop: 'limit' },
+              { quality: 'auto:good' }
+            ]
+          });
+          return result.secure_url;
+        });
+
+        photoUrls = await Promise.all(uploadPromises);
+      } catch (error) {
+        console.error('Cloudinary upload error:', error);
+        return ResponseHelper.error(res, 'Failed to upload photos', 500);
+      }
+    }
+
+    // Add photo URLs to item data
+    const itemDataWithPhotos = {
+      ...itemData,
+      photos: photoUrls
+    };
+
+    const result = await ProductInspectionService.addInspectionItem(id, itemDataWithPhotos);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to add inspection item', 400);
+    }
+
+    this.logAction('ADD_INSPECTION_ITEM_WITH_PHOTOS', req.user.id, id, { ...itemData, photoCount: photoUrls.length });
+
+    return ResponseHelper.success(res, 'Inspection item with photos added successfully', result.data);
+  });
+
+  /**
    * Update inspection item
    * PUT /api/v1/inspections/:id/items/:itemId
    */
@@ -217,7 +351,7 @@ export class ProductInspectionController extends BaseController {
       return this.handleNotFound(res, 'Inspection');
     }
 
-    if (!this.canUpdateInspection(currentInspection.data.inspection, req.user.id)) {
+    if (!this.canUpdateInspection(currentInspection.data.inspection, req.user)) {
       return this.handleUnauthorized(res, 'Not authorized to update this inspection');
     }
 
@@ -356,19 +490,19 @@ export class ProductInspectionController extends BaseController {
   /**
    * Check if user can view inspection
    */
-  private canViewInspection(inspection: any, userId: string): boolean {
-    return inspection.inspectorId === userId || 
-           inspection.renterId === userId || 
-           inspection.ownerId === userId ||
-           (req as any).user.role === 'admin';
+  private canViewInspection(inspection: any, user: any): boolean {
+    return inspection.inspectorId === user.id || 
+           inspection.renterId === user.id || 
+           inspection.ownerId === user.id ||
+           user.role === 'admin';
   }
 
   /**
    * Check if user can update inspection
    */
-  private canUpdateInspection(inspection: any, userId: string): boolean {
-    return inspection.inspectorId === userId || 
-           (req as any).user.role === 'admin';
+  private canUpdateInspection(inspection: any, user: any): boolean {
+    return inspection.inspectorId === user.id || 
+           user.role === 'admin';
   }
 
   /**

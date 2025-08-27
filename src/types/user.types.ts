@@ -2,7 +2,7 @@
 // USER TYPES
 // =====================================================
 
-export type UserRole = 'renter' | 'owner' | 'admin' | 'moderator';
+export type UserRole = 'renter' | 'owner' | 'admin' | 'moderator' | 'inspector';
 export type UserStatus = 'pending' | 'active' | 'suspended' | 'banned';
 
 export interface UserData {

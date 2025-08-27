@@ -2,6 +2,7 @@ import { ProductInspectionRepository } from '@/repositories/ProductInspectionRep
 import { InspectionItemRepository } from '@/repositories/InspectionItemRepository';
 import { InspectionPhotoRepository } from '@/repositories/InspectionPhotoRepository';
 import { InspectionDisputeRepository } from '@/repositories/InspectionDisputeRepository';
+import UserRepository from '@/repositories/UserRepository';
 import BookingServiceInstance from '@/services/BookingService';
 import { NotificationService } from '@/services/notification.service';
 import { 
@@ -23,12 +24,14 @@ import {
   ItemCondition
 } from '@/types/productInspection.types';
 import { ServiceResponse } from '@/types';
+import { getDatabase } from '@/config/database';
 
 export class ProductInspectionService {
   private inspectionRepo: ProductInspectionRepository;
   private itemRepo: InspectionItemRepository;
   private photoRepo: InspectionPhotoRepository;
   private disputeRepo: InspectionDisputeRepository;
+  private userRepo: any;
   private bookingService: any;
   private notificationService: NotificationService;
 
@@ -37,8 +40,192 @@ export class ProductInspectionService {
     this.itemRepo = new InspectionItemRepository();
     this.photoRepo = new InspectionPhotoRepository();
     this.disputeRepo = new InspectionDisputeRepository();
+    this.userRepo = UserRepository;
     this.bookingService = BookingServiceInstance;
     this.notificationService = new NotificationService();
+  }
+
+  // =====================================================
+  // INSPECTORS LISTING (for frontend selection)
+  // =====================================================
+  public async getInspectors(params: {
+    role?: string;
+    search?: string;
+    take?: number;
+    skip?: number;
+  }): Promise<ServiceResponse<Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    createdAt: Date;
+    specializations?: string[];
+  }>>> {
+    try {
+      const role = (params.role || 'inspector').toLowerCase();
+      const take = Number.isFinite(params.take as any) ? Math.max(0, Math.min(Number(params.take), 200)) : 50;
+      const skip = Number.isFinite(params.skip as any) ? Math.max(0, Number(params.skip)) : 0;
+
+      const db = getDatabase();
+
+      let query = db('users')
+        .select(
+          'id',
+          db.raw("COALESCE(NULLIF(TRIM(first_name || ' ' || last_name), ''), email) as name"),
+          'email',
+          'role',
+          db.raw('created_at as "createdAt"'),
+          db.raw('NULL::text[] as specializations')
+        )
+        .where('role', role)
+        .orderBy('created_at', 'desc')
+        .limit(take)
+        .offset(skip);
+
+      if (params.search && params.search.trim().length > 0) {
+        const term = `%${params.search.trim()}%`;
+        query = query.andWhere((qb: any) => {
+          qb.whereILike('first_name', term)
+            .orWhereILike('last_name', term)
+            .orWhereILike('email', term);
+        });
+      }
+
+      const rows = await query;
+
+      const mapped = rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        role: r.role,
+        createdAt: r.createdAt,
+        specializations: Array.isArray(r.specializations) ? r.specializations : undefined,
+      }));
+
+      return { success: true, data: mapped };
+    } catch (error) {
+      console.error('[ProductInspectionService] Get inspectors error:', error);
+      return { success: false, error: 'Failed to fetch inspectors' };
+    }
+  }
+
+  /**
+   * Get disputes raised by a specific user
+   */
+  async getMyDisputes(userId: string, filters: {
+    status?: string;
+    inspectionId?: string;
+    disputeType?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<ServiceResponse<any>> {
+    try {
+      const { status, inspectionId, disputeType, page = 1, limit = 20 } = filters;
+      
+      // Build query filters
+      const queryFilters: any = { raisedBy: userId };
+      if (status) queryFilters.status = status;
+      if (inspectionId) queryFilters.inspectionId = inspectionId;
+      if (disputeType) queryFilters.disputeType = disputeType;
+
+      const result = await this.disputeRepo.findPaginated(
+        queryFilters,
+        page,
+        limit,
+        'createdAt',
+        'desc'
+      );
+
+      if (!result.success || !result.data) {
+        return { success: false, error: result.error || 'Failed to fetch disputes' };
+      }
+
+      // Get inspection details for each dispute
+      const disputesWithDetails = await Promise.all(
+        result.data.data.map(async (dispute: any) => {
+          try {
+            const inspection = await this.inspectionRepo.getById(dispute.inspectionId);
+            if (inspection.success && inspection.data) {
+              return {
+                ...dispute,
+                inspection: {
+                  id: inspection.data.id,
+                  productId: inspection.data.productId,
+                  inspectionType: inspection.data.inspectionType,
+                  status: inspection.data.status,
+                  scheduledAt: inspection.data.scheduledAt
+                }
+              };
+            }
+            return dispute;
+          } catch (error) {
+            console.error(`[ProductInspectionService] Error fetching inspection for dispute ${dispute.id}:`, error);
+            return dispute;
+          }
+        })
+      );
+
+      return {
+        success: true,
+        data: {
+          disputes: disputesWithDetails,
+          pagination: {
+            page: result.data.page,
+            limit: result.data.limit,
+            total: result.data.total,
+            totalPages: result.data.totalPages
+          }
+        }
+      };
+    } catch (error) {
+      console.error('[ProductInspectionService] Get my disputes error:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Get all disputes for a specific inspection
+   */
+  async getInspectionDisputes(inspectionId: string): Promise<ServiceResponse<any>> {
+    try {
+      const result = await this.disputeRepo.getByInspectionId(inspectionId);
+      
+      if (!result.success || !result.data) {
+        return { success: false, error: result.error || 'Failed to fetch inspection disputes' };
+      }
+
+      // Get user details for each dispute
+      const disputesWithUserDetails = await Promise.all(
+        result.data.map(async (dispute: any) => {
+          try {
+            const user = await this.userRepo.getById(dispute.raisedBy);
+            if (user.success && user.data) {
+              return {
+                ...dispute,
+                raisedByUser: {
+                  id: user.data.id,
+                  name: `${user.data.firstName} ${user.data.lastName}`,
+                  email: user.data.email,
+                  role: user.data.role
+                }
+              };
+            }
+            return dispute;
+          } catch (error) {
+            console.error(`[ProductInspectionService] Error fetching user for dispute ${dispute.id}:`, error);
+            return dispute;
+          }
+        })
+      );
+
+      return {
+        success: true,
+        data: disputesWithUserDetails
+      };
+    } catch (error) {
+      console.error('[ProductInspectionService] Get inspection disputes error:', error);
+      return { success: false, error: 'Internal server error' };
+    }
   }
 
   // =====================================================
@@ -50,8 +237,20 @@ export class ProductInspectionService {
    */
   async createInspection(data: CreateInspectionRequest): Promise<ServiceResponse<ProductInspection>> {
     try {
+      console.debug('[CreateInspection] Incoming payload:', {
+        productId: data?.productId,
+        bookingId: data?.bookingId,
+        inspectorId: data?.inspectorId,
+        inspectionType: data?.inspectionType,
+        scheduledAt: data?.scheduledAt
+      });
       // Validate booking exists and is in correct state
       const booking = await this.bookingService.getById(data.bookingId);
+      console.debug('[CreateInspection] Booking lookup result:', {
+        success: booking?.success,
+        hasData: !!booking?.data,
+        error: booking?.error
+      });
       if (!booking.success) {
         return { success: false, error: 'Booking not found' };
       }
@@ -59,19 +258,23 @@ export class ProductInspectionService {
       // Validate inspection timing
       const validation = this.validateInspectionTiming(data, booking.data);
       if (!validation.isValid) {
+        console.debug('[CreateInspection] Timing validation failed:', validation.errors);
+      }
+      if (!validation.isValid) {
         return { success: false, error: validation.errors.join(', ') };
       }
 
-      // Create inspection
+      // Create inspection (map renter/owner from booking snake_case fields)
       const inspection = await this.inspectionRepo.create({
         ...data,
-        renterId: booking.data.renterId,
-        ownerId: booking.data.ownerId,
+        renterId: (booking.data as any).renter_id,
+        ownerId: (booking.data as any).owner_id,
         status: InspectionStatus.PENDING
       });
 
       if (!inspection.success) {
-        return { success: false, error: 'Failed to create inspection' };
+        console.error('[CreateInspection] Repo create failed:', inspection.error);
+        return { success: false, error: inspection.error || 'Failed to create inspection' };
       }
 
       // Send notifications
@@ -379,10 +582,52 @@ export class ProductInspectionService {
         : undefined
     };
 
+    // Populate participants from user IDs to ensure availability even on completed inspections
+    let inspectorUser: any = null;
+    let renterUser: any = null;
+    let ownerUser: any = null;
+    try {
+      if (inspection.inspectorId) {
+        const res = await this.userRepo.findById(inspection.inspectorId);
+        if (res?.success && res.data) {
+          inspectorUser = {
+            id: res.data.id,
+            name: `${res.data.firstName ?? ''} ${res.data.lastName ?? ''}`.trim() || res.data.email,
+            email: res.data.email,
+            role: res.data.role,
+          };
+        }
+      }
+      if (inspection.renterId) {
+        const res = await this.userRepo.findById(inspection.renterId);
+        if (res?.success && res.data) {
+          renterUser = {
+            id: res.data.id,
+            name: `${res.data.firstName ?? ''} ${res.data.lastName ?? ''}`.trim() || res.data.email,
+            email: res.data.email,
+            role: res.data.role,
+          };
+        }
+      }
+      if (inspection.ownerId) {
+        const res = await this.userRepo.findById(inspection.ownerId);
+        if (res?.success && res.data) {
+          ownerUser = {
+            id: res.data.id,
+            name: `${res.data.firstName ?? ''} ${res.data.lastName ?? ''}`.trim() || res.data.email,
+            email: res.data.email,
+            role: res.data.role,
+          };
+        }
+      }
+    } catch (e) {
+      console.error('[ProductInspectionService] Failed to populate participants:', e);
+    }
+
     const participants = {
-      inspector: inspection.inspector,
-      renter: inspection.renter,
-      owner: inspection.owner
+      inspector: inspectorUser,
+      renter: renterUser,
+      owner: ownerUser,
     };
 
     return {

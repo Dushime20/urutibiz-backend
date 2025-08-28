@@ -31,6 +31,8 @@ import performanceRoutes from './performance.routes';
 import userFavoritesRoutes from './userFavorites.routes';
 import twoFactorRoutes from './twoFactor.routes';
 import productInspectionRoutes from './productInspection.routes';
+import notificationRoutes from './notification.routes';
+import testRoutes from './test.routes';
 
 const router = Router();
 
@@ -86,6 +88,12 @@ console.log('🔧 Mounting 2FA routes at /2fa');
 router.use('/2fa', twoFactorRoutes);
 console.log('🔧 Mounting Product Inspection routes at /inspections');
 router.use('/inspections', productInspectionRoutes);
+console.log('🔧 Mounting Notification routes at /notifications');
+router.use('/notifications', notificationRoutes);
+
+// Test routes for development
+console.log('🔧 Mounting Test routes at /test');
+router.use('/test', testRoutes);
 
 // Placeholder routes - remove when actual routes are implemented
 router.get('/', (_req, res) => {
@@ -105,6 +113,7 @@ router.get('/', (_req, res) => {
       payment_methods: '/api/v1/payment-methods',
       payment_transactions: '/api/v1/payment-transactions',
       inspections: '/api/v1/inspections',
+      notifications: '/api/v1/notifications',
       product_prices: '/api/v1/product-prices',
       category_regulations: '/api/v1/category-regulations',
       localization: '/api/v1/localization',

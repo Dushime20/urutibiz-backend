@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Notification Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>🔔 Simple Notification Test</h1>
+    <p>This tests basic browser notifications before trying Firebase.</p>
+    
+    <button onclick="testBasicNotification()">🔔 Test Basic Notification</button>
+    <button onclick="requestPermission()">🔐 Request Permission</button>
+    <button onclick="checkPermission()">📊 Check Permission Status</button>
+    
+    <div id="status" class="status info">Ready to test</div>
+
+    <script>
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = 'status ' + type;
+        }
+
+        function checkPermission() {
+            const permission = Notification.permission;
+            updateStatus(`Current permission status: ${permission}`, 'info');
+            console.log('Permission status:', permission);
+        }
+
+        function requestPermission() {
+            updateStatus('Requesting permission...', 'info');
+            
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    updateStatus('✅ Permission granted!', 'success');
+                } else if (permission === 'denied') {
+                    updateStatus('❌ Permission denied', 'error');
+                } else {
+                    updateStatus('⚠️ Permission default (user dismissed)', 'error');
+                }
+                console.log('Permission result:', permission);
+            }).catch(error => {
+                updateStatus('❌ Error requesting permission: ' + error.message, 'error');
+                console.error('Permission error:', error);
+            });
+        }
+
+        function testBasicNotification() {
+            if (Notification.permission === 'granted') {
+                updateStatus('Sending test notification...', 'info');
+                
+                const notification = new Notification('Test Notification', {
+                    body: 'This is a test notification from your browser',
+                    icon: 'https://via.placeholder.com/64x64/4CAF50/FFFFFF?text=🔔',
+                    badge: 'https://via.placeholder.com/32x32/2196F3/FFFFFF?text=!',
+                    tag: 'test-notification',
+                    requireInteraction: false
+                });
+
+                notification.onclick = function() {
+                    updateStatus('✅ Notification clicked!', 'success');
+                    window.focus();
+                };
+
+                notification.onshow = function() {
+                    updateStatus('✅ Test notification sent successfully!', 'success');
+                };
+
+                notification.onerror = function(error) {
+                    updateStatus('❌ Notification error: ' + error.message, 'error');
+                };
+
+            } else {
+                updateStatus('❌ Permission not granted. Please request permission first.', 'error');
+            }
+        }
+
+        // Check initial permission status
+        document.addEventListener('DOMContentLoaded', () => {
+            checkPermission();
+        });
+    </script>
+</body>
+</html>

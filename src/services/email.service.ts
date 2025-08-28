@@ -92,6 +92,28 @@ export class EmailService {
     }
   }
 
+  async testConnection(): Promise<boolean> {
+    try {
+      if (!this.transporter) return false;
+      await this.transporter.verify();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async getStatus(): Promise<{ connected: boolean; error?: string }> {
+    try {
+      if (!this.transporter) {
+        return { connected: false, error: 'Transporter not initialized' };
+      }
+      await this.transporter.verify();
+      return { connected: true };
+    } catch (error: any) {
+      return { connected: false, error: error?.message || 'Unknown error' };
+    }
+  }
+
   private renderTemplate(content: EmailContent): { html: string; text: string } {
     const { template, data } = content;
 
@@ -99,112 +121,36 @@ export class EmailService {
       return this.renderPasswordResetTemplate(data);
     }
 
-    // Default template
-    return {
-      html: content.html || '<p>No content</p>',
-      text: content.text || 'No content'
-    };
+    // Default: if html or text provided, use them
+    const html = content.html || '';
+    const text = content.text || (html ? html.replace(/<[^>]*>/g, '') : '');
+    return { html, text };
   }
 
   private renderPasswordResetTemplate(data: Record<string, any> = {}): { html: string; text: string } {
-    const {
-      firstName = 'User',
-      resetUrl = '',
-      expiresIn = '15 minutes',
-      supportEmail = 'support@urutibiz.com'
-    } = data;
-
     const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Password Reset - UrutiBiz</title>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #00aaa9; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background: #f9f9f9; }
-          .button { display: inline-block; padding: 12px 24px; background: #00aaa9; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-          .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; margin: 10px 0; border-radius: 4px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>UrutiBiz</h1>
-            <h2>Password Reset Request</h2>
-          </div>
-          <div class="content">
-            <p>Hello ${firstName},</p>
-            <p>We received a request to reset your password for your UrutiBiz account.</p>
-            <p>Click the button below to reset your password:</p>
-            <div style="text-align: center;">
-              <a href="${resetUrl}" class="button">Reset Password</a>
-            </div>
-            <div class="warning">
-              <strong>Important:</strong> This link will expire in ${expiresIn}. If you didn't request this password reset, please ignore this email.
-            </div>
-            <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #00aaa9;">${resetUrl}</p>
-            <p>If you have any questions, please contact us at <a href="mailto:${supportEmail}">${supportEmail}</a>.</p>
-          </div>
-          <div class="footer">
-            <p>This email was sent by UrutiBiz. Please do not reply to this email.</p>
-            <p>&copy; ${new Date().getFullYear()} UrutiBiz. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
+      <div>
+        <h2>Password Reset Request</h2>
+        <p>Hello ${data.firstName || 'there'},</p>
+        <p>We received a request to reset your password.</p>
+        <p>Click the link below to reset your password. This link will expire in ${data.expiresIn || '15 minutes'}.</p>
+        <p><a href="${data.resetUrl || '#'}">Reset Password</a></p>
+        <p>If you did not request this, please ignore this email or contact support at ${data.supportEmail || 'support@urutibiz.com'}.</p>
+      </div>
     `;
-
-    const text = `
-Password Reset Request - UrutiBiz
-
-Hello ${firstName},
-
-We received a request to reset your password for your UrutiBiz account.
-
-To reset your password, click the following link:
-${resetUrl}
-
-Important: This link will expire in ${expiresIn}. If you didn't request this password reset, please ignore this email.
-
-If you have any questions, please contact us at ${supportEmail}.
-
-Best regards,
-The UrutiBiz Team
-    `;
-
+    const text = `Password Reset Request\n\nVisit: ${data.resetUrl || '#'}\nThis link will expire in ${data.expiresIn || '15 minutes'}.`;
     return { html, text };
   }
 
   private logEmailContent(content: EmailContent) {
-    logger.info('Email content (not sent due to missing SMTP configuration):', {
+    logger.info('Email (dev mode):', {
       to: content.to,
       subject: content.subject,
+      html: content.html,
+      text: content.text,
       template: content.template,
       data: content.data
     });
-  }
-
-  // Test email configuration
-  async testConnection(): Promise<boolean> {
-    try {
-      if (!this.transporter) {
-        logger.warn('Email transporter not available for testing');
-        return false;
-      }
-
-      await this.transporter.verify();
-      logger.info('Email connection test successful');
-      return true;
-    } catch (error) {
-      logger.error('Email connection test failed:', error);
-      return false;
-    }
   }
 }
 

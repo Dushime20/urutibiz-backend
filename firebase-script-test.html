@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Script Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔥 Firebase Script Test (Local Files)</h1>
+    <p>Testing Firebase with locally downloaded files instead of CDN.</p>
+    
+    <button onclick="testFirebase()">🔥 Test Firebase</button>
+    <button onclick="getDeviceToken()">📱 Get Device Token</button>
+    
+    <div id="status" class="status info">Ready to test</div>
+    
+    <div>
+        <h3>📋 Debug Log:</h3>
+        <pre id="debug-log">Click buttons to see debug info...</pre>
+    </div>
+
+    <script>
+        function log(message) {
+            const logEl = document.getElementById('debug-log');
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.textContent += `[${timestamp}] ${message}\n`;
+            console.log(message);
+        }
+
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = 'status ' + type;
+            log(`STATUS: ${message}`);
+        }
+
+        // Test Firebase availability
+        function testFirebase() {
+            log('Testing Firebase availability...');
+            
+            if (typeof firebase !== 'undefined') {
+                log('✅ Firebase is available globally');
+                log(`Firebase version: ${firebase.SDK_VERSION || 'Unknown'}`);
+                updateStatus('Firebase is available!', 'success');
+            } else {
+                log('❌ Firebase is not available globally');
+                updateStatus('Firebase not available', 'error');
+            }
+        }
+
+        // Get device token
+        async function getDeviceToken() {
+            log('Attempting to get device token...');
+            
+            try {
+                if (typeof firebase === 'undefined') {
+                    throw new Error('Firebase not loaded');
+                }
+
+                // Initialize Firebase
+                const firebaseConfig = {
+                    apiKey: "AIzaSyAZrC6kfEPmVRjDdVvGJKKTZm7eLY_-fOA",
+                    authDomain: "urtbz-af684.firebaseapp.com",
+                    projectId: "urtbz-af684",
+                    storageBucket: "urtbz-af684.firebasestorage.app",
+                    messagingSenderId: "997587510479",
+                    appId: "1:997587510479:web:ece1efb4de7919c73803ba",
+                    measurementId: "G-NP2E94ZPP8"
+                };
+
+                // Check if Firebase is already initialized
+                let app;
+                if (firebase.apps.length === 0) {
+                    app = firebase.initializeApp(firebaseConfig);
+                    log('✅ Firebase app initialized');
+                } else {
+                    app = firebase.app();
+                    log('✅ Using existing Firebase app');
+                }
+
+                // Initialize messaging
+                const messaging = firebase.messaging();
+                log('✅ Firebase messaging initialized');
+
+                // Get token
+                const vapidKey = 'BKbkPpu7IP1-CkOt4-CmfmHedETU-41Bg1_Y31xB_1xxiEZ7HjrewNAtCwYV8uzCEjOptkuuvShtr7Mnfl0Y030';
+                log(`Using VAPID key: ${vapidKey.substring(0, 20)}...`);
+
+                const token = await messaging.getToken({ vapidKey });
+                
+                if (token) {
+                    log(`✅ Device token generated: ${token.substring(0, 50)}...`);
+                    updateStatus('Device token generated successfully!', 'success');
+                    
+                    // Display the token
+                    document.getElementById('debug-log').textContent += `\n🎯 DEVICE TOKEN:\n${token}\n`;
+                } else {
+                    log('❌ No device token received');
+                    updateStatus('No device token received', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Get token error: ${error.message}`);
+                updateStatus(`Get token error: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            log('Page loaded, waiting for Firebase scripts...');
+            updateStatus('Waiting for Firebase scripts to load...', 'info');
+            
+            // Check if Firebase loaded after a delay
+            setTimeout(() => {
+                if (typeof firebase !== 'undefined') {
+                    log('✅ Firebase loaded successfully');
+                    updateStatus('Firebase loaded!', 'success');
+                } else {
+                    log('❌ Firebase failed to load');
+                    updateStatus('Firebase failed to load', 'error');
+                }
+            }, 3000);
+        });
+    </script>
+
+    <!-- Firebase Scripts - Using local files -->
+    <script src="/firebase/firebase-app-compat.js"></script>
+    <script src="/firebase/firebase-messaging-compat.js"></script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import compression from 'compression';
 import morgan from 'morgan';
 import { createServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
+import path from 'path';
 // Swagger/OpenAPI imports
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
@@ -115,6 +116,9 @@ class App {
       extended: true, 
       limit: `${Math.floor(this.config.upload.maxFileSize / 1024 / 1024)}mb` 
     }));
+    
+     // Static file serving
+    this.app.use(express.static(path.join(__dirname, '../public')));
     
     // Logging
     if (this.config.nodeEnv !== 'test') {

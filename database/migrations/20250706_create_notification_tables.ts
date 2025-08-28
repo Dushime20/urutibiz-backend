@@ -17,7 +17,13 @@ export async function up(knex: Knex): Promise<void> {
     // Settings
     table.boolean('is_active').defaultTo(true);
     
+    // Additional fields for enhanced template management
+    table.specificType('channels', 'VARCHAR(20)[]').defaultTo(knex.raw("ARRAY['email']"));
+    table.string('priority', 20).defaultTo('normal'); // 'low', 'normal', 'high'
+    table.jsonb('variables').defaultTo('[]');
+    
     table.timestamp('created_at').defaultTo(knex.fn.now());
+    table.timestamp('updated_at').defaultTo(knex.fn.now());
     
     // Indexes
     table.index(['type', 'language', 'is_active'], 'idx_templates_lookup');

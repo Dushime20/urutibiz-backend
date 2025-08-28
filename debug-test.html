@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Firebase Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Firebase Test</h1>
+    <p>This page will help debug the Firebase setup step by step.</p>
+    
+    <button onclick="testBasic()">🔔 Test Basic Notification</button>
+    <button onclick="testFirebaseImport()">📦 Test Firebase Import</button>
+    <button onclick="testFirebaseConfig()">⚙️ Test Firebase Config</button>
+    <button onclick="testGetToken()">🎯 Test Get Token</button>
+    
+    <div id="status" class="status info">Ready to test</div>
+    
+    <div>
+        <h3>📋 Debug Log:</h3>
+        <pre id="debug-log">Click buttons to see debug info...</pre>
+    </div>
+
+    <script>
+        function log(message) {
+            const logEl = document.getElementById('debug-log');
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.textContent += `[${timestamp}] ${message}\n`;
+            console.log(message);
+        }
+
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = 'status ' + type;
+            log(`STATUS: ${message}`);
+        }
+
+        // Test 1: Basic notifications
+        function testBasic() {
+            log('Testing basic notifications...');
+            try {
+                if (Notification.permission === 'granted') {
+                    log('✅ Basic notification permission granted');
+                    updateStatus('Basic notifications working!', 'success');
+                } else {
+                    log('❌ Basic notification permission not granted');
+                    updateStatus('Basic notifications not working', 'error');
+                }
+            } catch (error) {
+                log(`❌ Basic notification error: ${error.message}`);
+                updateStatus(`Basic notification error: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 2: Firebase import with multiple CDN sources
+        function testFirebaseImport() {
+            log('Testing Firebase import with multiple CDN sources...');
+            
+            const cdnSources = [
+                'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js',
+                'https://cdn.jsdelivr.net/npm/firebase@10.7.1/app/dist/index.esm.js',
+                'https://unpkg.com/firebase@10.7.1/app/dist/index.esm.js'
+            ];
+            
+            let currentIndex = 0;
+            
+            function tryNextCDN() {
+                if (currentIndex >= cdnSources.length) {
+                    log('❌ All CDN sources failed');
+                    updateStatus('All Firebase CDN sources failed', 'error');
+                    return;
+                }
+                
+                const cdnUrl = cdnSources[currentIndex];
+                log(`Trying CDN source ${currentIndex + 1}: ${cdnUrl}`);
+                
+                import(cdnUrl)
+                    .then(module => {
+                        log(`✅ Firebase App module imported successfully from: ${cdnUrl}`);
+                        log(`Module keys: ${Object.keys(module).join(', ')}`);
+                        updateStatus(`Firebase App import working from: ${cdnUrl}`, 'success');
+                    })
+                    .catch(error => {
+                        log(`❌ CDN source ${currentIndex + 1} failed: ${error.message}`);
+                        currentIndex++;
+                        setTimeout(tryNextCDN, 1000); // Wait 1 second before trying next
+                    });
+            }
+            
+            tryNextCDN();
+        }
+
+        // Test 3: Firebase config
+        function testFirebaseConfig() {
+            log('Testing Firebase configuration...');
+            try {
+                const firebaseConfig = {
+                    apiKey: "AIzaSyAZrC6kfEPmVRjDdVvGJKKTZm7eLY_-fOA",
+                    authDomain: "urtbz-af684.firebaseapp.com",
+                    projectId: "urtbz-af684",
+                    storageBucket: "urtbz-af684.firebasestorage.app",
+                    messagingSenderId: "997587510479",
+                    appId: "1:997587510479:web:ece1efb4de7919c73803ba",
+                    measurementId: "G-NP2E94ZPP8"
+                };
+                
+                log('✅ Firebase config object created');
+                log(`Project ID: ${firebaseConfig.projectId}`);
+                log(`API Key: ${firebaseConfig.apiKey.substring(0, 10)}...`);
+                updateStatus('Firebase config created!', 'success');
+            } catch (error) {
+                log(`❌ Firebase config error: ${error.message}`);
+                updateStatus(`Firebase config error: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 4: Get token with fallback CDNs
+        async function testGetToken() {
+            log('Testing Firebase token generation with fallback CDNs...');
+            try {
+                let initializeApp, getMessaging, getToken;
+                
+                // Try multiple CDN sources
+                const cdnSources = [
+                    'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js',
+                    'https://cdn.jsdelivr.net/npm/firebase@10.7.1/app/dist/index.esm.js',
+                    'https://unpkg.com/firebase@10.7.1/app/dist/index.esm.js'
+                ];
+                
+                for (const cdnUrl of cdnSources) {
+                    try {
+                        log(`Trying to import from: ${cdnUrl}`);
+                        const appModule = await import(cdnUrl);
+                        initializeApp = appModule.initializeApp;
+                        log('✅ Firebase App module imported successfully');
+                        break;
+                    } catch (error) {
+                        log(`❌ Failed to import from ${cdnUrl}: ${error.message}`);
+                        continue;
+                    }
+                }
+                
+                if (!initializeApp) {
+                    throw new Error('Could not import Firebase App from any CDN source');
+                }
+                
+                // Try to import messaging module
+                const messagingSources = [
+                    'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js',
+                    'https://cdn.jsdelivr.net/npm/firebase@10.7.1/messaging/dist/index.esm.js',
+                    'https://unpkg.com/firebase@10.7.1/messaging/dist/index.esm.js'
+                ];
+                
+                for (const cdnUrl of messagingSources) {
+                    try {
+                        log(`Trying to import messaging from: ${cdnUrl}`);
+                        const messagingModule = await import(cdnUrl);
+                        getMessaging = messagingModule.getMessaging;
+                        getToken = messagingModule.getToken;
+                        log('✅ Firebase Messaging module imported successfully');
+                        break;
+                    } catch (error) {
+                        log(`❌ Failed to import messaging from ${cdnUrl}: ${error.message}`);
+                        continue;
+                    }
+                }
+                
+                if (!getMessaging || !getToken) {
+                    throw new Error('Could not import Firebase Messaging from any CDN source');
+                }
+                
+                // Initialize Firebase
+                const firebaseConfig = {
+                    apiKey: "AIzaSyAZrC6kfEPmVRjDdVvGJKKTZm7eLY_-fOA",
+                    authDomain: "urtbz-af684.firebaseapp.com",
+                    projectId: "urtbz-af684",
+                    storageBucket: "urtbz-af684.firebasestorage.app",
+                    messagingSenderId: "997587510479",
+                    appId: "1:997587510479:web:ece1efb4de7919c73803ba",
+                    measurementId: "G-NP2E94ZPP8"
+                };
+                
+                const app = initializeApp(firebaseConfig);
+                log('✅ Firebase app initialized');
+                
+                const messaging = getMessaging(app);
+                log('✅ Firebase messaging initialized');
+                
+                // Get token
+                const vapidKey = 'BKbkPpu7IP1-CkOt4-CmfmHedETU-41Bg1_Y31xB_1xxiEZ7HjrewNAtCwYV8uzCEjOptkuuvShtr7Mnfl0Y030';
+                log(`Using VAPID key: ${vapidKey.substring(0, 20)}...`);
+                
+                const token = await getToken(messaging, { vapidKey });
+                
+                if (token) {
+                    log(`✅ Device token generated: ${token.substring(0, 50)}...`);
+                    updateStatus('Device token generated successfully!', 'success');
+                } else {
+                    log('❌ No device token received');
+                    updateStatus('No device token received', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Get token error: ${error.message}`);
+                updateStatus(`Get token error: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            log('Page loaded, ready for testing');
+            updateStatus('Ready to test', 'info');
+        });
+    </script>
+</body>
+</html>

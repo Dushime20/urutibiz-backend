@@ -60,7 +60,7 @@ router.use('/products', productRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/user-verification', userVerificationRoutes);
 router.use('/admin', adminRoutes); // Use the main admin routes
-router.use('/admin/verification', adminVerificationRoutes); // Mount admin verification as a sub-route
+router.use('/admin/verifications', adminVerificationRoutes); // Mount admin verification as a sub-route
 router.use('/documents', documentManagementRoutes);
 router.use('/categories', categoriesRoutes);
 router.use('/product-images', productImagesRoutes);

@@ -105,7 +105,7 @@ export default class AdminVerificationController {
       const verifiedUsers = await db('users').where('kyc_status', 'verified').count('* as count').first();
       
       const recentActivity = await db('user_verifications')
-        .where('created_at', '>=', db.raw("datetime('now', '-7 days')"))
+        .where('created_at', '>=', db.raw("NOW() - INTERVAL '7 days'"))
         .count('* as count')
         .first();
       
@@ -182,38 +182,114 @@ export default class AdminVerificationController {
       const adminId = (req as any).user.id;
       const { verificationIds, status, notes } = req.body;
       
+      // Enhanced validation
       if (!verificationIds || !Array.isArray(verificationIds) || verificationIds.length === 0) {
-        return ResponseHelper.error(res, 'Verification IDs array is required', 400);
+        return ResponseHelper.error(res, 'Verification IDs array is required and must not be empty', 400);
+      }
+      
+      if (verificationIds.length > 100) {
+        return ResponseHelper.error(res, 'Cannot process more than 100 verifications at once', 400);
       }
       
       if (!['verified', 'rejected'].includes(status)) {
         return ResponseHelper.error(res, 'Status must be either "verified" or "rejected"', 400);
       }
       
-      const results = [];
-      const errors = [];
-      
-      for (const verificationId of verificationIds) {
-        try {
-          const verification = await UserVerificationService.reviewVerification(adminId, {
-            verificationId,
-            status,
-            notes: notes || `Bulk ${status} by admin`
-          });
-          results.push(verification);
-        } catch (error: any) {
-          errors.push({ verificationId, error: error.message });
-        }
+      if (notes && typeof notes !== 'string') {
+        return ResponseHelper.error(res, 'Notes must be a string', 400);
       }
       
-      return ResponseHelper.success(res, 'Bulk review completed', {
-        successful: results.length,
-        failed: errors.length,
-        results,
-        errors
-      });
+      const db = require('@/config/database').getDatabase();
+      
+      // Start transaction for better data consistency
+      const trx = await db.transaction();
+      
+      try {
+        const results: Array<{
+          verificationId: string;
+          status: string;
+          data: any;
+        }> = [];
+        const errors: Array<{
+          verificationId: string;
+          error: string;
+        }> = [];
+        
+        // Process verifications in batches for better performance
+        const batchSize = 10;
+        for (let i = 0; i < verificationIds.length; i += batchSize) {
+          const batch = verificationIds.slice(i, i + batchSize);
+          
+          await Promise.all(batch.map(async (verificationId) => {
+            try {
+              // Validate verification exists and is in pending status
+              const verification = await trx('user_verifications')
+                .where({ id: verificationId, verification_status: 'pending' })
+                .first();
+              
+              if (!verification) {
+                errors.push({ 
+                  verificationId, 
+                  error: 'Verification not found or not in pending status' 
+                });
+                return;
+              }
+              
+              // Process the verification
+              const result = await UserVerificationService.reviewVerification(adminId, {
+                verificationId,
+                status,
+                notes: notes || `Bulk ${status} by admin ${adminId}`
+              }, trx);
+              
+              results.push({
+                verificationId,
+                status: 'success',
+                data: result
+              });
+              
+            } catch (error: any) {
+              errors.push({ 
+                verificationId, 
+                error: error.message || 'Unknown error occurred' 
+              });
+            }
+          }));
+        }
+        
+        // Commit transaction if successful
+        await trx.commit();
+        
+        // Log the bulk operation
+        console.log(`[BULK_REVIEW] Admin ${adminId} processed ${verificationIds.length} verifications:`, {
+          successful: results.length,
+          failed: errors.length,
+          status,
+          timestamp: new Date().toISOString()
+        });
+        
+        return ResponseHelper.success(res, 'Bulk review completed', {
+          total: verificationIds.length,
+          successful: results.length,
+          failed: errors.length,
+          results,
+          errors,
+          summary: {
+            status,
+            processedAt: new Date().toISOString(),
+            adminId
+          }
+        });
+        
+      } catch (transactionError: any) {
+        // Rollback transaction on error
+        await trx.rollback();
+        throw transactionError;
+      }
+      
     } catch (error: any) {
-      return ResponseHelper.error(res, error.message);
+      console.error('[BULK_REVIEW_ERROR]', error);
+      return ResponseHelper.error(res, `Bulk review failed: ${error.message}`, 500);
     }
   }
 

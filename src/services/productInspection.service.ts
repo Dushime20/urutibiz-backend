@@ -110,6 +110,90 @@ export class ProductInspectionService {
   }
 
   /**
+   * Get all disputes (admin only)
+   */
+  async getAllDisputes(filters: {
+    status?: string;
+    inspectionId?: string;
+    disputeType?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<ServiceResponse<any>> {
+    try {
+      const { status, inspectionId, disputeType, page = 1, limit = 20 } = filters;
+      
+      // Build query filters (no user filtering for admins)
+      const queryFilters: any = {};
+      if (status) queryFilters.status = status;
+      if (inspectionId) queryFilters.inspectionId = inspectionId;
+      if (disputeType) queryFilters.disputeType = disputeType;
+
+      const result = await this.disputeRepo.findPaginated(
+        queryFilters,
+        page,
+        limit,
+        'createdAt',
+        'desc'
+      );
+
+      if (!result.success || !result.data) {
+        return { success: false, error: result.error || 'Failed to fetch disputes' };
+      }
+
+      // Get inspection and user details for each dispute
+      const disputesWithDetails = await Promise.all(
+        result.data.data.map(async (dispute: any) => {
+          try {
+            // Get inspection details
+            const inspection = await this.inspectionRepo.getById(dispute.inspectionId);
+            const inspectionDetails = inspection.success && inspection.data ? {
+              id: inspection.data.id,
+              productId: inspection.data.productId,
+              inspectionType: inspection.data.inspectionType,
+              status: inspection.data.status,
+              scheduledAt: inspection.data.scheduledAt
+            } : null;
+
+            // Get user details for the person who raised the dispute
+            const user = await this.userRepo.getById(dispute.raisedBy);
+            const userDetails = user.success && user.data ? {
+              id: user.data.id,
+              name: `${user.data.firstName} ${user.data.lastName}`,
+              email: user.data.email,
+              role: user.data.role
+            } : null;
+
+            return {
+              ...dispute,
+              inspection: inspectionDetails,
+              raisedByUser: userDetails
+            };
+          } catch (error) {
+            console.error(`[ProductInspectionService] Error fetching details for dispute ${dispute.id}:`, error);
+            return dispute;
+          }
+        })
+      );
+
+      return {
+        success: true,
+        data: {
+          disputes: disputesWithDetails,
+          pagination: {
+            page: result.data.page,
+            limit: result.data.limit,
+            total: result.data.total,
+            totalPages: result.data.totalPages
+          }
+        }
+      };
+    } catch (error) {
+      console.error('[ProductInspectionService] Get all disputes error:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
    * Get disputes raised by a specific user
    */
   async getMyDisputes(userId: string, filters: {

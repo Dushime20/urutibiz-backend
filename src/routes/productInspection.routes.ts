@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '@/middleware/auth.middleware';
 import { uploadSingle, uploadMultiple } from '@/middleware/upload.middleware';
 import controller from '@/controllers/productInspection.controller';
+import { requireRole } from '@/middleware/role.middleware';
 
 const router = Router();
 
@@ -10,6 +11,81 @@ router.get('/inspectors', requireAuth, controller.getInspectors);
 
 // Get disputes raised by the authenticated user
 router.get('/disputes', requireAuth, controller.getMyDisputes);
+
+/**
+ * @swagger
+ * /inspections/admin/disputes:
+ *   get:
+ *     summary: Get all disputes (admin only)
+ *     description: Retrieve all disputes across all inspections. Admin role required.
+ *     tags: [Product Inspection - Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [open, under_review, resolved, closed]
+ *         description: Filter disputes by status
+ *       - in: query
+ *         name: inspectionId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Filter disputes by specific inspection
+ *       - in: query
+ *         name: disputeType
+ *         schema:
+ *           type: string
+ *           enum: [damage_assessment, condition_disagreement, cost_dispute, other]
+ *         description: Filter disputes by type
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Number of disputes per page
+ *     responses:
+ *       200:
+ *         description: All disputes retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: All disputes retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     disputes:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/InspectionDispute'
+ *                     pagination:
+ *                       $ref: '#/components/schemas/PaginationResult'
+ *       403:
+ *         description: Access denied. Admin role required.
+ *       401:
+ *         description: Unauthorized. Valid JWT token required.
+ */
+
+// Admin route to get all disputes
+router.get('/admin/disputes', requireAuth, requireRole(['admin', 'super_admin']), controller.getAllDisputes);
 
 /**
  * @swagger

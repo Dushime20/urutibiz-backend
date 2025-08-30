@@ -199,7 +199,7 @@ export class AdminService {
         // Map snake_case to camelCase for consistency
         firstName: user.first_name,
         lastName: user.last_name,
-        phoneNumber: user.phone_number,
+        phoneNumber: user.phone,
         emailVerified: user.email_verified,
         phoneVerified: user.phone_verified,
         createdAt: user.created_at,
@@ -253,7 +253,7 @@ export class AdminService {
         // Map snake_case to camelCase for consistency
         firstName: user.first_name,
         lastName: user.last_name,
-        phoneNumber: user.phone_number,
+        phoneNumber: user.phone,
         emailVerified: user.email_verified,
         phoneVerified: user.phone_verified,
         createdAt: user.created_at,

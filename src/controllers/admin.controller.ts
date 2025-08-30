@@ -191,6 +191,66 @@ export class AdminController extends BaseController {
   }
 
   /**
+   * Update user KYC status
+   */
+  public async updateUserKycStatus(req: Request, res: Response) {
+    try {
+      const { id: userId } = req.params;
+      const { kycStatus, notes } = req.body;
+      const adminId = (req as any).user.id;
+      
+      const validKycStatuses = ['unverified', 'basic', 'pending_review', 'verified', 'rejected', 'suspended', 'expired'];
+      if (!validKycStatuses.includes(kycStatus)) {
+        return ResponseHelper.error(res, 'Invalid KYC status', undefined, 400);
+      }
+      
+      const db = require('@/config/database').getDatabase();
+      
+      // Check if user exists
+      const user = await db('users').where('id', userId).first();
+      if (!user) {
+        return ResponseHelper.error(res, 'User not found', undefined, 404);
+      }
+      
+      // Update user KYC status
+      await db('users')
+        .where('id', userId)
+        .update({
+          kyc_status: kycStatus,
+          updated_at: new Date()
+        });
+      
+      // Log the status change
+      await db('audit_logs').insert({
+        id: require('uuid').v4(),
+        user_id: userId,
+        admin_id: adminId,
+        action: 'kyc_status_update',
+        details: {
+          old_status: user.kyc_status,
+          new_status: kycStatus,
+          notes
+        },
+        created_at: new Date()
+      }).catch(() => {
+        // Audit log is optional, don't fail if table doesn't exist
+      });
+      
+      // Get updated user
+      const updatedUser = await db('users').where('id', userId).first();
+      
+      return ResponseHelper.success(res, 'User KYC status updated successfully', {
+        user: updatedUser,
+        changedBy: adminId,
+        notes
+      });
+    } catch (error: any) {
+      logger.error(`Error in updateUserKycStatus: ${error.message}`);
+      return ResponseHelper.error(res, 'Failed to update user KYC status', error);
+    }
+  }
+
+  /**
    * @swagger
    * /admin/products:
    *   get:

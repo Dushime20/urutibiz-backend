@@ -385,9 +385,6 @@ export class PaymentProviderService {
       const whereClause: WhereOptions = {
         country_id: countryId,
         is_active: true,
-        supported_currencies: {
-          [Op.contains]: [currency.toUpperCase()],
-        },
         min_amount: { [Op.lte]: amount },
       };
 
@@ -401,23 +398,52 @@ export class PaymentProviderService {
         whereClause.provider_type = providerType.toLowerCase();
       }
 
+      // Use raw SQL for PostgreSQL array contains operation to avoid type mismatch
       const providers = await PaymentProviderModel.findAll({
         where: whereClause,
         order: [['fee_percentage', 'ASC'], ['fee_fixed', 'ASC']],
       });
 
-      return providers.map(provider => {
+      // Filter providers that support the requested currency
+      const currencyUpper = currency.toUpperCase();
+      const filteredProviders = providers.filter(provider => {
         const data = provider.toJSON();
-        const feePercentage = data.fee_percentage * amount;
-        const totalFee = feePercentage + data.fee_fixed;
+        return data.supported_currencies && 
+               Array.isArray(data.supported_currencies) && 
+               data.supported_currencies.includes(currencyUpper);
+      });
+
+      return filteredProviders.map(provider => {
+        const data = provider.toJSON();
+        
+        // Debug logging to help troubleshoot
+        console.log(`🔍 Provider ${data.provider_name}:`, {
+          fee_percentage: data.fee_percentage,
+          fee_fixed: data.fee_fixed,
+          fee_percentage_type: typeof data.fee_percentage,
+          fee_fixed_type: typeof data.fee_fixed
+        });
+        
+        // Ensure fee values are numbers with defaults and proper type conversion
+        const feePercentage = parseFloat(data.fee_percentage || 0) * amount;
+        const feeFixed = parseFloat(data.fee_fixed || 0);
+        const totalFee = feePercentage + feeFixed;
         const totalAmount = amount + totalFee;
+
+        console.log(`🔍 Calculated fees for ${data.provider_name}:`, {
+          amount,
+          feePercentage,
+          feeFixed,
+          totalFee,
+          totalAmount
+        });
 
         return {
           provider_id: data.id,
           provider_name: data.display_name || data.provider_name,
           amount,
-          fee_percentage: data.fee_percentage,
-          fee_fixed: data.fee_fixed,
+          fee_percentage: parseFloat(data.fee_percentage || 0),
+          fee_fixed: feeFixed,
           total_fee: Number(totalFee.toFixed(2)),
           total_amount: Number(totalAmount.toFixed(2)),
           currency: currency.toUpperCase(),

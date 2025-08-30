@@ -292,7 +292,6 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
       const location = (dbData as any)?.location;
       if (location && location.latitude && location.longitude) {
         dbLocation = `SRID=4326;POINT(${location.longitude} ${location.latitude})`;
-        console.log('[DEBUG] location as WKT:', dbLocation);
       }
       const formattedData = this.formatDatabaseFields(dbData);
       const insertData = {

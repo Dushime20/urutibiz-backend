@@ -10,7 +10,7 @@ import ContentAnalysisService from './contentAnalysis.service';
 import BehaviorAnalysisService from './behaviorAnalysis.service';
 import FraudDetectionService from './fraudDetection.service';
 import MLModelService from './mlModel.service';
-import NotificationService from './notification.service';
+import { NotificationService } from './notification.service';
 import logger from '@/utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 

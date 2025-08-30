@@ -106,6 +106,34 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Send KYC status change notification
+   */
+  static async sendKycStatusChange(userId: string, newStatus: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log(`Sending KYC status change notification to user ${userId}: ${newStatus}`);
+      
+      // Mock implementation - replace with actual notification logic
+      // This could send email, push notification, or in-app notification
+      
+      const notificationData = {
+        userId,
+        type: 'kyc_status_change',
+        title: 'KYC Status Updated',
+        message: `Your KYC verification status has been updated to: ${newStatus}`,
+        data: { status: newStatus, timestamp: new Date().toISOString() }
+      };
+      
+      // Log the notification
+      console.log('KYC Status Change Notification:', notificationData);
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error('Failed to send KYC status change notification:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   static async createEmailTemplate(templateData: CreateEmailTemplateRequest): Promise<{ success: boolean; data: EmailTemplate | null; error?: string }> {
     try {
       // Mock template creation - replace with actual database insert

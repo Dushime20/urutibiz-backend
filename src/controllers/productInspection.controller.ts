@@ -95,6 +95,37 @@ export class ProductInspectionController extends BaseController {
   });
 
   /**
+   * Get all disputes (admin only)
+   * GET /api/v1/inspections/admin/disputes
+   */
+  public getAllDisputes = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    // Check if user is admin
+    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+      return ResponseHelper.error(res, 'Access denied. Admin role required.', 403);
+    }
+
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const inspectionId = typeof req.query.inspectionId === 'string' ? req.query.inspectionId : undefined;
+    const disputeType = typeof req.query.disputeType === 'string' ? req.query.disputeType : undefined;
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const limit = req.query.limit ? Number(req.query.limit) : 20;
+
+    const result = await ProductInspectionService.getAllDisputes({
+      status,
+      inspectionId,
+      disputeType,
+      page,
+      limit
+    });
+
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to fetch disputes', 400);
+    }
+
+    return ResponseHelper.success(res, 'All disputes retrieved successfully', result.data);
+  });
+
+  /**
    * Get all disputes for a specific inspection
    * GET /api/v1/inspections/:id/disputes
    */

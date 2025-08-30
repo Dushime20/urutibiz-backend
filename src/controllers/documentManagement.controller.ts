@@ -232,7 +232,7 @@ export default class DocumentManagementController {
         .groupBy('document_type');
       
       const recentUploads = await db('documents')
-        .where('created_at', '>=', db.raw("datetime('now', '-7 days')"))
+        .where('created_at', '>=', db.raw("NOW() - INTERVAL '7 days'"))
         .count('* as count')
         .first();
       

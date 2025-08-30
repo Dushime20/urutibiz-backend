@@ -2,7 +2,7 @@ import { getDatabase } from '@/config/database';
 import { UserVerification, SubmitVerificationRequest, ReviewVerificationRequest, UpdateVerificationRequest } from '@/types/userVerification.types';
 import { v4 as uuidv4 } from 'uuid';
 import { runOcrOnImage, runLivenessCheck } from '@/utils/kycAutomation';
-import NotificationService from '@/services/notification.service';
+import { NotificationService } from '@/services/notification.service';
 import { runProfileVerification, getDefaultModelPath, setupProfileVerificationModel } from '@/utils/onnxProfileVerification';
 import { imageComparisonService } from '@/services/imageComparison.service';
 import * as ort from 'onnxruntime-node';
@@ -244,8 +244,9 @@ export default class UserVerificationService {
     }));
   }
 
-  static async reviewVerification(adminId: string, data: ReviewVerificationRequest): Promise<UserVerification> {
-    const db = getDatabase();
+  static async reviewVerification(adminId: string, data: ReviewVerificationRequest, trx?: any): Promise<UserVerification> {
+    const db = trx || getDatabase();
+    
     // Update the verification record
     const [row] = await db('user_verifications')
       .where({ id: data.verificationId })
@@ -255,11 +256,13 @@ export default class UserVerificationService {
         verified_at: new Date(),
         notes: data.notes
       }, '*');
+    
     // If approved or rejected, update user's id_verification_status and kyc_status
     if (row && (data.status === 'verified' || data.status === 'rejected')) {
       await db('users').where({ id: row.user_id }).update({
         id_verification_status: data.status
       });
+      
       // If all required types are verified, set kyc_status to 'verified', else 'pending_review'
       const isFullyVerified = await UserVerificationService.isUserFullyKycVerified(row.user_id);
       const newKycStatus = isFullyVerified ? 'verified' : 'pending_review';
@@ -280,6 +283,7 @@ export default class UserVerificationService {
       // Send KYC status change notification
       await NotificationService.sendKycStatusChange(row.user_id, newKycStatus);
     }
+    
     return UserVerificationService.fromDb(row);
   }
 
@@ -319,16 +323,16 @@ export default class UserVerificationService {
     // Update phone number if available in verification record
     if (latestVerification.phone_number) {
       const user = await db('users').where({ id: userId }).first();
-      if (!user.phone_number || user.phone_number !== latestVerification.phone_number) {
-        updateData.phone_number = latestVerification.phone_number;
+      if (!user.phone || user.phone !== latestVerification.phone_number) {
+        updateData.phone = latestVerification.phone_number;
         console.log(`📱 Updating phone number for user ${userId}: ${latestVerification.phone_number}`);
       }
     } else {
       // If no phone number in verification, try to get it from user's existing data
       const user = await db('users').where({ id: userId }).first();
-      if (user.phone_number && !user.phone_verified) {
-        console.log(`📱 User ${userId} already has phone number: ${user.phone_number}, marking as verified`);
-      } else if (!user.phone_number) {
+      if (user.phone && !user.phone_verified) {
+        console.log(`📱 User ${userId} already has phone number: ${user.phone}, marking as verified`);
+      } else if (!user.phone) {
         console.log(`⚠️ User ${userId} has no phone number in verification or user record`);
       }
     }

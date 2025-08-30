@@ -720,6 +720,47 @@ router.get('/users', adminController.getUsers);
 router.get('/users/:id', adminController.getUserDetails);
 router.post('/users/:id/moderate', adminController.moderateUser);
 
+/**
+ * @swagger
+ * /admin/users/{id}/kyc-status:
+ *   put:
+ *     summary: Update user KYC status
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - kycStatus
+ *             properties:
+ *               kycStatus:
+ *                 type: string
+ *                 enum: [unverified, basic, pending_review, verified, rejected, suspended, expired]
+ *                 description: New KYC status
+ *               notes:
+ *                 type: string
+ *                 description: Optional notes about the status change
+ *     responses:
+ *       200:
+ *         description: KYC status updated successfully
+ *       400:
+ *         description: Invalid KYC status
+ *       404:
+ *         description: User not found
+ *       403:
+ *         description: Access denied
+ */
+router.put('/users/:id/kyc-status', adminController.updateUserKycStatus);
+
 // Disputes routes
 router.get('/disputes', adminController.getDisputes);
 router.post('/disputes/:id/assign', adminController.assignDispute);

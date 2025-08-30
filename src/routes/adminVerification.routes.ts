@@ -90,7 +90,7 @@ const router = Router();
  *       403:
  *         $ref: '#/components/responses/ForbiddenError'
  */
-router.get('/verifications', requireAuth, requireAdmin, AdminVerificationController.listVerifications);
+router.get('/', requireAuth, requireAdmin, AdminVerificationController.listVerifications);
 
 /**
  * @swagger
@@ -114,7 +114,7 @@ router.get('/verifications', requireAuth, requireAdmin, AdminVerificationControl
  *       403:
  *         $ref: '#/components/responses/ForbiddenError'
  */
-router.get('/verifications/pending', requireAuth, requireAdmin, AdminVerificationController.getPendingVerifications);
+router.get('/pending', requireAuth, requireAdmin, AdminVerificationController.getPendingVerifications);
 
 /**
  * @swagger
@@ -154,7 +154,7 @@ router.get('/verifications/pending', requireAuth, requireAdmin, AdminVerificatio
  *       403:
  *         $ref: '#/components/responses/ForbiddenError'
  */
-router.get('/verifications/stats', requireAuth, requireAdmin, AdminVerificationController.getVerificationStats);
+router.get('/stats', requireAuth, requireAdmin, AdminVerificationController.getVerificationStats);
 
 /**
  * @swagger
@@ -180,7 +180,7 @@ router.get('/verifications/stats', requireAuth, requireAdmin, AdminVerificationC
  *       403:
  *         $ref: '#/components/responses/ForbiddenError'
  */
-router.post('/verifications/bulk-review', requireAuth, requireAdmin, AdminVerificationController.bulkReviewVerifications);
+router.post('/bulk-review', requireAuth, requireAdmin, AdminVerificationController.bulkReviewVerifications);
 
 /**
  * @swagger
@@ -206,7 +206,7 @@ router.post('/verifications/bulk-review', requireAuth, requireAdmin, AdminVerifi
  *       403:
  *         $ref: '#/components/responses/ForbiddenError'
  */
-router.get('/verifications/:id', requireAuth, requireAdmin, AdminVerificationController.getVerification);
+router.get('/:id', requireAuth, requireAdmin, AdminVerificationController.getVerification);
 
 /**
  * @swagger
@@ -240,7 +240,7 @@ router.get('/verifications/:id', requireAuth, requireAdmin, AdminVerificationCon
  *       403:
  *         $ref: '#/components/responses/ForbiddenError'
  */
-router.post('/verifications/:id/approve', requireAuth, requireAdmin, AdminVerificationController.approveVerification);
+router.post('/:id/approve', requireAuth, requireAdmin, AdminVerificationController.approveVerification);
 
 /**
  * @swagger
@@ -280,7 +280,7 @@ router.post('/verifications/:id/approve', requireAuth, requireAdmin, AdminVerifi
  *       403:
  *         $ref: '#/components/responses/ForbiddenError'
  */
-router.post('/verifications/:id/reject', requireAuth, requireAdmin, AdminVerificationController.rejectVerification);
+router.post('/:id/reject', requireAuth, requireAdmin, AdminVerificationController.rejectVerification);
 
 /**
  * @swagger
@@ -312,7 +312,7 @@ router.post('/verifications/:id/reject', requireAuth, requireAdmin, AdminVerific
  *       403:
  *         $ref: '#/components/responses/ForbiddenError'
  */
-router.post('/verifications/:id/review', requireAuth, requireAdmin, UserVerificationController.reviewVerification);
+router.post('/:id/review', requireAuth, requireAdmin, UserVerificationController.reviewVerification);
 
 /**
  * @swagger
@@ -340,40 +340,5 @@ router.post('/verifications/:id/review', requireAuth, requireAdmin, UserVerifica
  *         $ref: '#/components/responses/ForbiddenError'
  */
 router.get('/users/:id/verifications', requireAuth, requireAdmin, AdminVerificationController.getUserVerifications);
-
-/**
- * @swagger
- * /api/v1/admin/users/{id}/kyc-status:
- *   put:
- *     summary: Update user KYC status
- *     tags: [Admin Verification]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: User ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/UpdateKycStatus'
- *     responses:
- *       200:
- *         description: User KYC status updated successfully
- *       400:
- *         description: Invalid KYC status
- *       404:
- *         description: User not found
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
- */
-router.put('/users/:id/kyc-status', requireAuth, requireAdmin, AdminVerificationController.updateUserKycStatus);
 
 export default router;

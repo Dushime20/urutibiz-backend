@@ -21,6 +21,7 @@ import { ProductsController } from '../controllers/products.controller';
 import UserVerificationService from '@/services/userVerification.service';
 import { requireAuth } from '../middleware/auth.middleware';
 import { cacheMiddleware, cacheInvalidationMiddleware } from '../middleware/cache.middleware';
+import trackProductView from '../middleware/viewTracking.middleware';
 
 const router = Router();
 const controller = new ProductsController();
@@ -158,6 +159,7 @@ router.get('/search', cacheMiddleware({ ...productCacheOptions, duration: 180 })
  *       - Multi-layer caching with 3-minute TTL
  *       - Parallel loading of related data (images, reviews, etc.)
  *       - Sub-200ms response times for cached data
+ *       - Automatic view tracking with duplicate prevention
  *     tags: [Products]
  *     parameters:
  *       - in: path
@@ -175,7 +177,7 @@ router.get('/search', cacheMiddleware({ ...productCacheOptions, duration: 180 })
  *       500:
  *         description: Server error
  */
-router.get('/:id', cacheMiddleware({ ...productCacheOptions, duration: 300 }), controller.getProduct);
+router.get('/:id', trackProductView, cacheMiddleware({ ...productCacheOptions, duration: 300 }), controller.getProduct);
 
 /**
  * @swagger

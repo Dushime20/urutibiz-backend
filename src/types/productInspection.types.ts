@@ -4,7 +4,10 @@
 
 export enum InspectionType {
   PRE_RENTAL = 'pre_rental',
-  POST_RETURN = 'post_return'
+  POST_RETURN = 'post_return',
+  DAMAGE_ASSESSMENT = 'damage_assessment',
+  POST_RENTAL_MAINTENANCE_CHECK = 'post_rental_maintenance_check',
+  QUALITY_VERIFICATION = 'quality_verification'
 }
 
 export enum InspectionStatus {

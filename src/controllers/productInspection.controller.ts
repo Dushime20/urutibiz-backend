@@ -9,7 +9,9 @@ import {
   CreateInspectionItemRequest,
   CreateDisputeRequest,
   ResolveDisputeRequest,
-  InspectionFilters
+  InspectionFilters,
+  InspectionType,
+  InspectionStatus
 } from '@/types/productInspection.types';
 
 export class ProductInspectionController extends BaseController {
@@ -33,8 +35,9 @@ export class ProductInspectionController extends BaseController {
     }
 
     // Validate inspection type
-    if (!['pre_rental', 'post_return'].includes(inspectionData.inspectionType)) {
-      return this.handleBadRequest(res, 'Invalid inspection type. Must be pre_rental or post_return');
+    const validInspectionTypes = ['pre_rental', 'post_return', 'damage_assessment', 'post_rental_maintenance_check', 'quality_verification'];
+    if (!validInspectionTypes.includes(inspectionData.inspectionType)) {
+      return this.handleBadRequest(res, `Invalid inspection type. Must be one of: ${validInspectionTypes.join(', ')}`);
     }
 
     const result = await ProductInspectionService.createInspection(inspectionData);
@@ -173,6 +176,81 @@ export class ProductInspectionController extends BaseController {
     this.logAction('GET_INSPECTION', req.user.id, id);
 
     return ResponseHelper.success(res, 'Inspection retrieved successfully', result.data);
+  });
+
+  /**
+   * Get user's inspections for my_account section
+   * GET /api/v1/inspections/my-inspections
+   */
+  public getMyInspections = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user.id;
+    const { page, limit } = this.getPaginationParams(req as any);
+    const role = (req.query.role as 'inspector' | 'renter' | 'owner') || 'inspector';
+    
+    // Build user-specific filters
+    const filters: InspectionFilters = {};
+    
+    if (role === 'inspector') {
+      filters.inspectorId = userId;
+    } else if (role === 'renter') {
+      filters.renterId = userId;
+    } else if (role === 'owner') {
+      filters.ownerId = userId;
+    }
+
+    // Add additional filters from query params
+    if (req.query.inspectionType) filters.inspectionType = req.query.inspectionType as InspectionType;
+    if (req.query.status) filters.status = req.query.status as InspectionStatus;
+    if (req.query.hasDispute) filters.hasDispute = req.query.hasDispute === 'true';
+    
+    if (req.query.scheduledFrom) filters.scheduledFrom = new Date(req.query.scheduledFrom as string);
+    if (req.query.scheduledTo) filters.scheduledTo = new Date(req.query.scheduledTo as string);
+    if (req.query.completedFrom) filters.completedFrom = new Date(req.query.completedFrom as string);
+    if (req.query.completedTo) filters.completedTo = new Date(req.query.completedTo as string);
+
+    const result = await ProductInspectionService.getInspections(filters, page, limit);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to fetch user inspections', 400);
+    }
+
+    this.logAction('GET_MY_INSPECTIONS', userId, undefined, { role, filters, pagination: { page, limit } });
+
+    return this.formatPaginatedResponse(res, 'User inspections retrieved successfully', result.data);
+  });
+
+  /**
+   * Get inspections by user ID (renter_id)
+   * GET /api/v1/inspections/user/:userId
+   */
+  public getUserInspections = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { userId } = req.params;
+    const { page, limit } = this.getPaginationParams(req as any);
+    
+    // Build filters for inspections where user is the renter
+    const filters: InspectionFilters = {
+      renterId: userId
+    };
+    
+    // Add additional filters from query params
+    if (req.query.inspectionType) filters.inspectionType = req.query.inspectionType as InspectionType;
+    if (req.query.status) filters.status = req.query.status as InspectionStatus;
+    if (req.query.hasDispute) filters.hasDispute = req.query.hasDispute === 'true';
+    
+    if (req.query.scheduledFrom) filters.scheduledFrom = new Date(req.query.scheduledFrom as string);
+    if (req.query.scheduledTo) filters.scheduledTo = new Date(req.query.scheduledTo as string);
+    if (req.query.completedFrom) filters.completedFrom = new Date(req.query.completedFrom as string);
+    if (req.query.completedTo) filters.completedTo = new Date(req.query.completedTo as string);
+
+    const result = await ProductInspectionService.getInspections(filters, page, limit);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to fetch user inspections', 400);
+    }
+
+    this.logAction('GET_USER_INSPECTIONS', req.user.id, userId, { filters, pagination: { page, limit } });
+
+    return this.formatPaginatedResponse(res, 'User inspections retrieved successfully', result.data);
   });
 
   /**

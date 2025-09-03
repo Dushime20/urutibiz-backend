@@ -22,6 +22,7 @@ import {
   ProductData
 } from '@/types';
 import { ResponseHelper } from '@/utils/response';
+import { FavoriteEnhancer } from '@/utils/favoriteEnhancer.util';
 
 // Performance: Cache configuration
 const CACHE_TTL = {

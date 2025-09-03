@@ -157,7 +157,7 @@ router.post('/:id/items/with-photos', requireAuth, uploadMultiple, controller.ad
  *         name: inspectionType
  *         schema:
  *           type: string
- *           enum: [pre_rental, post_return]
+ *           enum: [pre_rental, post_return, damage_assessment, post_rental_maintenance_check, quality_verification]
  *       - in: query
  *         name: scheduledFrom
  *         schema:
@@ -299,7 +299,7 @@ router.get('/disputes', requireAuth, controller.getMyDisputes);
  *           description: ID of the product owner
  *         inspectionType:
  *           type: string
- *           enum: [pre_rental, post_return]
+ *           enum: [pre_rental, post_return, damage_assessment, post_rental_maintenance_check, quality_verification]
  *           description: Type of inspection
  *         status:
  *           type: string
@@ -504,7 +504,7 @@ router.post('/', requireAuth, controller.createInspection);
  *         name: inspectionType
  *         schema:
  *           type: string
- *           enum: [pre_rental, post_return]
+ *           enum: [pre_rental, post_return, damage_assessment, post_rental_maintenance_check, quality_verification]
  *       - in: query
  *         name: status
  *         schema:
@@ -532,6 +532,208 @@ router.post('/', requireAuth, controller.createInspection);
  *         description: Server error
  */
 router.get('/', requireAuth, controller.getInspections);
+
+/**
+ * @swagger
+ * /inspections/my-inspections:
+ *   get:
+ *     summary: Get user's inspections for my_account section
+ *     description: |
+ *       Retrieve inspections for the authenticated user based on their role.
+ *       **Features:**
+ *       - Role-based filtering (inspector, renter, owner)
+ *       - Advanced filtering by type, status, and date range
+ *       - Pagination support
+ *       - Performance optimized with caching
+ *     tags: [Product Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *           enum: [inspector, renter, owner]
+ *           default: inspector
+ *         description: User role to filter inspections by
+ *       - in: query
+ *         name: inspectionType
+ *         schema:
+ *           type: string
+ *           enum: [pre_rental, post_return, damage_assessment, post_rental_maintenance_check, quality_verification]
+ *         description: Filter by inspection type
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, in_progress, completed, disputed, resolved]
+ *         description: Filter by inspection status
+ *       - in: query
+ *         name: hasDispute
+ *         schema:
+ *           type: boolean
+ *         description: Filter inspections with active disputes
+ *       - in: query
+ *         name: scheduledFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter inspections scheduled from this date
+ *       - in: query
+ *         name: scheduledTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter inspections scheduled until this date
+ *       - in: query
+ *         name: completedFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter inspections completed from this date
+ *       - in: query
+ *         name: completedTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter inspections completed until this date
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Number of inspections per page
+ *     responses:
+ *       200:
+ *         description: User inspections retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: User inspections retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     inspections:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/ProductInspection'
+ *                     pagination:
+ *                       $ref: '#/components/schemas/PaginationResult'
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/my-inspections', requireAuth, controller.getMyInspections);
+
+/**
+ * @swagger
+ * /inspections/user/{userId}:
+ *   get:
+ *     summary: Get inspections by user ID (renter)
+ *     description: Retrieve inspections where the specified user is the renter
+ *     tags: [Product Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: User ID to fetch inspections for (as renter)
+ *       - in: query
+ *         name: inspectionType
+ *         schema:
+ *           type: string
+ *           enum: [pre_rental, post_return, damage_assessment, post_rental_maintenance_check, quality_verification]
+ *         description: Filter by inspection type
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, in_progress, completed, disputed, resolved]
+ *         description: Filter by inspection status
+ *       - in: query
+ *         name: hasDispute
+ *         schema:
+ *           type: boolean
+ *         description: Filter by dispute status
+ *       - in: query
+ *         name: scheduledFrom
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Filter inspections scheduled from this date
+ *       - in: query
+ *         name: scheduledTo
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Filter inspections scheduled to this date
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Number of inspections per page
+ *     responses:
+ *       200:
+ *         description: User inspections retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: User inspections retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     inspections:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Inspection'
+ *                     pagination:
+ *                       $ref: '#/components/schemas/PaginationResult'
+ *       400:
+ *         description: Invalid request parameters
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/user/:userId', requireAuth, controller.getUserInspections);
 
 /**
  * @swagger

@@ -76,12 +76,31 @@ export class ProductInspectionController extends BaseController {
    */
   public getMyDisputes = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user.id;
+    const userRole = req.user.role;
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;
     const inspectionId = typeof req.query.inspectionId === 'string' ? req.query.inspectionId : undefined;
     const disputeType = typeof req.query.disputeType === 'string' ? req.query.disputeType : undefined;
     const page = req.query.page ? Number(req.query.page) : 1;
     const limit = req.query.limit ? Number(req.query.limit) : 20;
 
+    // If user is inspector, get all disputes (like admin)
+    if (userRole === 'inspector') {
+      const result = await ProductInspectionService.getAllDisputes({
+        status,
+        inspectionId,
+        disputeType,
+        page,
+        limit
+      });
+
+      if (!result.success) {
+        return ResponseHelper.error(res, result.error || 'Failed to fetch disputes', 400);
+      }
+
+      return ResponseHelper.success(res, 'All disputes retrieved successfully', result.data);
+    }
+
+    // For other roles (renter, owner), get only their own disputes
     const result = await ProductInspectionService.getMyDisputes(userId, {
       status,
       inspectionId,
@@ -543,6 +562,37 @@ export class ProductInspectionController extends BaseController {
     }
 
     this.logAction('RESOLVE_DISPUTE', req.user.id, id, { disputeId, resolution: resolutionData });
+
+    return ResponseHelper.success(res, 'Dispute resolved successfully', result.data);
+  });
+
+  /**
+   * Resolve a dispute by admin (direct dispute ID)
+   * PUT /api/v1/inspections/admin/disputes/:disputeId/resolve
+   */
+  public resolveDisputeByAdmin = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (this.handleValidationErrors(req as any, res)) return;
+
+    const { disputeId } = req.params;
+    const resolutionData: ResolveDisputeRequest = req.body;
+
+    // Validate required fields
+    if (!resolutionData.resolutionNotes) {
+      return this.handleBadRequest(res, 'Missing required field: resolutionNotes');
+    }
+
+    // Check if user is admin
+    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+      return ResponseHelper.error(res, 'Access denied. Admin role required.', 403);
+    }
+
+    const result = await ProductInspectionService.resolveDispute(disputeId, req.user.id, resolutionData);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to resolve dispute', 400);
+    }
+
+    this.logAction('RESOLVE_DISPUTE_BY_ADMIN', req.user.id, disputeId, { resolution: resolutionData });
 
     return ResponseHelper.success(res, 'Dispute resolved successfully', result.data);
   });

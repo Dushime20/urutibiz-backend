@@ -89,6 +89,53 @@ router.get('/admin/disputes', requireAuth, requireRole(['admin', 'super_admin'])
 
 /**
  * @swagger
+ * /inspections/admin/disputes/{disputeId}/resolve:
+ *   put:
+ *     summary: Resolve a dispute (admin only)
+ *     description: Resolve an inspection dispute directly by dispute ID (admin only)
+ *     tags: [Product Inspection - Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: disputeId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Dispute ID to resolve
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [resolutionNotes]
+ *             properties:
+ *               resolutionNotes:
+ *                 type: string
+ *                 description: Notes on how the dispute was resolved
+ *               agreedAmount:
+ *                 type: number
+ *                 description: Agreed upon amount for resolution
+ *     responses:
+ *       200:
+ *         description: Dispute resolved successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Dispute not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied. Admin role required.
+ *       500:
+ *         description: Server error
+ */
+router.put('/admin/disputes/:disputeId/resolve', requireAuth, requireRole(['admin', 'super_admin']), controller.resolveDisputeByAdmin);
+
+/**
+ * @swagger
  * /inspections/{id}/disputes:
  *   get:
  *     summary: Get inspection disputes
@@ -199,8 +246,11 @@ router.get('/summary', requireAuth, controller.getInspectionSummary);
  * @swagger
  * /inspections/disputes:
  *   get:
- *     summary: Get my disputes
- *     description: Retrieve disputes raised by the authenticated user
+ *     summary: Get disputes (role-based)
+ *     description: |
+ *       Retrieve disputes based on user role:
+ *       - **Inspector**: Gets all disputes (like admin)
+ *       - **Renter/Owner**: Gets only disputes raised by the authenticated user
  *     tags: [Product Inspections]
  *     security:
  *       - bearerAuth: []
@@ -251,9 +301,14 @@ router.get('/summary', requireAuth, controller.getInspectionSummary);
  *                 message:
  *                   type: string
  *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/InspectionDispute'
+ *                   type: object
+ *                   properties:
+ *                     disputes:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/InspectionDispute'
+ *                     pagination:
+ *                       $ref: '#/components/schemas/PaginationResult'
  *       401:
  *         description: Unauthorized
  *       500:

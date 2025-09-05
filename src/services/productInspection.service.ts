@@ -362,7 +362,9 @@ export class ProductInspectionService {
       }
 
       // Send notifications
-      await this.sendInspectionNotifications('scheduled', inspection.data);
+      if (inspection.data) {
+        await this.sendInspectionNotifications('scheduled', inspection.data);
+      }
 
       return { success: true, data: inspection.data };
     } catch (error) {
@@ -377,7 +379,7 @@ export class ProductInspectionService {
   async startInspection(inspectionId: string, inspectorId: string): Promise<ServiceResponse<ProductInspection>> {
     try {
       const inspection = await this.inspectionRepo.getById(inspectionId);
-      if (!inspection.success) {
+      if (!inspection.success || !inspection.data) {
         return { success: false, error: 'Inspection not found' };
       }
 
@@ -394,7 +396,7 @@ export class ProductInspectionService {
         startedAt: new Date()
       });
 
-      if (!updated.success) {
+      if (!updated.success || !updated.data) {
         return { success: false, error: 'Failed to start inspection' };
       }
 
@@ -414,11 +416,18 @@ export class ProductInspectionService {
   async completeInspection(
     inspectionId: string, 
     inspectorId: string,
-    items: CreateInspectionItemRequest[]
+    items: CreateInspectionItemRequest[],
+    inspectionData?: {
+      inspectorNotes?: string;
+      generalNotes?: string;
+      ownerNotes?: string;
+      renterNotes?: string;
+      inspectionLocation?: string;
+    }
   ): Promise<ServiceResponse<InspectionReport>> {
     try {
       const inspection = await this.inspectionRepo.getById(inspectionId);
-      if (!inspection.success) {
+      if (!inspection.success || !inspection.data) {
         return { success: false, error: 'Inspection not found' };
       }
 
@@ -437,18 +446,29 @@ export class ProductInspectionService {
           ...itemData,
           inspectionId
         });
-        if (item.success) {
+        if (item.success && item.data) {
           createdItems.push(item.data);
         }
       }
 
-      // Update inspection status
-      const updated = await this.inspectionRepo.update(inspectionId, {
+      // Update inspection status and additional data
+      const updateData: any = {
         status: InspectionStatus.COMPLETED,
         completedAt: new Date()
-      });
+      };
 
-      if (!updated.success) {
+      // Add inspection notes and location if provided
+      if (inspectionData) {
+        if (inspectionData.inspectorNotes) updateData.inspectorNotes = inspectionData.inspectorNotes;
+        if (inspectionData.generalNotes) updateData.generalNotes = inspectionData.generalNotes;
+        if (inspectionData.ownerNotes) updateData.ownerNotes = inspectionData.ownerNotes;
+        if (inspectionData.renterNotes) updateData.renterNotes = inspectionData.renterNotes;
+        if (inspectionData.inspectionLocation) updateData.inspectionLocation = inspectionData.inspectionLocation;
+      }
+
+      const updated = await this.inspectionRepo.update(inspectionId, updateData);
+
+      if (!updated.success || !updated.data) {
         return { success: false, error: 'Failed to complete inspection' };
       }
 
@@ -471,7 +491,7 @@ export class ProductInspectionService {
   async getInspectionById(inspectionId: string): Promise<ServiceResponse<InspectionReport>> {
     try {
       const inspection = await this.inspectionRepo.getById(inspectionId);
-      if (!inspection.success) {
+      if (!inspection.success || !inspection.data) {
         return { success: false, error: 'Inspection not found' };
       }
 
@@ -496,6 +516,28 @@ export class ProductInspectionService {
     }
   }
 
+  /**
+   * Update inspection
+   */
+  async updateInspection(inspectionId: string, updateData: UpdateInspectionRequest): Promise<ServiceResponse<ProductInspection>> {
+    try {
+      const inspection = await this.inspectionRepo.getById(inspectionId);
+      if (!inspection.success || !inspection.data) {
+        return { success: false, error: 'Inspection not found' };
+      }
+
+      const updated = await this.inspectionRepo.update(inspectionId, updateData);
+      if (!updated.success || !updated.data) {
+        return { success: false, error: 'Failed to update inspection' };
+      }
+
+      return { success: true, data: updated.data };
+    } catch (error) {
+      console.error('[ProductInspectionService] Update inspection error:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
   // =====================================================
   // INSPECTION ITEMS MANAGEMENT
   // =====================================================
@@ -509,7 +551,7 @@ export class ProductInspectionService {
   ): Promise<ServiceResponse<InspectionItem>> {
     try {
       const inspection = await this.inspectionRepo.getById(inspectionId);
-      if (!inspection.success) {
+      if (!inspection.success || !inspection.data) {
         return { success: false, error: 'Inspection not found' };
       }
 
@@ -559,7 +601,7 @@ export class ProductInspectionService {
   ): Promise<ServiceResponse<InspectionDispute>> {
     try {
       const inspection = await this.inspectionRepo.getById(inspectionId);
-      if (!inspection.success) {
+      if (!inspection.success || !inspection.data) {
         return { success: false, error: 'Inspection not found' };
       }
 
@@ -573,7 +615,7 @@ export class ProductInspectionService {
         ...disputeData,
         inspectionId,
         raisedBy: userId,
-        status: 'open'
+        status: 'open' as any
       });
 
       if (!dispute.success) {
@@ -607,14 +649,14 @@ export class ProductInspectionService {
   ): Promise<ServiceResponse<InspectionDispute>> {
     try {
       const dispute = await this.disputeRepo.getById(disputeId);
-      if (!dispute.success) {
+      if (!dispute.success || !dispute.data) {
         return { success: false, error: 'Dispute not found' };
       }
 
       // Update dispute
       const updated = await this.disputeRepo.update(disputeId, {
         ...resolutionData,
-        status: 'resolved',
+        status: 'resolved' as any,
         resolvedBy: resolverId,
         resolvedAt: new Date()
       });
@@ -632,7 +674,7 @@ export class ProductInspectionService {
 
       // Send notifications
       const inspection = await this.inspectionRepo.getById(dispute.data.inspectionId);
-      if (inspection.success) {
+      if (inspection.success && inspection.data) {
         await this.sendInspectionNotifications('resolved', inspection.data);
       }
 

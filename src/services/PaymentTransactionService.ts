@@ -162,7 +162,7 @@ export class PaymentTransactionService {
         amount: request.amount,
         currency: request.currency,
         transaction_type: request.transaction_type,
-        provider: 'stripe', // Default provider - should be determined by payment method
+        provider: request.provider || 'stripe' as PaymentProvider, // Use provider from request body, fallback to stripeahh
         status: 'pending',
         metadata: request.metadata
       });
@@ -173,18 +173,18 @@ export class PaymentTransactionService {
       // Update transaction with result
       await this.updateTransaction(transaction.id, {
         status: processingResult.status,
-        provider_transaction_id: processingResult.provider_transaction_id,
-        provider_response: JSON.stringify(processingResult.provider_response),
-        failure_reason: processingResult.failure_reason
+        provider_transaction_id: processingResult.providerTransactionId,
+        provider_response: JSON.stringify(processingResult.providerResponse),
+        failure_reason: processingResult.failureReason
       });
 
       return {
         success: processingResult.status === 'completed',
         transaction_id: transaction.id,
         status: processingResult.status,
-        provider_transaction_id: processingResult.provider_transaction_id,
+        provider_transaction_id: processingResult.providerTransactionId,
         message: processingResult.status === 'completed' ? 'Payment processed successfully' : 'Payment failed',
-        error: processingResult.failure_reason
+        error: processingResult.failureReason
       };
     } catch (error) {
       console.error('Payment processing error:', error);

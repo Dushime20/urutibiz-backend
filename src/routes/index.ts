@@ -31,6 +31,8 @@ import performanceRoutes from './performance.routes';
 import userFavoritesRoutes from './userFavorites.routes';
 import twoFactorRoutes from './twoFactor.routes';
 import productInspectionRoutes from './productInspection.routes';
+import riskManagementRoutes from './riskManagement.routes';
+import handoverReturnRoutes from './handoverReturn.routes';
 import notificationRoutes from './notification.routes';
 import testRoutes from './test.routes';
 
@@ -88,6 +90,10 @@ console.log('🔧 Mounting 2FA routes at /2fa');
 router.use('/2fa', twoFactorRoutes);
 console.log('🔧 Mounting Product Inspection routes at /inspections');
 router.use('/inspections', productInspectionRoutes);
+console.log('🔧 Mounting Risk Management routes at /risk-management');
+router.use('/risk-management', riskManagementRoutes);
+console.log('🔧 Mounting Handover & Return routes at /handover-return');
+router.use('/handover-return', handoverReturnRoutes);
 console.log('🔧 Mounting Notification routes at /notifications');
 router.use('/notifications', notificationRoutes);
 
@@ -113,6 +119,8 @@ router.get('/', (_req, res) => {
       payment_methods: '/api/v1/payment-methods',
       payment_transactions: '/api/v1/payment-transactions',
       inspections: '/api/v1/inspections',
+      risk_management: '/api/v1/risk-management',
+      handover_return: '/api/v1/handover-return',
       notifications: '/api/v1/notifications',
       product_prices: '/api/v1/product-prices',
       category_regulations: '/api/v1/category-regulations',

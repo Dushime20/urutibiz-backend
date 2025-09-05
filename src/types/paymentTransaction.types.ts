@@ -220,6 +220,7 @@ export interface ProcessPaymentRequest {
   amount: number;
   currency?: CurrencyCode;
   transaction_type: TransactionType;
+  provider?: PaymentProvider; // Payment provider (stripe, mtn_momo, airtel_money, etc.)
   metadata?: Record<string, any>;
 }
 

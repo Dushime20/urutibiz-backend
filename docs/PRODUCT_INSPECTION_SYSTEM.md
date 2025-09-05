@@ -154,20 +154,29 @@ curl -X POST http://localhost:3000/api/v1/inspections/INSPECTION_ID/complete \
   -H "Authorization: Bearer INSPECTOR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
+    "inspectorNotes": "Overall inspection completed successfully. Product is in excellent condition with no major issues found.",
+    "generalNotes": "Pre-rental inspection completed as scheduled",
+    "inspectionLocation": "Product Owner Address, 123 Main St",
     "items": [
       {
         "itemName": "Camera Body",
+        "description": "Main camera body condition assessment - checking for scratches, dents, and overall wear",
         "condition": "excellent",
         "notes": "Perfect condition",
         "repairCost": 0,
-        "replacementCost": 0
+        "replacementCost": 0,
+        "requiresRepair": false,
+        "requiresReplacement": false
       },
       {
         "itemName": "Lens",
+        "description": "Camera lens optical quality inspection - checking for dust, scratches, and focus accuracy",
         "condition": "good",
         "notes": "Minor dust, no scratches",
         "repairCost": 0,
-        "replacementCost": 0
+        "replacementCost": 0,
+        "requiresRepair": false,
+        "requiresReplacement": false
       }
     ]
   }'

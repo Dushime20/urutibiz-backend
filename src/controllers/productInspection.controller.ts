@@ -317,13 +317,36 @@ export class ProductInspectionController extends BaseController {
     if (this.handleValidationErrors(req as any, res)) return;
 
     const { id } = req.params;
-    const { items } = req.body;
+    const { items, inspectorNotes, generalNotes, ownerNotes, renterNotes, inspectionLocation } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return this.handleBadRequest(res, 'Inspection items are required');
     }
 
-    const result = await ProductInspectionService.completeInspection(id, req.user.id, items);
+    // Validate that each item has required fields including description
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.itemName) {
+        return this.handleBadRequest(res, `Item ${i + 1}: itemName is required`);
+      }
+      if (!item.condition) {
+        return this.handleBadRequest(res, `Item ${i + 1}: condition is required`);
+      }
+      if (!item.description || item.description.trim().length === 0) {
+        return this.handleBadRequest(res, `Item ${i + 1}: description is required`);
+      }
+    }
+
+    // Prepare additional inspection data
+    const inspectionData = {
+      inspectorNotes,
+      generalNotes,
+      ownerNotes,
+      renterNotes,
+      inspectionLocation
+    };
+
+    const result = await ProductInspectionService.completeInspection(id, req.user.id, items, inspectionData);
     
     if (!result.success) {
       return ResponseHelper.error(res, result.error || 'Failed to complete inspection', 400);

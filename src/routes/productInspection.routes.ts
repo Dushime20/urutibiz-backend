@@ -919,10 +919,60 @@ router.post('/:id/start', requireAuth, controller.startInspection);
  *             type: object
  *             required: [items]
  *             properties:
+ *               inspectorNotes:
+ *                 type: string
+ *                 description: Inspector's notes about the overall inspection
+ *               generalNotes:
+ *                 type: string
+ *                 description: General notes about the inspection
+ *               ownerNotes:
+ *                 type: string
+ *                 description: Notes from the product owner
+ *               renterNotes:
+ *                 type: string
+ *                 description: Notes from the renter
+ *               inspectionLocation:
+ *                 type: string
+ *                 description: Location where the inspection took place
  *               items:
  *                 type: array
  *                 items:
- *                   $ref: '#/components/schemas/InspectionItem'
+ *                   type: object
+ *                   required: [itemName, condition, description]
+ *                   properties:
+ *                     itemName:
+ *                       type: string
+ *                       description: Name of the item being inspected
+ *                     description:
+ *                       type: string
+ *                       description: Detailed description of the item condition (REQUIRED)
+ *                     condition:
+ *                       type: string
+ *                       enum: [excellent, good, fair, poor, damaged]
+ *                       description: Current condition of the item
+ *                     notes:
+ *                       type: string
+ *                       description: Additional notes about the item
+ *                     photos:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       description: Array of photo URLs
+ *                     damageEvidence:
+ *                       type: object
+ *                       description: Evidence of damage if applicable
+ *                     repairCost:
+ *                       type: number
+ *                       description: Cost to repair the item
+ *                     replacementCost:
+ *                       type: number
+ *                       description: Cost to replace the item
+ *                     requiresRepair:
+ *                       type: boolean
+ *                       description: Whether the item needs repair
+ *                     requiresReplacement:
+ *                       type: boolean
+ *                       description: Whether the item needs replacement
  *     responses:
  *       200:
  *         description: Inspection completed successfully

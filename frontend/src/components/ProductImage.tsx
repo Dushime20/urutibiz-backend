@@ -1,66 +1,105 @@
 import React from 'react';
-import { getInitials } from '../utils/textPlaceholder';
 
-type Props = {
-	product: { title?: string; images?: { url?: string }[] };
+interface ProductImageProps {
+	product: { 
+		title?: string; 
+		images?: { 
+			image_url?: string; 
+			thumbnail_url?: string;
+			alt_text?: string;
+		}[] 
+	};
 	width?: number | string;
 	height?: number | string;
 	borderRadius?: number;
-};
+	className?: string;
+}
 
-export default function ProductImage({ product, width = '100%', height = 200, borderRadius = 8 }: Props) {
-	const url = product?.images?.[0]?.url;
+export default function ProductImage({ 
+	product, 
+	width = '100%', 
+	height = 200, 
+	borderRadius = 8,
+	className 
+}: ProductImageProps) {
+	const imageUrl = product?.images?.[0]?.image_url || product?.images?.[0]?.thumbnail_url;
+	const altText = product?.images?.[0]?.alt_text || product?.title || 'Product';
 
-	if (url) {
+	if (imageUrl) {
 		return (
 			<img
-				src={url}
-				alt={product?.title || 'Product'}
-				style={{ width, height, objectFit: 'cover', borderRadius }}
+				src={imageUrl}
+				alt={altText}
+				className={className}
+				style={{ 
+					width, 
+					height, 
+					objectFit: 'cover', 
+					borderRadius,
+					display: 'block'
+				}}
 				onError={(e) => {
-					// Hide broken images and fallback to text-only block by replacing the element
 					const target = e.currentTarget as HTMLImageElement;
 					target.style.display = 'none';
 					target.insertAdjacentElement(
 						'afterend',
-						createTextFallback(product?.title, width, height, borderRadius)
+						createNoImagePlaceholder(product?.title, width, height, borderRadius, className)
 					);
 				}}
 			/>
 		);
 	}
 
-	return createTextFallback(product?.title, width, height, borderRadius);
+	return createNoImagePlaceholder(product?.title, width, height, borderRadius, className);
 }
 
-function createTextFallback(
+function createNoImagePlaceholder(
 	title: string | undefined,
 	width: number | string,
 	height: number | string,
-	borderRadius: number
-): any {
-	const initials = getInitials(title);
+	borderRadius: number,
+	className?: string
+): JSX.Element {
+	const iconSize = typeof height === 'number' ? Math.max(32, Number(height) / 6) : 48;
+	const fontSize = typeof height === 'number' ? Math.max(14, Number(height) / 10) : 16;
+
 	return (
 		<div
+			className={className}
 			role="img"
-			aria-label={`Placeholder for ${title || 'Product'}`}
+			aria-label={`No image available for ${title || 'Product'}`}
 			style={{
 				width,
 				height,
 				borderRadius,
-				background: '#334155',
-				color: '#fff',
+				background: '#f8fafc',
+				border: '2px dashed #cbd5e1',
+				color: '#64748b',
 				display: 'flex',
+				flexDirection: 'column',
 				alignItems: 'center',
 				justifyContent: 'center',
-				fontWeight: 700,
-				fontSize: typeof height === 'number' ? Math.max(24, Number(height) / 3) : 48,
-				letterSpacing: 1,
+				fontSize,
+				gap: '8px',
 			}}
 		>
-			{initials}
+			<svg
+				width={iconSize}
+				height={iconSize}
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				strokeWidth="1.5"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+			>
+				<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+				<circle cx="8.5" cy="8.5" r="1.5"/>
+				<polyline points="21,15 16,10 5,21"/>
+			</svg>
+			<span style={{ fontSize: '0.8em', fontWeight: 500 }}>
+				No Image
+			</span>
 		</div>
 	);
 }
-
-

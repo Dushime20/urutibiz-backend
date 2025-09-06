@@ -81,13 +81,13 @@ export class RiskManagementService {
 
       // Transform the data to match the expected structure
       const transformedData = {
-        mandatoryInsurance: Array.isArray(data.mandatoryRequirements) ? true : data.mandatoryRequirements?.insurance || false,
-        mandatoryInspection: Array.isArray(data.mandatoryRequirements) ? true : data.mandatoryRequirements?.inspection || false,
-        minCoverage: Array.isArray(data.mandatoryRequirements) ? 10000 : data.mandatoryRequirements?.minCoverage || 10000,
-        inspectionTypes: Array.isArray(data.mandatoryRequirements) ? ['pre_rental'] : data.mandatoryRequirements?.inspectionTypes || ['pre_rental'],
-        complianceDeadlineHours: Array.isArray(data.mandatoryRequirements) ? 72 : data.mandatoryRequirements?.complianceDeadlineHours || 72,
-        riskFactors: Array.isArray(data.riskFactors) ? { factors: data.riskFactors.map(rf => rf.name || rf) } : data.riskFactors || {},
-        mitigationStrategies: data.mitigationStrategies || {},
+        mandatoryInsurance: data.mandatoryRequirements?.insurance || false,
+        mandatoryInspection: data.mandatoryRequirements?.inspection || false,
+        minCoverage: data.mandatoryRequirements?.minCoverage || 10000,
+        inspectionTypes: data.mandatoryRequirements?.inspectionTypes || [],
+        complianceDeadlineHours: data.mandatoryRequirements?.complianceDeadlineHours || 72,
+        riskFactors: data.riskFactors || [],
+        mitigationStrategies: data.mitigationStrategies || [],
         enforcementLevel: this.mapRiskLevelToEnforcementLevel(data.riskLevel),
         autoEnforcement: data.autoEnforcement !== undefined ? data.autoEnforcement : true,
         gracePeriodHours: data.gracePeriodHours || 24
@@ -272,50 +272,60 @@ export class RiskManagementService {
         let mitigationStrategies = {};
         
         try {
-          inspectionTypes = profile.inspection_types 
-            ? JSON.parse(profile.inspection_types) 
-            : {};
-        } catch (error) {
-          console.warn(`[RiskManagementService] Invalid inspection_types JSON for profile ${profile.id}:`, profile.inspection_types);
-          // Handle different data types
           if (Array.isArray(profile.inspection_types)) {
             // Already an array
-            inspectionTypes = { types: profile.inspection_types };
+            inspectionTypes = profile.inspection_types;
           } else if (typeof profile.inspection_types === 'string') {
-            // Plain text, convert to array
-            inspectionTypes = { types: profile.inspection_types.split(',') };
+            // Try to parse as JSON first
+            try {
+              inspectionTypes = JSON.parse(profile.inspection_types);
+            } catch {
+              // If not JSON, treat as comma-separated string
+              inspectionTypes = profile.inspection_types.split(',').map((s: string) => s.trim());
+            }
           } else {
-            // Fallback
-            inspectionTypes = {};
+            inspectionTypes = [];
           }
+        } catch (error) {
+          inspectionTypes = [];
         }
         
         try {
-          riskFactors = profile.risk_factors 
-            ? JSON.parse(profile.risk_factors) 
-            : {};
-        } catch (error) {
-          console.warn(`[RiskManagementService] Invalid risk_factors JSON for profile ${profile.id}:`, profile.risk_factors);
-          // Handle different data types
           if (Array.isArray(profile.risk_factors)) {
             // Already an array
-            riskFactors = { factors: profile.risk_factors };
+            riskFactors = profile.risk_factors;
           } else if (typeof profile.risk_factors === 'string') {
-            // Plain text, convert to array
-            riskFactors = { factors: profile.risk_factors.split(',') };
+            // Try to parse as JSON first
+            try {
+              riskFactors = JSON.parse(profile.risk_factors);
+            } catch {
+              // If not JSON, treat as comma-separated string
+              riskFactors = profile.risk_factors.split(',').map((s: string) => s.trim());
+            }
           } else {
-            // Fallback
-            riskFactors = {};
+            riskFactors = [];
           }
+        } catch (error) {
+          riskFactors = [];
         }
         
         try {
-          mitigationStrategies = profile.mitigation_strategies 
-            ? JSON.parse(profile.mitigation_strategies) 
-            : {};
+          if (Array.isArray(profile.mitigation_strategies)) {
+            // Already an array
+            mitigationStrategies = profile.mitigation_strategies;
+          } else if (typeof profile.mitigation_strategies === 'string') {
+            // Try to parse as JSON first
+            try {
+              mitigationStrategies = JSON.parse(profile.mitigation_strategies);
+            } catch {
+              // If not JSON, treat as comma-separated string
+              mitigationStrategies = profile.mitigation_strategies.split(',').map((s: string) => s.trim());
+            }
+          } else {
+            mitigationStrategies = [];
+          }
         } catch (error) {
-          console.warn(`[RiskManagementService] Invalid mitigation_strategies JSON for profile ${profile.id}:`, profile.mitigation_strategies);
-          mitigationStrategies = {};
+          mitigationStrategies = [];
         }
 
         return {
@@ -541,7 +551,7 @@ export class RiskManagementService {
         detectedAt: new Date(),
         resolutionActions: [],
         penaltyAmount: request.penaltyAmount,
-        status: 'ACTIVE'
+        status: 'active' as const
       };
 
       await this.db('policy_violations').insert({

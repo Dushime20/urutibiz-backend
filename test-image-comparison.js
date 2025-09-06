@@ -1,5 +1,5 @@
 /**
- * Test Image Comparison Service
+Comparison Service
  * 
  * This script demonstrates the new AI image comparison functionality
  * that compares document photos with selfies for user verification.

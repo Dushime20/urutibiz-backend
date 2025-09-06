@@ -104,7 +104,7 @@ export interface PolicyViolation {
   resolvedAt?: Date;
   resolutionActions: string[];
   penaltyAmount?: number;
-  status: 'ACTIVE' | 'RESOLVED' | 'ESCALATED';
+  status: 'active' | 'resolved' | 'escalated';
 }
 
 export interface RiskManagementConfig {

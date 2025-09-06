@@ -216,6 +216,74 @@ router.post('/handover-sessions', requireAuth, controller.createHandoverSession)
 
 /**
  * @swagger
+ * /handover-return/handover-sessions:
+ *   get:
+ *     summary: Get all handover sessions
+ *     description: Retrieve a list of handover sessions with optional filtering
+ *     tags: [Handover & Return]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Number of items per page
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [scheduled, in_progress, completed, cancelled, disputed]
+ *         description: Filter by handover status
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Filter by user ID (owner or renter)
+ *     responses:
+ *       200:
+ *         description: List of handover sessions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/HandoverSession'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     pages:
+ *                       type: integer
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/handover-sessions', requireAuth, controller.getHandoverSessions);
+
+/**
+ * @swagger
  * /handover-return/handover-sessions/{sessionId}:
  *   get:
  *     summary: Get handover session by ID
@@ -255,6 +323,181 @@ router.post('/handover-sessions', requireAuth, controller.createHandoverSession)
  *         description: Server error
  */
 router.get('/handover-sessions/:sessionId', requireAuth, controller.getHandoverSession);
+
+/**
+ * @swagger
+ * /handover-return/handover-sessions/{sessionId}:
+ *   patch:
+ *     summary: Update handover session
+ *     description: Update a handover session with new information
+ *     tags: [Handover & Return]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Handover session ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               scheduledDateTime:
+ *                 type: string
+ *                 format: date-time
+ *                 description: New scheduled date and time
+ *               location:
+ *                 type: object
+ *                 properties:
+ *                   type:
+ *                     type: string
+ *                     enum: [owner_location, renter_location, meeting_point]
+ *                   address:
+ *                     type: string
+ *                   coordinates:
+ *                     type: object
+ *                     properties:
+ *                       lat:
+ *                         type: number
+ *                       lng:
+ *                         type: number
+ *                   instructions:
+ *                     type: string
+ *               notes:
+ *                 type: string
+ *                 description: Additional notes
+ *               estimatedDurationMinutes:
+ *                 type: integer
+ *                 description: Estimated duration in minutes
+ *     responses:
+ *       200:
+ *         description: Handover session updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/HandoverSession'
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Handover session not found
+ *       500:
+ *         description: Server error
+ */
+router.patch('/handover-sessions/:sessionId', requireAuth, controller.updateHandoverSession);
+
+/**
+ * @swagger
+ * /handover-return/handover-sessions/{sessionId}:
+ *   put:
+ *     summary: Replace handover session
+ *     description: Replace a handover session with complete new information
+ *     tags: [Handover & Return]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Handover session ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [bookingId, productId, ownerId, renterId, scheduledDateTime, location]
+ *             properties:
+ *               bookingId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Booking ID
+ *               productId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Product ID
+ *               ownerId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Owner user ID
+ *               renterId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Renter user ID
+ *               scheduledDateTime:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Scheduled date and time
+ *               location:
+ *                 type: object
+ *                 required: [type, address, coordinates]
+ *                 properties:
+ *                   type:
+ *                     type: string
+ *                     enum: [owner_location, renter_location, meeting_point]
+ *                   address:
+ *                     type: string
+ *                   coordinates:
+ *                     type: object
+ *                     required: [lat, lng]
+ *                     properties:
+ *                       lat:
+ *                         type: number
+ *                       lng:
+ *                         type: number
+ *                   instructions:
+ *                     type: string
+ *               handoverType:
+ *                 type: string
+ *                 enum: [pickup, delivery]
+ *                 description: Type of handover
+ *               notes:
+ *                 type: string
+ *                 description: Additional notes
+ *               estimatedDurationMinutes:
+ *                 type: integer
+ *                 description: Estimated duration in minutes
+ *     responses:
+ *       200:
+ *         description: Handover session replaced successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/HandoverSession'
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Handover session not found
+ *       500:
+ *         description: Server error
+ */
+router.put('/handover-sessions/:sessionId', requireAuth, controller.updateHandoverSession);
 
 /**
  * @swagger
@@ -412,6 +655,74 @@ router.post('/return-sessions', requireAuth, controller.createReturnSession);
 
 /**
  * @swagger
+ * /handover-return/return-sessions:
+ *   get:
+ *     summary: Get all return sessions
+ *     description: Retrieve a list of return sessions with optional filtering
+ *     tags: [Handover & Return]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Number of items per page
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [scheduled, in_progress, completed, cancelled, disputed]
+ *         description: Filter by return status
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Filter by user ID (owner or renter)
+ *     responses:
+ *       200:
+ *         description: List of return sessions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ReturnSession'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     pages:
+ *                       type: integer
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/return-sessions', requireAuth, controller.getReturnSessions);
+
+/**
+ * @swagger
  * /handover-return/return-sessions/{sessionId}:
  *   get:
  *     summary: Get return session by ID
@@ -451,6 +762,169 @@ router.post('/return-sessions', requireAuth, controller.createReturnSession);
  *         description: Server error
  */
 router.get('/return-sessions/:sessionId', requireAuth, controller.getReturnSession);
+
+/**
+ * @swagger
+ * /handover-return/return-sessions/{sessionId}:
+ *   patch:
+ *     summary: Update return session
+ *     description: Update a return session with new information
+ *     tags: [Handover & Return]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Return session ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               scheduledDateTime:
+ *                 type: string
+ *                 format: date-time
+ *                 description: New scheduled date and time
+ *               location:
+ *                 type: object
+ *                 properties:
+ *                   type:
+ *                     type: string
+ *                     enum: [owner_location, renter_location, meeting_point]
+ *                   address:
+ *                     type: string
+ *                   coordinates:
+ *                     type: object
+ *                     properties:
+ *                       lat:
+ *                         type: number
+ *                       lng:
+ *                         type: number
+ *                   instructions:
+ *                     type: string
+ *               notes:
+ *                 type: string
+ *                 description: Additional notes
+ *               estimatedDurationMinutes:
+ *                 type: integer
+ *                 description: Estimated duration in minutes
+ *     responses:
+ *       200:
+ *         description: Return session updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/ReturnSession'
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Return session not found
+ *       500:
+ *         description: Server error
+ */
+router.patch('/return-sessions/:sessionId', requireAuth, controller.updateReturnSession);
+
+/**
+ * @swagger
+ * /handover-return/return-sessions/{sessionId}:
+ *   put:
+ *     summary: Replace return session
+ *     description: Replace a return session with complete new information
+ *     tags: [Handover & Return]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Return session ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [handoverSessionId, scheduledDateTime, location]
+ *             properties:
+ *               handoverSessionId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Associated handover session ID
+ *               scheduledDateTime:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Scheduled date and time
+ *               location:
+ *                 type: object
+ *                 required: [type, address, coordinates]
+ *                 properties:
+ *                   type:
+ *                     type: string
+ *                     enum: [owner_location, renter_location, meeting_point]
+ *                   address:
+ *                     type: string
+ *                   coordinates:
+ *                     type: object
+ *                     required: [lat, lng]
+ *                     properties:
+ *                       lat:
+ *                         type: number
+ *                       lng:
+ *                         type: number
+ *                   instructions:
+ *                     type: string
+ *               returnType:
+ *                 type: string
+ *                 enum: [dropoff, pickup]
+ *                 description: Type of return
+ *               notes:
+ *                 type: string
+ *                 description: Additional notes
+ *               estimatedDurationMinutes:
+ *                 type: integer
+ *                 description: Estimated duration in minutes
+ *     responses:
+ *       200:
+ *         description: Return session replaced successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/ReturnSession'
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Return session not found
+ *       500:
+ *         description: Server error
+ */
+router.put('/return-sessions/:sessionId', requireAuth, controller.updateReturnSession);
 
 /**
  * @swagger

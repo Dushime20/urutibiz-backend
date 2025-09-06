@@ -39,6 +39,25 @@ export class HandoverReturnService {
    */
   async createHandoverSession(data: CreateHandoverSessionRequest): Promise<ServiceResponse<HandoverSession>> {
     try {
+      // Validate required fields
+      if (!data.bookingId) {
+        return { success: false, error: 'Booking ID is required' };
+      }
+      
+      if (!data.location) {
+        return { success: false, error: 'Location information is required' };
+      }
+
+      if (!data.scheduledDateTime) {
+        return { success: false, error: 'Scheduled date and time is required' };
+      }
+
+      // Validate scheduledDateTime is a valid date
+      const scheduledDate = new Date(data.scheduledDateTime);
+      if (isNaN(scheduledDate.getTime())) {
+        return { success: false, error: 'Invalid scheduled date and time format' };
+      }
+
       // Generate 6-digit verification code
       const handoverCode = Math.floor(100000 + Math.random() * 900000).toString();
       
@@ -49,7 +68,7 @@ export class HandoverReturnService {
         renterId: '', // Will be populated from booking
         productId: '', // Will be populated from booking
         handoverType: data.handoverType,
-        scheduledDateTime: data.scheduledDateTime,
+        scheduledDateTime: new Date(data.scheduledDateTime),
         location: data.location,
         status: 'scheduled' as HandoverStatus,
         handoverCode,
@@ -91,11 +110,11 @@ export class HandoverReturnService {
         product_id: handoverSession.productId,
         handover_type: handoverSession.handoverType,
         scheduled_date_time: handoverSession.scheduledDateTime,
-        location_type: handoverSession.location.type,
-        location_address: handoverSession.location.address,
-        location_lat: handoverSession.location.coordinates.lat,
-        location_lng: handoverSession.location.coordinates.lng,
-        location_instructions: handoverSession.location.instructions,
+        location_type: handoverSession.location?.type || 'meeting_point',
+        location_address: handoverSession.location?.address || '',
+        location_lat: handoverSession.location?.coordinates?.lat || null,
+        location_lng: handoverSession.location?.coordinates?.lng || null,
+        location_instructions: handoverSession.location?.instructions || '',
         status: handoverSession.status,
         handover_code: handoverSession.handoverCode,
         pre_handover_photos: JSON.stringify(handoverSession.preHandoverPhotos),
@@ -150,10 +169,10 @@ export class HandoverReturnService {
         },
         status: result.status,
         handoverCode: result.handover_code,
-        preHandoverPhotos: JSON.parse(result.pre_handover_photos || '[]'),
-        postHandoverPhotos: JSON.parse(result.post_handover_photos || '[]'),
-        conditionReport: JSON.parse(result.condition_report || '{}'),
-        accessoryChecklist: JSON.parse(result.accessory_checklist || '[]'),
+        preHandoverPhotos: this.safeParseJsonArray(result.pre_handover_photos),
+        postHandoverPhotos: this.safeParseJsonArray(result.post_handover_photos),
+        conditionReport: this.safeParseJsonObject(result.condition_report),
+        accessoryChecklist: this.safeParseJsonArray(result.accessory_checklist),
         ownerSignature: result.owner_signature,
         renterSignature: result.renter_signature,
         witnessId: result.witness_id,
@@ -222,6 +241,38 @@ export class HandoverReturnService {
    */
   async createReturnSession(data: CreateReturnSessionRequest): Promise<ServiceResponse<ReturnSession>> {
     try {
+      // Validate required fields
+      if (!data.bookingId) {
+        return { success: false, error: 'Booking ID is required' };
+      }
+      
+      if (!data.location) {
+        return { success: false, error: 'Location information is required' };
+      }
+
+      if (!data.scheduledDateTime) {
+        return { success: false, error: 'Scheduled date and time is required' };
+      }
+
+      if (!data.handoverSessionId) {
+        return { success: false, error: 'Handover session ID is required' };
+      }
+
+      // Validate scheduledDateTime is a valid date
+      const scheduledDate = new Date(data.scheduledDateTime);
+      if (isNaN(scheduledDate.getTime())) {
+        return { success: false, error: 'Invalid scheduled date and time format' };
+      }
+
+      // Validate that handover session exists
+      const handoverSession = await this.db('handover_sessions')
+        .where('id', data.handoverSessionId)
+        .first();
+
+      if (!handoverSession) {
+        return { success: false, error: 'Handover session not found' };
+      }
+
       // Generate 6-digit verification code
       const returnCode = Math.floor(100000 + Math.random() * 900000).toString();
       
@@ -229,11 +280,11 @@ export class HandoverReturnService {
         id: require('uuid').v4(),
         bookingId: data.bookingId,
         handoverSessionId: data.handoverSessionId,
-        ownerId: '', // Will be populated from booking
-        renterId: '', // Will be populated from booking
-        productId: '', // Will be populated from booking
+        ownerId: handoverSession.owner_id,
+        renterId: handoverSession.renter_id,
+        productId: handoverSession.product_id,
         returnType: data.returnType,
-        scheduledDateTime: data.scheduledDateTime,
+        scheduledDateTime: new Date(data.scheduledDateTime),
         location: data.location,
         status: 'scheduled' as ReturnStatus,
         returnCode,
@@ -254,7 +305,7 @@ export class HandoverReturnService {
         updatedAt: new Date()
       };
 
-      // Get booking details
+      // Validate booking exists (optional check for consistency)
       const booking = await this.db('bookings')
         .where('id', data.bookingId)
         .first();
@@ -262,10 +313,6 @@ export class HandoverReturnService {
       if (!booking) {
         return { success: false, error: 'Booking not found' };
       }
-
-      returnSession.ownerId = booking.owner_id;
-      returnSession.renterId = booking.renter_id;
-      returnSession.productId = booking.product_id;
 
       await this.db('return_sessions').insert({
         id: returnSession.id,
@@ -276,11 +323,11 @@ export class HandoverReturnService {
         product_id: returnSession.productId,
         return_type: returnSession.returnType,
         scheduled_date_time: returnSession.scheduledDateTime,
-        location_type: returnSession.location.type,
-        location_address: returnSession.location.address,
-        location_lat: returnSession.location.coordinates.lat,
-        location_lng: returnSession.location.coordinates.lng,
-        location_instructions: returnSession.location.instructions,
+        location_type: returnSession.location?.type || 'meeting_point',
+        location_address: returnSession.location?.address || '',
+        location_lat: returnSession.location?.coordinates?.lat || null,
+        location_lng: returnSession.location?.coordinates?.lng || null,
+        location_instructions: returnSession.location?.instructions || '',
         status: returnSession.status,
         return_code: returnSession.returnCode,
         pre_return_photos: JSON.stringify(returnSession.preReturnPhotos),
@@ -378,13 +425,13 @@ export class HandoverReturnService {
         },
         status: result.status,
         returnCode: result.return_code,
-        preReturnPhotos: JSON.parse(result.pre_return_photos || '[]'),
-        postReturnPhotos: JSON.parse(result.post_return_photos || '[]'),
-        conditionComparison: JSON.parse(result.condition_comparison || '{}'),
-        accessoryVerification: JSON.parse(result.accessory_verification || '[]'),
-        damageAssessment: result.damage_assessment ? JSON.parse(result.damage_assessment) : undefined,
-        cleaningAssessment: result.cleaning_assessment ? JSON.parse(result.cleaning_assessment) : undefined,
-        maintenanceRequired: JSON.parse(result.maintenance_required || '[]'),
+        preReturnPhotos: this.safeParseJsonArray(result.pre_return_photos),
+        postReturnPhotos: this.safeParseJsonArray(result.post_return_photos),
+        conditionComparison: this.safeParseJsonObject(result.condition_comparison),
+        accessoryVerification: this.safeParseJsonArray(result.accessory_verification),
+        damageAssessment: result.damage_assessment ? this.safeParseJsonObject(result.damage_assessment) : undefined,
+        cleaningAssessment: result.cleaning_assessment ? this.safeParseJsonObject(result.cleaning_assessment) : undefined,
+        maintenanceRequired: this.safeParseJsonArray(result.maintenance_required),
         ownerSignature: result.owner_signature,
         renterSignature: result.renter_signature,
         inspectorId: result.inspector_id,
@@ -714,6 +761,312 @@ export class HandoverReturnService {
     } catch (error) {
       console.error('[HandoverReturnService] Get stats error:', error);
       return { success: false, error: 'Failed to get statistics' };
+    }
+  }
+
+  /**
+   * Get handover sessions with filters
+   */
+  async getHandoverSessions(filters: HandoverSessionFilters): Promise<ServiceResponse<{ sessions: HandoverSession[], pagination: any }>> {
+    try {
+      const page = filters.page || 1;
+      const limit = filters.limit || 20;
+      const offset = (page - 1) * limit;
+
+      let query = this.db('handover_sessions')
+        .select('*')
+        .orderBy('created_at', 'desc');
+
+      // Apply filters
+      if (filters.bookingId) {
+        query = query.where('booking_id', filters.bookingId);
+      }
+      if (filters.ownerId) {
+        query = query.where('owner_id', filters.ownerId);
+      }
+      if (filters.renterId) {
+        query = query.where('renter_id', filters.renterId);
+      }
+      if (filters.productId) {
+        query = query.where('product_id', filters.productId);
+      }
+      if (filters.status) {
+        query = query.where('status', filters.status);
+      }
+      if (filters.handoverType) {
+        query = query.where('handover_type', filters.handoverType);
+      }
+      if (filters.scheduledFrom) {
+        query = query.where('scheduled_date_time', '>=', filters.scheduledFrom);
+      }
+      if (filters.scheduledTo) {
+        query = query.where('scheduled_date_time', '<=', filters.scheduledTo);
+      }
+
+      // Get total count for pagination
+      const countQuery = this.db('handover_sessions');
+      
+      // Apply same filters to count query
+      if (filters.bookingId) {
+        countQuery.where('booking_id', filters.bookingId);
+      }
+      if (filters.ownerId) {
+        countQuery.where('owner_id', filters.ownerId);
+      }
+      if (filters.renterId) {
+        countQuery.where('renter_id', filters.renterId);
+      }
+      if (filters.productId) {
+        countQuery.where('product_id', filters.productId);
+      }
+      if (filters.status) {
+        countQuery.where('status', filters.status);
+      }
+      if (filters.handoverType) {
+        countQuery.where('handover_type', filters.handoverType);
+      }
+      if (filters.scheduledFrom) {
+        countQuery.where('scheduled_date_time', '>=', filters.scheduledFrom);
+      }
+      if (filters.scheduledTo) {
+        countQuery.where('scheduled_date_time', '<=', filters.scheduledTo);
+      }
+      
+      const countResult = await countQuery.count('* as count').first();
+      const total = parseInt(countResult?.count as string || '0');
+
+      // Apply pagination
+      const sessions = await query.limit(limit).offset(offset);
+
+      // Transform database results to HandoverSession objects
+      const transformedSessions: HandoverSession[] = sessions.map(session => ({
+        id: session.id,
+        bookingId: session.booking_id,
+        ownerId: session.owner_id,
+        renterId: session.renter_id,
+        productId: session.product_id,
+        handoverType: session.handover_type,
+        scheduledDateTime: new Date(session.scheduled_date_time),
+        actualDateTime: session.actual_date_time ? new Date(session.actual_date_time) : undefined,
+        location: {
+          type: session.location_type,
+          address: session.location_address,
+          coordinates: {
+            lat: session.location_lat,
+            lng: session.location_lng
+          },
+          instructions: session.location_instructions
+        },
+        status: session.status,
+        handoverCode: session.handover_code,
+        preHandoverPhotos: this.safeParseJsonArray(session.pre_handover_photos),
+        postHandoverPhotos: this.safeParseJsonArray(session.post_handover_photos),
+        conditionReport: this.safeParseJsonObject(session.condition_report),
+        accessoryChecklist: this.safeParseJsonArray(session.accessory_checklist),
+        ownerSignature: session.owner_signature,
+        renterSignature: session.renter_signature,
+        witnessId: session.witness_id,
+        notes: session.notes,
+        estimatedDurationMinutes: session.estimated_duration_minutes,
+        createdAt: new Date(session.created_at),
+        updatedAt: new Date(session.updated_at),
+        completedAt: session.completed_at ? new Date(session.completed_at) : undefined,
+        messages: [],
+        notifications: []
+      }));
+
+      const pagination = {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      };
+
+      return { success: true, data: { sessions: transformedSessions, pagination } };
+    } catch (error) {
+      console.error('[HandoverReturnService] Get handover sessions error:', error);
+      return { success: false, error: 'Failed to get handover sessions' };
+    }
+  }
+
+  /**
+   * Get return sessions with filters
+   */
+  async getReturnSessions(filters: ReturnSessionFilters): Promise<ServiceResponse<{ sessions: ReturnSession[], pagination: any }>> {
+    try {
+      const page = filters.page || 1;
+      const limit = filters.limit || 20;
+      const offset = (page - 1) * limit;
+
+      let query = this.db('return_sessions')
+        .select('*')
+        .orderBy('created_at', 'desc');
+
+      // Apply filters
+      if (filters.bookingId) {
+        query = query.where('booking_id', filters.bookingId);
+      }
+      if (filters.handoverSessionId) {
+        query = query.where('handover_session_id', filters.handoverSessionId);
+      }
+      if (filters.ownerId) {
+        query = query.where('owner_id', filters.ownerId);
+      }
+      if (filters.renterId) {
+        query = query.where('renter_id', filters.renterId);
+      }
+      if (filters.productId) {
+        query = query.where('product_id', filters.productId);
+      }
+      if (filters.status) {
+        query = query.where('status', filters.status);
+      }
+      if (filters.returnType) {
+        query = query.where('return_type', filters.returnType);
+      }
+      if (filters.scheduledFrom) {
+        query = query.where('scheduled_date_time', '>=', filters.scheduledFrom);
+      }
+      if (filters.scheduledTo) {
+        query = query.where('scheduled_date_time', '<=', filters.scheduledTo);
+      }
+
+      // Get total count for pagination
+      const countQuery = this.db('return_sessions');
+      
+      // Apply same filters to count query
+      if (filters.bookingId) {
+        countQuery.where('booking_id', filters.bookingId);
+      }
+      if (filters.handoverSessionId) {
+        countQuery.where('handover_session_id', filters.handoverSessionId);
+      }
+      if (filters.ownerId) {
+        countQuery.where('owner_id', filters.ownerId);
+      }
+      if (filters.renterId) {
+        countQuery.where('renter_id', filters.renterId);
+      }
+      if (filters.productId) {
+        countQuery.where('product_id', filters.productId);
+      }
+      if (filters.status) {
+        countQuery.where('status', filters.status);
+      }
+      if (filters.returnType) {
+        countQuery.where('return_type', filters.returnType);
+      }
+      if (filters.scheduledFrom) {
+        countQuery.where('scheduled_date_time', '>=', filters.scheduledFrom);
+      }
+      if (filters.scheduledTo) {
+        countQuery.where('scheduled_date_time', '<=', filters.scheduledTo);
+      }
+      
+      const countResult = await countQuery.count('* as count').first();
+      const total = parseInt(countResult?.count as string || '0');
+
+      // Apply pagination
+      const sessions = await query.limit(limit).offset(offset);
+
+      // Transform database results to ReturnSession objects
+      const transformedSessions: ReturnSession[] = sessions.map(session => ({
+        id: session.id,
+        bookingId: session.booking_id,
+        handoverSessionId: session.handover_session_id,
+        ownerId: session.owner_id,
+        renterId: session.renter_id,
+        productId: session.product_id,
+        returnType: session.return_type,
+        scheduledDateTime: new Date(session.scheduled_date_time),
+        actualDateTime: session.actual_date_time ? new Date(session.actual_date_time) : undefined,
+        location: {
+          type: session.location_type,
+          address: session.location_address,
+          coordinates: {
+            lat: session.location_lat,
+            lng: session.location_lng
+          },
+          instructions: session.location_instructions
+        },
+        status: session.status,
+        returnCode: session.return_code,
+        preReturnPhotos: this.safeParseJsonArray(session.pre_return_photos),
+        postReturnPhotos: this.safeParseJsonArray(session.post_return_photos),
+        conditionComparison: this.safeParseJsonObject(session.condition_comparison),
+        accessoryVerification: this.safeParseJsonArray(session.accessory_verification),
+        ownerSignature: session.owner_signature,
+        renterSignature: session.renter_signature,
+        witnessId: session.witness_id,
+        notes: session.notes,
+        estimatedDurationMinutes: session.estimated_duration_minutes,
+        createdAt: new Date(session.created_at),
+        updatedAt: new Date(session.updated_at),
+        completedAt: session.completed_at ? new Date(session.completed_at) : undefined,
+        messages: [],
+        notifications: []
+      }));
+
+      const pagination = {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      };
+
+      return { success: true, data: { sessions: transformedSessions, pagination } };
+    } catch (error) {
+      console.error('[HandoverReturnService] Get return sessions error:', error);
+      return { success: false, error: 'Failed to get return sessions' };
+    }
+  }
+
+  /**
+   * Safely parse JSON array with fallback handling
+   */
+  private safeParseJsonArray(value: any): string[] {
+    try {
+      if (Array.isArray(value)) {
+        return value;
+      } else if (typeof value === 'string') {
+        if (!value || value.trim() === '') {
+          return [];
+        }
+        try {
+          return JSON.parse(value);
+        } catch {
+          // If not JSON, treat as comma-separated string
+          return value.split(',').map((s: string) => s.trim());
+        }
+      } else {
+        return [];
+      }
+    } catch (error) {
+      return [];
+    }
+  }
+
+  /**
+   * Safely parse JSON object with fallback handling
+   */
+  private safeParseJsonObject(value: any): any {
+    try {
+      if (typeof value === 'object' && value !== null) {
+        return value;
+      } else if (typeof value === 'string') {
+        if (!value || value.trim() === '') {
+          return {};
+        }
+        try {
+          return JSON.parse(value);
+        } catch {
+          return {};
+        }
+      } else {
+        return {};
+      }
+    } catch (error) {
+      return {};
     }
   }
 }

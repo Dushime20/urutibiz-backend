@@ -134,11 +134,15 @@ export class HandoverReturnController extends BaseController {
       limit: parseInt(req.query.limit as string) || 20
     };
 
-    // Implementation would go in service
-    // For now, return empty array
+    const result = await HandoverReturnService.getHandoverSessions(filters);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error, 500);
+    }
+
     this.logAction('GET_HANDOVER_SESSIONS', req.user.id, null, filters);
 
-    return ResponseHelper.success(res, 'Handover sessions retrieved successfully', []);
+    return ResponseHelper.success(res, 'Handover sessions retrieved successfully', result.data.sessions, 200, result.data.pagination);
   });
 
   // =====================================================
@@ -257,11 +261,15 @@ export class HandoverReturnController extends BaseController {
       limit: parseInt(req.query.limit as string) || 20
     };
 
-    // Implementation would go in service
-    // For now, return empty array
+    const result = await HandoverReturnService.getReturnSessions(filters);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error, 500);
+    }
+
     this.logAction('GET_RETURN_SESSIONS', req.user.id, null, filters);
 
-    return ResponseHelper.success(res, 'Return sessions retrieved successfully', []);
+    return ResponseHelper.success(res, 'Return sessions retrieved successfully', result.data.sessions, 200, result.data.pagination);
   });
 
   // =====================================================

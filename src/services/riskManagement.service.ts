@@ -31,7 +31,29 @@ export class RiskManagementService {
       'critical': 'very_strict'
     };
     
-    return mapping[riskLevel.toLowerCase()] || 'moderate';
+    return mapping[riskLevel.toLowerCase() as keyof typeof mapping] || 'moderate';
+  }
+
+  /**
+   * Safely parse JSON array with fallback handling
+   */
+  private safeParseJsonArray(value: any): string[] {
+    try {
+      if (Array.isArray(value)) {
+        return value;
+      } else if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch {
+          // If not JSON, treat as comma-separated string
+          return value.split(',').map((s: string) => s.trim());
+        }
+      } else {
+        return [];
+      }
+    } catch (error) {
+      return [];
+    }
   }
 
   // =====================================================
@@ -164,11 +186,11 @@ export class RiskManagementService {
           insurance: result.mandatory_insurance,
           inspection: result.mandatory_inspection,
           minCoverage: result.min_coverage,
-          inspectionTypes: JSON.parse(result.inspection_types || '[]'),
+          inspectionTypes: this.safeParseJsonArray(result.inspection_types),
           complianceDeadlineHours: result.compliance_deadline_hours
         },
-        riskFactors: JSON.parse(result.risk_factors || '[]'),
-        mitigationStrategies: JSON.parse(result.mitigation_strategies || '[]'),
+        riskFactors: this.safeParseJsonArray(result.risk_factors),
+        mitigationStrategies: this.safeParseJsonArray(result.mitigation_strategies),
         enforcementLevel: result.enforcement_level,
         autoEnforcement: result.auto_enforcement,
         gracePeriodHours: result.grace_period_hours,

@@ -57,9 +57,9 @@ const normalizeBookingFilters = (query: any, user_id: string, role: 'renter' | '
   
   // Role-based filtering
   if (role === 'renter') {
-    filters.renter_id = user_id;
+    (filters as any).renterId = user_id;
   } else if (role === 'owner') {
-    filters.owner_id = user_id;
+    (filters as any).ownerId = user_id;
   }
   
   // Fast set-based validation
@@ -97,20 +97,28 @@ const normalizeBookingFilters = (query: any, user_id: string, role: 'renter' | '
 const convertFiltersToQuery = (filters: BookingFilters): Partial<BookingData> => {
   const query: Partial<BookingData> = {};
   
-  if (filters.renter_id) query.renter_id = filters.renter_id;
-  if (filters.owner_id) query.owner_id = filters.owner_id;
-  if (filters.product_id) query.product_id = filters.product_id;
+  // Accept both camelCase and snake_case for robustness
+  const renterId = (filters as any).renterId || (filters as any).renter_id;
+  const ownerId = (filters as any).ownerId || (filters as any).owner_id;
+  const productId = (filters as any).productId || (filters as any).product_id;
+
+  if (renterId) (query as any).renter_id = renterId;
+  if (ownerId) (query as any).owner_id = ownerId;
+  if (productId) (query as any).product_id = productId;
   if (filters.status) query.status = filters.status;
   if (filters.payment_status) query.payment_status = filters.payment_status;
   
-  if (filters.start_date) {
-    const date = new Date(filters.start_date);
+  const startDate = (filters as any).startDate || (filters as any).start_date;
+  const endDate = (filters as any).endDate || (filters as any).end_date;
+
+  if (startDate) {
+    const date = new Date(startDate);
     if (!isNaN(date.getTime())) {
       query.start_date = date.toISOString();
     }
   }
-  if (filters.end_date) {
-    const date = new Date(filters.end_date);
+  if (endDate) {
+    const date = new Date(endDate);
     if (!isNaN(date.getTime())) {
       query.end_date = date.toISOString();
     }
@@ -208,9 +216,11 @@ export class BookingsController extends BaseController {
     const role = (req.query.role as 'renter' | 'owner') || 'renter';
     const filters = normalizeBookingFilters(req.query, user_id, role);
 
+    
+
     // Performance: Generate cache key
     const cacheKey = `bookings_${user_id}_${role}_${JSON.stringify(filters)}_${page}_${limit}`;
-    const cached = bookingCache.get(cacheKey);
+    const cached = (req.query._nocache === '1') ? undefined : bookingCache.get(cacheKey);
     
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.BOOKING_LIST * 1000) {
       return this.formatPaginatedResponse(res, 'Bookings retrieved successfully (cached)', cached.data);
@@ -218,6 +228,7 @@ export class BookingsController extends BaseController {
 
     // Convert to optimized query
     const query = convertFiltersToQuery(filters);
+    
     
     const result = await BookingService.getPaginated(query, page, limit, sortBy, sortOrder);
 

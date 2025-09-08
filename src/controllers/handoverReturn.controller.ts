@@ -125,6 +125,7 @@ export class HandoverReturnController extends BaseController {
       bookingId: req.query.bookingId as string,
       ownerId: req.query.ownerId as string,
       renterId: req.query.renterId as string,
+      userId: (req.query.userId as string) || req.user.id,
       productId: req.query.productId as string,
       status: req.query.status as any,
       handoverType: req.query.handoverType as any,
@@ -252,6 +253,7 @@ export class HandoverReturnController extends BaseController {
       handoverSessionId: req.query.handoverSessionId as string,
       ownerId: req.query.ownerId as string,
       renterId: req.query.renterId as string,
+      userId: (req.query.userId as string) || req.user.id,
       productId: req.query.productId as string,
       status: req.query.status as any,
       returnType: req.query.returnType as any,
@@ -321,11 +323,14 @@ export class HandoverReturnController extends BaseController {
       limit: parseInt(req.query.limit as string) || 50
     };
 
-    // Implementation would go in service
-    // For now, return empty array
+    const result = await HandoverReturnService.getMessages(filters);
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to get messages', 400);
+    }
+
     this.logAction('GET_MESSAGES', req.user.id, null, filters);
 
-    return ResponseHelper.success(res, 'Messages retrieved successfully', []);
+    return ResponseHelper.success(res, 'Messages retrieved successfully', result.data.items, 200, result.data.pagination);
   });
 
   // =====================================================
@@ -377,11 +382,14 @@ export class HandoverReturnController extends BaseController {
       limit: parseInt(req.query.limit as string) || 50
     };
 
-    // Implementation would go in service
-    // For now, return empty array
+    const result = await HandoverReturnService.getNotifications(filters);
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to get notifications', 400);
+    }
+
     this.logAction('GET_NOTIFICATIONS', req.user.id, null, filters);
 
-    return ResponseHelper.success(res, 'Notifications retrieved successfully', []);
+    return ResponseHelper.success(res, 'Notifications retrieved successfully', result.data.items, 200, result.data.pagination);
   });
 
   // =====================================================

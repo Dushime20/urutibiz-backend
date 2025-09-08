@@ -471,11 +471,76 @@ export class HandoverReturnService {
     }
   }
 
+  async getMessages(filters: MessageFilters): Promise<ServiceResponse<{ items: (HandoverMessage|ReturnMessage)[], pagination: any }>> {
+    try {
+      const page = filters.page || 1;
+      const limit = filters.limit || 50;
+      const offset = (page - 1) * limit;
+
+      const table = filters.handoverSessionId ? 'handover_messages' : 'return_messages';
+      const sessionColumn = filters.handoverSessionId ? 'handover_session_id' : 'return_session_id';
+      const sessionId = filters.handoverSessionId || filters.returnSessionId;
+      if (!sessionId) {
+        return { success: false, error: 'handoverSessionId or returnSessionId is required' };
+      }
+
+      let query = this.db(table).select('*').where(sessionColumn, sessionId).orderBy('timestamp', 'asc');
+      let countQuery = this.db(table).where(sessionColumn, sessionId);
+
+      if (filters.senderId) {
+        query = query.andWhere('sender_id', filters.senderId);
+        countQuery = countQuery.andWhere('sender_id', filters.senderId);
+      }
+      if (filters.messageType) {
+        query = query.andWhere('message_type', filters.messageType);
+        countQuery = countQuery.andWhere('message_type', filters.messageType);
+      }
+      if (filters.fromDate) {
+        query = query.andWhere('timestamp', '>=', filters.fromDate);
+        countQuery = countQuery.andWhere('timestamp', '>=', filters.fromDate);
+      }
+      if (filters.toDate) {
+        query = query.andWhere('timestamp', '<=', filters.toDate);
+        countQuery = countQuery.andWhere('timestamp', '<=', filters.toDate);
+      }
+
+      const count = await countQuery.count('* as count').first();
+      const rows = await query.limit(limit).offset(offset);
+
+      const items = rows.map((r: any) => ({
+        id: r.id,
+        senderId: r.sender_id,
+        senderType: r.sender_type,
+        message: r.message,
+        messageType: r.message_type,
+        attachments: this.safeParseJsonArray(r.attachments),
+        timestamp: r.timestamp,
+        readBy: this.safeParseJsonArray(r.read_by)
+      }));
+
+      return {
+        success: true,
+        data: {
+          items,
+          pagination: {
+            page,
+            limit,
+            total: parseInt((count?.count as string) || '0'),
+            pages: Math.ceil(parseInt((count?.count as string) || '0') / limit)
+          }
+        }
+      };
+    } catch (error) {
+      console.error('[HandoverReturnService] Get messages error:', error);
+      return { success: false, error: 'Failed to get messages' };
+    }
+  }
+
   private async sendHandoverMessage(data: SendMessageRequest): Promise<ServiceResponse<HandoverMessage>> {
     const message: HandoverMessage = {
       id: require('uuid').v4(),
-      senderId: '', // Will be set by controller
-      senderType: 'renter', // Will be set by controller
+      senderId: (data as any).senderId, // populated by controller/auth
+      senderType: (data as any).senderType || 'renter',
       message: data.message,
       messageType: data.messageType,
       attachments: data.attachments || [],
@@ -501,8 +566,8 @@ export class HandoverReturnService {
   private async sendReturnMessage(data: SendMessageRequest): Promise<ServiceResponse<ReturnMessage>> {
     const message: ReturnMessage = {
       id: require('uuid').v4(),
-      senderId: '', // Will be set by controller
-      senderType: 'renter', // Will be set by controller
+      senderId: (data as any).senderId, // populated by controller/auth
+      senderType: (data as any).senderType || 'renter',
       message: data.message,
       messageType: data.messageType,
       attachments: data.attachments || [],
@@ -547,64 +612,291 @@ export class HandoverReturnService {
     }
   }
 
+  async getNotifications(filters: NotificationFilters): Promise<ServiceResponse<{ items: (HandoverNotification|ReturnNotification)[], pagination: any }>> {
+    try {
+      const page = filters.page || 1;
+      const limit = filters.limit || 50;
+      const offset = (page - 1) * limit;
+
+      const isHandover = !!filters.handoverSessionId;
+      const table = isHandover ? 'handover_notifications' : 'return_notifications';
+      const sessionColumn = isHandover ? 'handover_session_id' : 'return_session_id';
+      const sessionId = filters.handoverSessionId || filters.returnSessionId;
+
+      let query = this.db(table).select('*').orderBy('scheduled_at', 'desc');
+      let countQuery = this.db(table);
+
+      if (sessionId) {
+        query = query.where(sessionColumn, sessionId);
+        countQuery = countQuery.where(sessionColumn, sessionId);
+      }
+      if (filters.userId) {
+        query = query.andWhere('user_id', filters.userId);
+        countQuery = countQuery.andWhere('user_id', filters.userId);
+      }
+      if (filters.type) {
+        query = query.andWhere('type', filters.type);
+        countQuery = countQuery.andWhere('type', filters.type);
+      }
+      if (filters.channel) {
+        query = query.andWhere('channel', filters.channel);
+        countQuery = countQuery.andWhere('channel', filters.channel);
+      }
+      if (filters.status) {
+        query = query.andWhere('status', filters.status);
+        countQuery = countQuery.andWhere('status', filters.status);
+      }
+      if (filters.scheduledFrom) {
+        query = query.andWhere('scheduled_at', '>=', filters.scheduledFrom);
+        countQuery = countQuery.andWhere('scheduled_at', '>=', filters.scheduledFrom);
+      }
+      if (filters.scheduledTo) {
+        query = query.andWhere('scheduled_at', '<=', filters.scheduledTo);
+        countQuery = countQuery.andWhere('scheduled_at', '<=', filters.scheduledTo);
+      }
+
+      const count = await countQuery.count('* as count').first();
+      const rows = await query.limit(limit).offset(offset);
+
+      const items = rows.map((r: any) => ({
+        id: r.id,
+        userId: r.user_id,
+        handoverSessionId: r.handover_session_id,
+        returnSessionId: r.return_session_id,
+        type: r.type,
+        channel: r.channel,
+        message: r.message,
+        priority: r.priority,
+        scheduledAt: r.scheduled_at,
+        status: r.status,
+        metadata: this.safeParseJsonObject(r.metadata)
+      }));
+
+      return {
+        success: true,
+        data: {
+          items,
+          pagination: {
+            page,
+            limit,
+            total: parseInt((count?.count as string) || '0'),
+            pages: Math.ceil(parseInt((count?.count as string) || '0') / limit)
+          }
+        }
+      };
+    } catch (error) {
+      console.error('[HandoverReturnService] Get notifications error:', error);
+      return { success: false, error: 'Failed to get notifications' };
+    }
+  }
   private async scheduleHandoverNotification(data: ScheduleNotificationRequest): Promise<ServiceResponse<HandoverNotification>> {
-    const notification: HandoverNotification = {
-      id: require('uuid').v4(),
-      userId: data.userId,
-      handoverSessionId: data.handoverSessionId!,
-      type: data.type as any,
-      channel: data.channel,
-      message: data.message,
-      priority: data.priority,
-      scheduledAt: data.scheduledAt,
-      status: 'pending' as NotificationStatus,
-      metadata: data.metadata || {}
-    };
+    try {
+      // Normalize type to satisfy DB constraint, while preserving original intent in metadata
+      const originalType = data.type as any;
+      const normalizedType = (originalType === 'handover' || originalType === 'return') ? 'reminder' : originalType;
 
-    await this.db('handover_notifications').insert({
-      id: notification.id,
-      user_id: notification.userId,
-      handover_session_id: notification.handoverSessionId,
-      type: notification.type,
-      channel: notification.channel,
-      message: notification.message,
-      priority: notification.priority,
-      scheduled_at: notification.scheduledAt,
-      status: notification.status,
-      metadata: JSON.stringify(notification.metadata)
-    });
+      // If userId not provided, notify both renter and owner of the session
+      if (!data.userId) {
+        const session = await this.db('handover_sessions').select('owner_id', 'renter_id').where('id', data.handoverSessionId!).first();
+        if (!session) {
+          return { success: false, error: 'Handover session not found' };
+        }
 
-    return { success: true, data: notification };
+        const recipients = [session.renter_id, session.owner_id].filter(Boolean);
+        let firstNotification: HandoverNotification | null = null;
+
+        for (const recipientId of recipients) {
+          const n: HandoverNotification = {
+            id: require('uuid').v4(),
+            userId: recipientId,
+            handoverSessionId: data.handoverSessionId!,
+            type: normalizedType,
+            channel: data.channel,
+            message: data.message,
+            priority: data.priority,
+            scheduledAt: data.scheduledAt,
+            status: 'pending' as NotificationStatus,
+            metadata: { ...(data.metadata || {}), category: originalType }
+          };
+
+          await this.db('handover_notifications').insert({
+            id: n.id,
+            user_id: n.userId,
+            handover_session_id: n.handoverSessionId,
+            type: n.type,
+            channel: n.channel,
+            message: n.message,
+            priority: n.priority,
+            scheduled_at: n.scheduledAt,
+            status: n.status,
+            metadata: JSON.stringify(n.metadata)
+          });
+
+          // Immediately send email if channel is email
+          if (n.channel === 'email') {
+            try {
+              const user = await this.db('users').select('email').where('id', n.userId).first();
+              if (user?.email) {
+                const { EmailService } = require('@/services/email.service');
+                const emailSvc = new EmailService();
+                emailSvc.sendEmail({ to: user.email, subject: 'Handover Notification', html: n.message, text: n.message });
+              }
+            } catch (e) {
+              // swallow email errors to not block API
+            }
+          }
+
+          if (!firstNotification) firstNotification = n;
+        }
+
+        return { success: true, data: firstNotification! };
+      }
+
+      // Single recipient path
+      const notification: HandoverNotification = {
+        id: require('uuid').v4(),
+        userId: data.userId,
+        handoverSessionId: data.handoverSessionId!,
+        type: normalizedType,
+        channel: data.channel,
+        message: data.message,
+        priority: data.priority,
+        scheduledAt: data.scheduledAt,
+        status: 'pending' as NotificationStatus,
+        metadata: { ...(data.metadata || {}), category: originalType }
+      };
+
+      await this.db('handover_notifications').insert({
+        id: notification.id,
+        user_id: notification.userId,
+        handover_session_id: notification.handoverSessionId,
+        type: notification.type,
+        channel: notification.channel,
+        message: notification.message,
+        priority: notification.priority,
+        scheduled_at: notification.scheduledAt,
+        status: notification.status,
+        metadata: JSON.stringify(notification.metadata)
+      });
+
+      if (notification.channel === 'email') {
+        try {
+          const user = await this.db('users').select('email').where('id', notification.userId).first();
+          if (user?.email) {
+            const { EmailService } = require('@/services/email.service');
+            const emailSvc = new EmailService();
+            emailSvc.sendEmail({ to: user.email, subject: 'Handover Notification', html: notification.message, text: notification.message });
+          }
+        } catch (e) {
+          // ignore email errors
+        }
+      }
+
+      return { success: true, data: notification };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
   }
 
   private async scheduleReturnNotification(data: ScheduleNotificationRequest): Promise<ServiceResponse<ReturnNotification>> {
-    const notification: ReturnNotification = {
-      id: require('uuid').v4(),
-      userId: data.userId,
-      returnSessionId: data.returnSessionId!,
-      type: data.type as any,
-      channel: data.channel,
-      message: data.message,
-      priority: data.priority,
-      scheduledAt: data.scheduledAt,
-      status: 'pending' as NotificationStatus,
-      metadata: data.metadata || {}
-    };
+    try {
+      const originalType = data.type as any;
+      const normalizedType = (originalType === 'handover' || originalType === 'return') ? 'reminder' : originalType;
 
-    await this.db('return_notifications').insert({
-      id: notification.id,
-      user_id: notification.userId,
-      return_session_id: notification.returnSessionId,
-      type: notification.type,
-      channel: notification.channel,
-      message: notification.message,
-      priority: notification.priority,
-      scheduled_at: notification.scheduledAt,
-      status: notification.status,
-      metadata: JSON.stringify(notification.metadata)
-    });
+      if (!data.userId) {
+        const session = await this.db('return_sessions').select('owner_id', 'renter_id').where('id', data.returnSessionId!).first();
+        if (!session) {
+          return { success: false, error: 'Return session not found' };
+        }
 
-    return { success: true, data: notification };
+        const recipients = [session.renter_id, session.owner_id].filter(Boolean);
+        let firstNotification: ReturnNotification | null = null;
+
+        for (const recipientId of recipients) {
+          const n: ReturnNotification = {
+            id: require('uuid').v4(),
+            userId: recipientId,
+            returnSessionId: data.returnSessionId!,
+            type: normalizedType,
+            channel: data.channel,
+            message: data.message,
+            priority: data.priority,
+            scheduledAt: data.scheduledAt,
+            status: 'pending' as NotificationStatus,
+            metadata: { ...(data.metadata || {}), category: originalType }
+          };
+
+          await this.db('return_notifications').insert({
+            id: n.id,
+            user_id: n.userId,
+            return_session_id: n.returnSessionId,
+            type: n.type,
+            channel: n.channel,
+            message: n.message,
+            priority: n.priority,
+            scheduled_at: n.scheduledAt,
+            status: n.status,
+            metadata: JSON.stringify(n.metadata)
+          });
+
+          if (n.channel === 'email') {
+            try {
+              const user = await this.db('users').select('email').where('id', n.userId).first();
+              if (user?.email) {
+                const { EmailService } = require('@/services/email.service');
+                const emailSvc = new EmailService();
+                emailSvc.sendEmail({ to: user.email, subject: 'Return Notification', html: n.message, text: n.message });
+              }
+            } catch (e) {}
+          }
+
+          if (!firstNotification) firstNotification = n;
+        }
+
+        return { success: true, data: firstNotification! };
+      }
+
+      const notification: ReturnNotification = {
+        id: require('uuid').v4(),
+        userId: data.userId,
+        returnSessionId: data.returnSessionId!,
+        type: normalizedType,
+        channel: data.channel,
+        message: data.message,
+        priority: data.priority,
+        scheduledAt: data.scheduledAt,
+        status: 'pending' as NotificationStatus,
+        metadata: { ...(data.metadata || {}), category: originalType }
+      };
+
+      await this.db('return_notifications').insert({
+        id: notification.id,
+        user_id: notification.userId,
+        return_session_id: notification.returnSessionId,
+        type: notification.type,
+        channel: notification.channel,
+        message: notification.message,
+        priority: notification.priority,
+        scheduled_at: notification.scheduledAt,
+        status: notification.status,
+        metadata: JSON.stringify(notification.metadata)
+      });
+
+      if (notification.channel === 'email') {
+        try {
+          const user = await this.db('users').select('email').where('id', notification.userId).first();
+          if (user?.email) {
+            const { EmailService } = require('@/services/email.service');
+            const emailSvc = new EmailService();
+            emailSvc.sendEmail({ to: user.email, subject: 'Return Notification', html: notification.message, text: notification.message });
+          }
+        } catch (e) {}
+      }
+
+      return { success: true, data: notification };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
   }
 
   // =====================================================
@@ -781,6 +1073,13 @@ export class HandoverReturnService {
       if (filters.bookingId) {
         query = query.where('booking_id', filters.bookingId);
       }
+      // Implicit user scoping: if userId is provided (controller passes req.user.id by default),
+      // restrict to sessions where user is owner or renter
+      if ((filters as any).userId) {
+        query = query.where((qb: any) => {
+          qb.where('owner_id', (filters as any).userId).orWhere('renter_id', (filters as any).userId);
+        });
+      }
       if (filters.ownerId) {
         query = query.where('owner_id', filters.ownerId);
       }
@@ -809,6 +1108,11 @@ export class HandoverReturnService {
       // Apply same filters to count query
       if (filters.bookingId) {
         countQuery.where('booking_id', filters.bookingId);
+      }
+      if ((filters as any).userId) {
+        countQuery.where((qb: any) => {
+          qb.where('owner_id', (filters as any).userId).orWhere('renter_id', (filters as any).userId);
+        });
       }
       if (filters.ownerId) {
         countQuery.where('owner_id', filters.ownerId);
@@ -909,6 +1213,11 @@ export class HandoverReturnService {
       if (filters.handoverSessionId) {
         query = query.where('handover_session_id', filters.handoverSessionId);
       }
+      if ((filters as any).userId) {
+        query = query.where((qb: any) => {
+          qb.where('owner_id', (filters as any).userId).orWhere('renter_id', (filters as any).userId);
+        });
+      }
       if (filters.ownerId) {
         query = query.where('owner_id', filters.ownerId);
       }
@@ -940,6 +1249,11 @@ export class HandoverReturnService {
       }
       if (filters.handoverSessionId) {
         countQuery.where('handover_session_id', filters.handoverSessionId);
+      }
+      if ((filters as any).userId) {
+        countQuery.where((qb: any) => {
+          qb.where('owner_id', (filters as any).userId).orWhere('renter_id', (filters as any).userId);
+        });
       }
       if (filters.ownerId) {
         countQuery.where('owner_id', filters.ownerId);

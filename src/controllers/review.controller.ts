@@ -327,6 +327,44 @@ export class ReviewController {
   };
 
   /**
+   * Get reviews written by the authenticated user
+   * GET /api/v1/reviews/mine/written
+   */
+  getMyWrittenReviews = async (req: any, res: Response): Promise<void> => {
+    try {
+      const reviewerId = req.user.id;
+      const { page, limit } = req.query as any;
+      const reviews = await this.reviewService.getReviewsByReviewer(reviewerId, {
+        page: page ? parseInt(page) : 1,
+        limit: limit ? parseInt(limit) : 10
+      } as any);
+
+      res.json({ success: true, data: reviews });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Failed to get my written reviews' });
+    }
+  };
+
+  /**
+   * Get reviews received by the authenticated user
+   * GET /api/v1/reviews/mine/received
+   */
+  getMyReceivedReviews = async (req: any, res: Response): Promise<void> => {
+    try {
+      const userId = req.user.id;
+      const { page, limit } = req.query as any;
+      const reviews = await this.reviewService.getReviewsForUser(userId, {
+        page: page ? parseInt(page) : 1,
+        limit: limit ? parseInt(limit) : 10
+      } as any);
+
+      res.json({ success: true, data: reviews });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Failed to get my received reviews' });
+    }
+  };
+
+  /**
    * Add response to a review
    * POST /api/reviews/:id/response
    */

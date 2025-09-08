@@ -9,6 +9,10 @@ import { requireAuth } from '@/middleware/auth.middleware';
 const router = Router();
 const reviewController = new ReviewController();
 
+// Authenticated shortcuts for current user (declare BEFORE param routes)
+router.get('/mine/written', requireAuth, reviewController.getMyWrittenReviews);
+router.get('/mine/received', requireAuth, reviewController.getMyReceivedReviews);
+
 // Create a new review (requires authentication)
 router.post('/', requireAuth, reviewController.createReview);
 

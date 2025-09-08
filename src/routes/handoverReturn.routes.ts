@@ -1073,6 +1073,137 @@ router.post('/return-sessions/:sessionId/complete', requireAuth, controller.comp
  */
 router.post('/messages', requireAuth, controller.sendMessage);
 
+/**
+ * @swagger
+ * /handover-return/messages:
+ *   get:
+ *     summary: Get messages for a handover or return session
+ *     description: Retrieve messages by handoverSessionId or returnSessionId
+ *     tags: [Handover & Return]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: handoverSessionId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID of the handover session
+ *       - in: query
+ *         name: returnSessionId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID of the return session
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: Messages retrieved successfully
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/messages', requireAuth, controller.getMessages);
+
+// =====================================================
+// NOTIFICATION MANAGEMENT
+// =====================================================
+
+/**
+ * @swagger
+ * /handover-return/notifications/schedule:
+ *   post:
+ *     summary: Schedule notification for handover or return session
+ *     tags: [Handover & Return]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [userId, type, channel, message, scheduledAt]
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 format: uuid
+ *               handoverSessionId:
+ *                 type: string
+ *                 format: uuid
+ *               returnSessionId:
+ *                 type: string
+ *                 format: uuid
+ *               type:
+ *                 type: string
+ *                 enum: [reminder, completion]
+ *               channel:
+ *                 type: string
+ *                 enum: [push, email, sms]
+ *               message:
+ *                 type: string
+ *               priority:
+ *                 type: string
+ *                 enum: [low, medium, high]
+ *               scheduledAt:
+ *                 type: string
+ *                 format: date-time
+ *               metadata:
+ *                 type: object
+ */
+router.post('/notifications/schedule', requireAuth, controller.scheduleNotification);
+
+/**
+ * @swagger
+ * /handover-return/notifications:
+ *   get:
+ *     summary: List notifications
+ *     tags: [Handover & Return]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: handoverSessionId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: returnSessionId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ */
+router.get('/notifications', requireAuth, controller.getNotifications);
+
 // =====================================================
 // STATISTICS AND ANALYTICS
 // =====================================================

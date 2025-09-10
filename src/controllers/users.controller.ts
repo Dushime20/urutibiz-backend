@@ -133,22 +133,21 @@ export class UsersController extends BaseController {
   public getUser = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
 
-    // Fast authorization check
-    if (!this.checkResourceOwnership(req, id)) {
-      return this.handleUnauthorized(res, 'Not authorized to view this profile');
-    }
+    // Public access: allow fetching user profile without authorization
 
-    // Performance: Check cache first
+    // Performance: Check cache first (temporarily disabled for debugging)
     const cacheKey = `user_profile_${id}`;
     const cached = statsCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.USER_PROFILE * 1000) {
-      return ResponseHelper.success(res, 'User retrieved successfully (cached)', cached.data);
-    }
+    // Temporarily disable cache to test new location structure
+    // if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.USER_PROFILE * 1000) {
+    //   return ResponseHelper.success(res, 'User retrieved successfully (cached)', cached.data);
+    // }
 
     // Performance: Parallel data fetching
-    const [userResult, verifications] = await Promise.all([
+    const [userResult, verifications, locationData] = await Promise.all([
       UserService.getById(id),
-      this.fetchUserVerifications(id)
+      this.fetchUserVerifications(id),
+      this.fetchUserLocation(id)
     ]);
 
     if (!userResult.success || !userResult.data) {
@@ -163,7 +162,8 @@ export class UsersController extends BaseController {
       ...userResult.data,
       kyc_status: userResult.data.kyc_status || 'unverified',
       verifications,
-      kycProgress
+      kycProgress,
+      location: locationData
     };
 
     // Cache the result
@@ -172,7 +172,7 @@ export class UsersController extends BaseController {
       timestamp: Date.now()
     });
 
-    this.logAction('GET_USER', req.user.id, id);
+    this.logAction('GET_USER', (req as any)?.user?.id ?? 'anonymous', id);
 
     return ResponseHelper.success(res, 'User retrieved successfully', responseData);
   });
@@ -334,11 +334,16 @@ export class UsersController extends BaseController {
       return this.handleBadRequest(res, 'Current password is incorrect');
     }
 
-    await UserService.updatePassword(id, newPassword);
-
-    this.logAction('CHANGE_PASSWORD', req.user.id, id);
-
-    return ResponseHelper.success(res, 'Password changed successfully');
+    try {
+      await UserService.updatePassword(id, newPassword);
+      
+      this.logAction('CHANGE_PASSWORD', req.user.id, id);
+      
+      return ResponseHelper.success(res, 'Password changed successfully');
+    } catch (error: any) {
+      console.error('[UsersController] Error changing password:', error);
+      return ResponseHelper.error(res, error.message || 'Failed to change password', error, 400);
+    }
   });
 
   /**
@@ -469,6 +474,115 @@ export class UsersController extends BaseController {
   }
 
   /**
+   * Fetch user location geometry data
+   */
+  private async fetchUserLocation(userId: string) {
+    const db = require('@/config/database').getDatabase();
+    
+    try {
+      // First, let's check what columns exist in the users table
+      const columnInfo = await db.raw(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name LIKE '%location%' OR column_name LIKE '%geometry%'
+      `);
+      
+      console.log('[UsersController] Available location/geometry columns:', columnInfo.rows);
+      
+      // Get location data including geometry fields
+      const location = await db('users')
+        .select(
+          'location',
+          'district',
+          'sector',
+          'cell',
+          'village',
+          'address_line'
+        )
+        .where({ id: userId })
+        .first();
+
+      if (!location) {
+        return null;
+      }
+
+      // Build location object with available data
+      const locationData: any = {
+        address: {
+          district: location.district,
+          sector: location.sector,
+          cell: location.cell,
+          village: location.village,
+          addressLine: location.address_line
+        }
+      };
+
+      // Note: f_geometry_column appears in information_schema but is not a selectable column
+      // It might be a function or view column that's not directly accessible
+
+      // Handle WKB geometry data from location field
+      if (location.location) {
+        try {
+          // Convert WKB hex string to GeoJSON using PostGIS ST_AsGeoJSON function
+          const geoJsonResult = await db.raw(`
+            SELECT ST_AsGeoJSON(ST_GeomFromWKB(?, 4326)) as geometry
+          `, [Buffer.from(location.location, 'hex')]);
+          
+          if (geoJsonResult.rows && geoJsonResult.rows[0] && geoJsonResult.rows[0].geometry) {
+            locationData.geometry = JSON.parse(geoJsonResult.rows[0].geometry);
+            
+            // Extract coordinates from geometry if it's a Point
+            if (locationData.geometry.type === 'Point' && locationData.geometry.coordinates) {
+              locationData.coordinates = {
+                longitude: locationData.geometry.coordinates[0],
+                latitude: locationData.geometry.coordinates[1]
+              };
+            }
+            
+            console.log('[UsersController] Successfully converted WKB to GeoJSON:', {
+              type: locationData.geometry.type,
+              coordinates: locationData.coordinates
+            });
+          }
+        } catch (error) {
+          console.warn('[UsersController] Failed to convert WKB geometry:', error);
+        }
+      }
+
+      // Check if any address field has a value
+      const hasAddressData = location.district || 
+                            location.sector || 
+                            location.cell || 
+                            location.village || 
+                            location.address_line;
+
+      // Debug logging
+      console.log('[UsersController] Location data for user:', userId, {
+        hasAddressData,
+        hasGeometry: !!locationData.geometry,
+        hasCoordinates: !!locationData.coordinates,
+        district: location.district,
+        sector: location.sector,
+        cell: location.cell,
+        village: location.village,
+        address_line: location.address_line,
+        wkb_location: location.location ? 'present' : 'null'
+      });
+
+      // Return location data if we have any meaningful data
+      if (hasAddressData || locationData.coordinates || locationData.geometry) {
+        return locationData;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('[UsersController] Error fetching user location:', error);
+      return null;
+    }
+  }
+
+  /**
    * High-performance KYC progress calculation
    */
   private calculateKycProgress(verifications: any[]) {
@@ -518,7 +632,10 @@ export class UsersController extends BaseController {
       if (typeof dobRaw === 'string') {
         const trimmed = dobRaw.trim();
         if (trimmed) {
-          updateData.dateOfBirth = trimmed; // Expect YYYY-MM-DD
+          const parsed = new Date(trimmed);
+          if (!isNaN(parsed.getTime())) {
+            updateData.dateOfBirth = parsed; // Convert to Date
+          }
         }
       } else if (dobRaw instanceof Date) {
         updateData.dateOfBirth = dobRaw;
@@ -594,6 +711,200 @@ export class UsersController extends BaseController {
   }
 
   /**
+   * Get user login history
+   */
+  public getUserLoginHistory = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { limit = 20, offset = 0, dateFrom, dateTo } = req.query;
+
+    // Authorization: Users can only view their own login history
+    if (!this.checkResourceOwnership(req, id)) {
+      return ResponseHelper.unauthorized(res, 'You can only view your own login history');
+    }
+
+    try {
+      const db = require('@/config/database').getDatabase();
+      
+      // Build query for user sessions
+      let query = db('user_sessions')
+        .select(
+          'id',
+          'ip_address',
+          'user_agent',
+          'created_at',
+          'expires_at'
+        )
+        .where('user_id', id)
+        .orderBy('created_at', 'desc');
+
+      // Apply date filters
+      if (dateFrom) {
+        query = query.where('created_at', '>=', new Date(dateFrom as string));
+      }
+      if (dateTo) {
+        query = query.where('created_at', '<=', new Date(dateTo as string));
+      }
+
+      // Get total count for pagination (separate query to avoid GROUP BY issues)
+      const countQuery = db('user_sessions')
+        .count('* as count')
+        .where('user_id', id);
+      
+      // Apply same date filters to count query
+      if (dateFrom) {
+        countQuery.where('created_at', '>=', new Date(dateFrom as string));
+      }
+      if (dateTo) {
+        countQuery.where('created_at', '<=', new Date(dateTo as string));
+      }
+      
+      const [{ count: totalCount }] = await countQuery;
+      const total = parseInt(totalCount as string);
+
+      // Apply pagination
+      const sessions = await query
+        .limit(parseInt(limit as string))
+        .offset(parseInt(offset as string));
+
+      // Calculate pagination info
+      const page = Math.floor(parseInt(offset as string) / parseInt(limit as string)) + 1;
+      const totalPages = Math.ceil(total / parseInt(limit as string));
+      const hasNext = page < totalPages;
+      const hasPrev = page > 1;
+
+      this.logAction('GET_LOGIN_HISTORY', req.user.id, id);
+
+      return ResponseHelper.success(res, 'Login history retrieved successfully', {
+        sessions: sessions.map((session: any) => ({
+          id: session.id,
+          ipAddress: session.ip_address,
+          userAgent: session.user_agent,
+          createdAt: session.created_at,
+          expiresAt: session.expires_at
+        })),
+        pagination: {
+          page,
+          limit: parseInt(limit as string),
+          total,
+          totalPages,
+          hasNext,
+          hasPrev
+        }
+      });
+    } catch (error) {
+      console.error('[UsersController] Error fetching login history:', error);
+      return ResponseHelper.error(res, 'Failed to fetch login history', error, 500);
+    }
+  });
+
+  /**
+   * Get user activity history
+   */
+  public getUserActivityHistory = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { limit = 20, offset = 0, actionType, entityType, dateFrom, dateTo } = req.query;
+
+    // Authorization: Users can only view their own activity history
+    if (!this.checkResourceOwnership(req, id)) {
+      return ResponseHelper.unauthorized(res, 'You can only view your own activity history');
+    }
+
+    try {
+      const db = require('@/config/database').getDatabase();
+      
+      // Build query for audit logs
+      let query = db('audit_logs')
+        .select(
+          'id',
+          'action_type',
+          'entity_type',
+          'entity_id',
+          'details',
+          'status',
+          'ip_address',
+          'user_agent',
+          'created_at'
+        )
+        .where('user_id', id)
+        .orderBy('created_at', 'desc');
+
+      // Apply filters
+      if (actionType) {
+        query = query.where('action_type', actionType);
+      }
+      if (entityType) {
+        query = query.where('entity_type', entityType);
+      }
+      if (dateFrom) {
+        query = query.where('created_at', '>=', new Date(dateFrom as string));
+      }
+      if (dateTo) {
+        query = query.where('created_at', '<=', new Date(dateTo as string));
+      }
+
+      // Get total count for pagination (separate query to avoid GROUP BY issues)
+      const countQuery = db('audit_logs')
+        .count('* as count')
+        .where('user_id', id);
+      
+      // Apply same filters to count query
+      if (actionType) {
+        countQuery.where('action_type', actionType);
+      }
+      if (entityType) {
+        countQuery.where('entity_type', entityType);
+      }
+      if (dateFrom) {
+        countQuery.where('created_at', '>=', new Date(dateFrom as string));
+      }
+      if (dateTo) {
+        countQuery.where('created_at', '<=', new Date(dateTo as string));
+      }
+      
+      const [{ count: totalCount }] = await countQuery;
+      const total = parseInt(totalCount as string);
+
+      // Apply pagination
+      const activities = await query
+        .limit(parseInt(limit as string))
+        .offset(parseInt(offset as string));
+
+      // Calculate pagination info
+      const page = Math.floor(parseInt(offset as string) / parseInt(limit as string)) + 1;
+      const totalPages = Math.ceil(total / parseInt(limit as string));
+      const hasNext = page < totalPages;
+      const hasPrev = page > 1;
+
+      this.logAction('GET_ACTIVITY_HISTORY', req.user.id, id);
+
+      return ResponseHelper.success(res, 'Activity history retrieved successfully', {
+        activities: activities.map((activity: any) => ({
+          id: activity.id,
+          actionType: activity.action_type,
+          entityType: activity.entity_type,
+          entityId: activity.entity_id,
+          details: activity.details,
+          status: activity.status,
+          ipAddress: activity.ip_address,
+          userAgent: activity.user_agent,
+          createdAt: activity.created_at
+        })),
+        pagination: {
+          page,
+          limit: parseInt(limit as string),
+          total,
+          totalPages,
+          hasNext,
+          hasPrev
+        }
+      });
+    } catch (error) {
+      console.error('[UsersController] Error fetching activity history:', error);
+      return ResponseHelper.error(res, 'Failed to fetch activity history', error, 500);
+    }
+  });
+
+  /**
    * Cache invalidation utility
    */
   private invalidateUserCache(userId: string): void {
@@ -608,3 +919,4 @@ export class UsersController extends BaseController {
 }
 
 export default new UsersController();
+

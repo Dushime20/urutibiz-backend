@@ -44,7 +44,7 @@ export class HandoverReturnController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to create handover session', 400);
     }
 
-    this.logAction('CREATE_HANDOVER_SESSION', req.user.id, result.data.id, sessionData);
+    this.logAction('CREATE_HANDOVER_SESSION', req.user.id, result.data!.id, sessionData);
 
     return ResponseHelper.success(res, 'Handover session created successfully', result.data);
   });
@@ -58,7 +58,7 @@ export class HandoverReturnController extends BaseController {
 
     const result = await HandoverReturnService.getHandoverSessionById(sessionId);
     
-    if (!result.success) {
+    if (!result.success || !result.data) {
       return this.handleNotFound(res, 'Handover session');
     }
 
@@ -125,7 +125,6 @@ export class HandoverReturnController extends BaseController {
       bookingId: req.query.bookingId as string,
       ownerId: req.query.ownerId as string,
       renterId: req.query.renterId as string,
-      userId: (req.query.userId as string) || req.user.id,
       productId: req.query.productId as string,
       status: req.query.status as any,
       handoverType: req.query.handoverType as any,
@@ -135,13 +134,16 @@ export class HandoverReturnController extends BaseController {
       limit: parseInt(req.query.limit as string) || 20
     };
 
-    const result = await HandoverReturnService.getHandoverSessions(filters);
+    const result = await HandoverReturnService.getHandoverSessions({
+      ...(filters as any),
+      userId: (req.query.userId as string) || req.user.id
+    });
     
-    if (!result.success) {
+    if (!result.success || !result.data) {
       return ResponseHelper.error(res, result.error, 500);
     }
 
-    this.logAction('GET_HANDOVER_SESSIONS', req.user.id, null, filters);
+    this.logAction('GET_HANDOVER_SESSIONS', req.user.id, undefined, filters);
 
     return ResponseHelper.success(res, 'Handover sessions retrieved successfully', result.data.sessions, 200, result.data.pagination);
   });
@@ -171,7 +173,7 @@ export class HandoverReturnController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to create return session', 400);
     }
 
-    this.logAction('CREATE_RETURN_SESSION', req.user.id, result.data.id, sessionData);
+    this.logAction('CREATE_RETURN_SESSION', req.user.id, result.data!.id, sessionData);
 
     return ResponseHelper.success(res, 'Return session created successfully', result.data);
   });
@@ -185,7 +187,7 @@ export class HandoverReturnController extends BaseController {
 
     const result = await HandoverReturnService.getReturnSessionById(sessionId);
     
-    if (!result.success) {
+    if (!result.success || !result.data) {
       return this.handleNotFound(res, 'Return session');
     }
 
@@ -253,7 +255,6 @@ export class HandoverReturnController extends BaseController {
       handoverSessionId: req.query.handoverSessionId as string,
       ownerId: req.query.ownerId as string,
       renterId: req.query.renterId as string,
-      userId: (req.query.userId as string) || req.user.id,
       productId: req.query.productId as string,
       status: req.query.status as any,
       returnType: req.query.returnType as any,
@@ -263,13 +264,16 @@ export class HandoverReturnController extends BaseController {
       limit: parseInt(req.query.limit as string) || 20
     };
 
-    const result = await HandoverReturnService.getReturnSessions(filters);
+    const result = await HandoverReturnService.getReturnSessions({
+      ...(filters as any),
+      userId: (req.query.userId as string) || req.user.id
+    });
     
-    if (!result.success) {
+    if (!result.success || !result.data) {
       return ResponseHelper.error(res, result.error, 500);
     }
 
-    this.logAction('GET_RETURN_SESSIONS', req.user.id, null, filters);
+    this.logAction('GET_RETURN_SESSIONS', req.user.id, undefined, filters);
 
     return ResponseHelper.success(res, 'Return sessions retrieved successfully', result.data.sessions, 200, result.data.pagination);
   });
@@ -324,11 +328,11 @@ export class HandoverReturnController extends BaseController {
     };
 
     const result = await HandoverReturnService.getMessages(filters);
-    if (!result.success) {
+    if (!result.success || !result.data) {
       return ResponseHelper.error(res, result.error || 'Failed to get messages', 400);
     }
 
-    this.logAction('GET_MESSAGES', req.user.id, null, filters);
+    this.logAction('GET_MESSAGES', req.user.id, undefined, filters);
 
     return ResponseHelper.success(res, 'Messages retrieved successfully', result.data.items, 200, result.data.pagination);
   });
@@ -383,11 +387,11 @@ export class HandoverReturnController extends BaseController {
     };
 
     const result = await HandoverReturnService.getNotifications(filters);
-    if (!result.success) {
+    if (!result.success || !result.data) {
       return ResponseHelper.error(res, result.error || 'Failed to get notifications', 400);
     }
 
-    this.logAction('GET_NOTIFICATIONS', req.user.id, null, filters);
+    this.logAction('GET_NOTIFICATIONS', req.user.id, undefined, filters);
 
     return ResponseHelper.success(res, 'Notifications retrieved successfully', result.data.items, 200, result.data.pagination);
   });
@@ -403,7 +407,7 @@ export class HandoverReturnController extends BaseController {
   public getHandoverReturnStats = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const result = await HandoverReturnService.getHandoverReturnStats();
     
-    if (!result.success) {
+    if (!result.success || !result.data) {
       return ResponseHelper.error(res, result.error || 'Failed to get statistics', 400);
     }
 
@@ -415,6 +419,73 @@ export class HandoverReturnController extends BaseController {
   // =====================================================
   // UTILITY ENDPOINTS
   // =====================================================
+
+  /**
+   * Admin: Get all handover and return sessions
+   * GET /api/v1/handover-return/admin/sessions
+   */
+  public getAllSessionsAdmin = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const view = (req.query.view as string) as ('handover' | 'return' | undefined);
+    // Do NOT scope by userId here; admins can view everything
+    const handoverFilters: HandoverSessionFilters = {
+      bookingId: req.query.bookingId as string,
+      ownerId: req.query.ownerId as string,
+      renterId: req.query.renterId as string,
+      productId: req.query.productId as string,
+      status: req.query.status as any,
+      handoverType: req.query.handoverType as any,
+      scheduledFrom: req.query.scheduledFrom ? new Date(req.query.scheduledFrom as string) : undefined,
+      scheduledTo: req.query.scheduledTo ? new Date(req.query.scheduledTo as string) : undefined,
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 20
+    };
+
+    const returnFilters: ReturnSessionFilters = {
+      bookingId: req.query.bookingId as string,
+      handoverSessionId: req.query.handoverSessionId as string,
+      ownerId: req.query.ownerId as string,
+      renterId: req.query.renterId as string,
+      productId: req.query.productId as string,
+      status: req.query.status as any,
+      returnType: req.query.returnType as any,
+      scheduledFrom: req.query.scheduledFrom ? new Date(req.query.scheduledFrom as string) : undefined,
+      scheduledTo: req.query.scheduledTo ? new Date(req.query.scheduledTo as string) : undefined,
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 20
+    };
+
+    // Fetch based on requested view
+    const handoverPromise = (view === 'return') ? Promise.resolve(undefined) : HandoverReturnService.getHandoverSessions(handoverFilters);
+    const returnPromise = (view === 'handover') ? Promise.resolve(undefined) : HandoverReturnService.getReturnSessions(returnFilters);
+
+    const [handoverResult, returnResult] = await Promise.all([handoverPromise, returnPromise]);
+
+    if (handoverResult && (!handoverResult.success || !handoverResult.data)) {
+      return ResponseHelper.error(res, handoverResult.error || 'Failed to get handover sessions', 400);
+    }
+    if (returnResult && (!returnResult.success || !returnResult.data)) {
+      return ResponseHelper.error(res, returnResult.error || 'Failed to get return sessions', 400);
+    }
+
+    this.logAction('ADMIN_GET_ALL_SESSIONS', req.user.id, undefined, {
+      handoverFilters,
+      returnFilters
+    });
+
+    return ResponseHelper.success(
+      res,
+      'All sessions retrieved successfully',
+      {
+        handovers: handoverResult && handoverResult.data ? handoverResult.data.sessions : [],
+        returns: returnResult && returnResult.data ? returnResult.data.sessions : []
+      },
+      200,
+      {
+        handovers: handoverResult && handoverResult.data ? handoverResult.data.pagination : { page: 1, limit: 0, total: 0, pages: 0 },
+        returns: returnResult && returnResult.data ? returnResult.data.pagination : { page: 1, limit: 0, total: 0, pages: 0 }
+      }
+    );
+  });
 
   /**
    * Generate handover code

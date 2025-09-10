@@ -73,8 +73,18 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
       // Apply criteria efficiently
       Object.entries(criteria).forEach(([key, value]) => {
         if (value !== undefined) {
-          const dbKey = this.toSnakeCase(key);
-          query = query.where(dbKey, value);
+          if (key === 'search') {
+            // Handle search specially - search across multiple fields
+            const searchTerm = `%${value}%`;
+            query = query.where(function() {
+              this.where('email', 'ILIKE', searchTerm)
+                  .orWhere('first_name', 'ILIKE', searchTerm)
+                  .orWhere('last_name', 'ILIKE', searchTerm);
+            });
+          } else {
+            const dbKey = this.toSnakeCase(key);
+            query = query.where(dbKey, value);
+          }
         }
       });
 

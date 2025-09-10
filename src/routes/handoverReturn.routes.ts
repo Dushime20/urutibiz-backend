@@ -225,6 +225,12 @@ router.post('/handover-sessions', requireAuth, controller.createHandoverSession)
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
+ *         name: view
+ *         schema:
+ *           type: string
+ *           enum: [handover, return]
+ *         description: When provided, returns only the requested session type
+ *       - in: query
  *         name: page
  *         schema:
  *           type: integer
@@ -1478,5 +1484,79 @@ router.post('/handover-sessions/:sessionId/verify-code', requireAuth, controller
  *         description: Server error
  */
 router.post('/return-sessions/:sessionId/verify-code', requireAuth, controller.verifyReturnCode);
+
+/**
+ * @swagger
+ * /handover-return/admin/sessions:
+ *   get:
+ *     summary: Admin - Get all handover and return sessions
+ *     description: Returns both handover and return sessions. Admin only.
+ *     tags: [Handover & Return]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: bookingId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: ownerId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: renterId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: productId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: handoverType
+ *         schema:
+ *           type: string
+ *           enum: [pickup, delivery, meetup]
+ *       - in: query
+ *         name: returnType
+ *         schema:
+ *           type: string
+ *           enum: [pickup, delivery, meetup]
+ *       - in: query
+ *         name: scheduledFrom
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *       - in: query
+ *         name: scheduledTo
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *     responses:
+ *       200:
+ *         description: Sessions retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/admin/sessions', requireAuth, requireRole(['admin']), controller.getAllSessionsAdmin);
 
 export default router;

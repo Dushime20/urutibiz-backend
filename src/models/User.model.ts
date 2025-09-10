@@ -204,8 +204,29 @@ export class User implements Partial<UserData> {
     return bcrypt.compare(password, this.passwordHash || '');
   }
 
-  async changePassword(_newPassword: string): Promise<void> {
-    // Demo implementation
+  async changePassword(newPassword: string): Promise<void> {
+    const db = require('@/config/database').getDatabase();
+    
+    // Validate password strength
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      throw new Error('Password must be at least 8 characters long and contain uppercase, lowercase, number, and special character.');
+    }
+    
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Update password in database
+    const updateResult = await db('users')
+      .where({ id: this.id })
+      .update({ password_hash: hashedPassword });
+    
+    if (updateResult === 0) {
+      throw new Error('Failed to update password - user not found');
+    }
+    
+    // Update the local instance
+    this.passwordHash = hashedPassword;
   }
 
   static async getUserStatistics(_id: string): Promise<any> {

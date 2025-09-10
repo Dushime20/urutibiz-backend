@@ -310,6 +310,224 @@ router.get('/:id/rentals', requireAuth, controller.getRentalHistory);
 
 /**
  * @swagger
+ * /api/v1/users/{id}/login-history:
+ *   get:
+ *     summary: Get user login history
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: User ID
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Number of results to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Number of results to skip
+ *       - in: query
+ *         name: dateFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter from date (YYYY-MM-DD)
+ *       - in: query
+ *         name: dateTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter to date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Login history retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     sessions:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                           ipAddress:
+ *                             type: string
+ *                           userAgent:
+ *                             type: string
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                           expiresAt:
+ *                             type: string
+ *                             format: date-time
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *                         hasNext:
+ *                           type: boolean
+ *                         hasPrev:
+ *                           type: boolean
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - User can only view their own login history
+ *       404:
+ *         description: User not found
+ */
+router.get('/:id/login-history', requireAuth, controller.getUserLoginHistory);
+
+/**
+ * @swagger
+ * /api/v1/users/{id}/activity-history:
+ *   get:
+ *     summary: Get user activity history
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: User ID
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Number of results to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Number of results to skip
+ *       - in: query
+ *         name: actionType
+ *         schema:
+ *           type: string
+ *         description: Filter by action type
+ *       - in: query
+ *         name: entityType
+ *         schema:
+ *           type: string
+ *         description: Filter by entity type
+ *       - in: query
+ *         name: dateFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter from date (YYYY-MM-DD)
+ *       - in: query
+ *         name: dateTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter to date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Activity history retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     activities:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                           actionType:
+ *                             type: string
+ *                           entityType:
+ *                             type: string
+ *                           entityId:
+ *                             type: string
+ *                             format: uuid
+ *                           details:
+ *                             type: object
+ *                           status:
+ *                             type: string
+ *                           ipAddress:
+ *                             type: string
+ *                           userAgent:
+ *                             type: string
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *                         hasNext:
+ *                           type: boolean
+ *                         hasPrev:
+ *                           type: boolean
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - User can only view their own activity history
+ *       404:
+ *         description: User not found
+ */
+router.get('/:id/activity-history', requireAuth, controller.getUserActivityHistory);
+
+/**
+ * @swagger
  * /users/{id}/preferences:
  *   put:
  *     summary: Update user preferences
@@ -392,7 +610,7 @@ router.put('/:id/preferences', requireAuth, controller.updatePreferences);
  *       500:
  *         description: Server error
  */
-router.get('/:id', requireAuth, controller.getUser);
+router.get('/:id', controller.getUser);
 
 /**
  * @swagger

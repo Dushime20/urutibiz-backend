@@ -34,6 +34,7 @@ import productInspectionRoutes from './productInspection.routes';
 import riskManagementRoutes from './riskManagement.routes';
 import handoverReturnRoutes from './handoverReturn.routes';
 import notificationRoutes from './notification.routes';
+import violationRoutes from './violation.routes';
 import testRoutes from './test.routes';
 
 const router = Router();
@@ -96,6 +97,8 @@ console.log('🔧 Mounting Handover & Return routes at /handover-return');
 router.use('/handover-return', handoverReturnRoutes);
 console.log('🔧 Mounting Notification routes at /notifications');
 router.use('/notifications', notificationRoutes);
+console.log('🔧 Mounting Violation routes at /violations');
+router.use('/violations', violationRoutes);
 
 // Test routes for development
 console.log('🔧 Mounting Test routes at /test');
@@ -122,6 +125,7 @@ router.get('/', (_req, res) => {
       risk_management: '/api/v1/risk-management',
       handover_return: '/api/v1/handover-return',
       notifications: '/api/v1/notifications',
+      violations: '/api/v1/violations',
       product_prices: '/api/v1/product-prices',
       category_regulations: '/api/v1/category-regulations',
       localization: '/api/v1/localization',

@@ -14,6 +14,7 @@ export interface UserData {
   status: UserStatus;
   firstName: string;
   lastName: string;
+  preferred_currency?: string;
   dateOfBirth?: Date;
   gender?: string;
   province?: string;
@@ -51,6 +52,7 @@ export interface CreateUserData {
   lastName: string;
   countryId: string;
   role?: UserRole;
+  preferred_currency?: string;
 }
 
 export interface UpdateUserData {
@@ -80,6 +82,7 @@ export interface UpdateUserData {
   sector?: string;
   cell?: string;
   village?: string;
+  preferred_currency?: string;
 }
 
 export interface UserFilters {

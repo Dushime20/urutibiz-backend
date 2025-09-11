@@ -109,7 +109,8 @@ export class UsersController extends BaseController {
     // Ensure kyc_status is included in every user object
     const usersWithKyc = result.data.data.map((u: any) => ({
       ...u,
-      kyc_status: u.kyc_status || 'unverified'
+      kyc_status: u.kyc_status || 'unverified',
+      preferred_currency: u.preferred_currency ?? u.preferredCurrency ?? null
     }));
 
     // Wrap in PaginationResult to match expected type
@@ -161,6 +162,7 @@ export class UsersController extends BaseController {
     const responseData = {
       ...userResult.data,
       kyc_status: userResult.data.kyc_status || 'unverified',
+      preferred_currency: (userResult.data as any).preferred_currency ?? (userResult.data as any).preferredCurrency ?? null,
       verifications,
       kycProgress,
       location: locationData
@@ -664,6 +666,9 @@ export class UsersController extends BaseController {
     if (req.body.sector !== undefined) updateData.sector = req.body.sector;
     if (req.body.cell !== undefined) updateData.cell = req.body.cell;
     if (req.body.village !== undefined) updateData.village = req.body.village;
+    // Preferences
+    if (req.body.preferred_currency !== undefined) updateData.preferred_currency = req.body.preferred_currency;
+    if (req.body.preferredCurrency !== undefined) updateData.preferred_currency = req.body.preferredCurrency;
     
     // Handle profile image (map profileImage to profileImageUrl for frontend convenience)
     // This block is now redundant as profileImageUrl is handled above

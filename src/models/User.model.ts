@@ -41,6 +41,8 @@ export class User implements Partial<UserData> {
   public sector?: string;
   public cell?: string;
   public village?: string;
+  // Preferences
+  public preferred_currency?: string;
 
   // In-memory storage for demo
   // private static users: User[] = []; // Removed unused variable
@@ -79,6 +81,8 @@ export class User implements Partial<UserData> {
     this.twoFactorSecret = data.twoFactorSecret;
     this.twoFactorBackupCodes = data.twoFactorBackupCodes;
     this.twoFactorVerified = data.twoFactorVerified;
+    // Preferences
+    this.preferred_currency = data.preferred_currency || data.preferredCurrency;
   }
 
   static async findById(id: string): Promise<User | null> {
@@ -125,6 +129,7 @@ export class User implements Partial<UserData> {
       twoFactorSecret: row.two_factor_secret,
       twoFactorBackupCodes: row.two_factor_backup_codes ? this.safeParseJson(row.two_factor_backup_codes) : undefined,
       twoFactorVerified: row.two_factor_verified,
+      preferred_currency: row.preferred_currency,
       location: undefined
     });
   }
@@ -197,6 +202,7 @@ export class User implements Partial<UserData> {
       ,dateOfBirth: this.dateOfBirth
       ,twoFactorEnabled: this.twoFactorEnabled
       ,twoFactorVerified: this.twoFactorVerified
+      ,preferred_currency: this.preferred_currency ?? null
     };
   }
 

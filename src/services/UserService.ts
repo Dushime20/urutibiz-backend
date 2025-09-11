@@ -29,6 +29,8 @@ class UserService extends BaseService<UserData, CreateUserData, UpdateUserData> 
   protected async applyCreateBusinessRules(data: CreateUserData): Promise<CreateUserData> {
     // Add business logic (e.g., set default role)
     if (!data.role) data.role = 'renter';
+    // Default preferred currency
+    if (!data.preferred_currency) data.preferred_currency = 'USD';
     return data;
   }
 

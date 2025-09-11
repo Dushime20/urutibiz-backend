@@ -222,6 +222,34 @@ router.get('/',requireAuth, controller.getUsers);
 
 // ✅ SPECIFIC ROUTES MUST COME BEFORE GENERIC :id ROUTES
 // This prevents /users/stats from being caught by /users/:id
+/**
+ * @swagger
+ * /users/{id}/verifications/documents:
+ *   get:
+ *     summary: Get user verification documents
+ *     description: Returns document and selfie image URLs for the user's verifications
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: Verification documents retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: User not found
+ */
+router.get('/:id/verifications/documents', requireAuth, controller.getUserVerificationDocuments);
 
 /**
  * @swagger

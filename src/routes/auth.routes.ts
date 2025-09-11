@@ -508,4 +508,53 @@ router.post('/reset-password', AuthController.resetPassword);
  */
 router.get('/validate-reset-token/:token', AuthController.validateResetToken);
 
+/**
+ * @swagger
+ * /auth/email-otp/request:
+ *   post:
+ *     summary: Request email verification OTP (6 digits)
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: OTP sent if email exists
+ */
+router.post('/email-otp/request', AuthController.requestEmailOtp);
+
+/**
+ * @swagger
+ * /auth/email-otp/verify:
+ *   post:
+ *     summary: Verify email with OTP
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               otp:
+ *                 type: string
+ *                 pattern: "^[0-9]{6}$"
+ *     responses:
+ *       200:
+ *         description: Email verified
+ *       400:
+ *         description: Invalid or expired OTP
+ */
+router.post('/email-otp/verify', AuthController.verifyEmailOtp);
+
 export default router;

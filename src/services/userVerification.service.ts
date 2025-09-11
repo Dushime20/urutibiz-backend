@@ -63,7 +63,7 @@ export default class UserVerificationService {
     }
     // Get user's phone number for verification record
     const user = await db('users').where({ id: userId }).first();
-    const userPhoneNumber = user?.phone_number || user?.phone; // Try both phone_number and phone fields
+    const userPhoneNumber = user?.phone; // canonical 'phone' column
     
     console.log(`📱 User ${userId} phone number: ${userPhoneNumber}`);
     
@@ -325,6 +325,7 @@ export default class UserVerificationService {
       const user = await db('users').where({ id: userId }).first();
       if (!user.phone || user.phone !== latestVerification.phone_number) {
         updateData.phone = latestVerification.phone_number;
+        (updateData as any).phone_number = latestVerification.phone_number;
         console.log(`📱 Updating phone number for user ${userId}: ${latestVerification.phone_number}`);
       }
     } else {
@@ -565,7 +566,7 @@ export default class UserVerificationService {
         if (aiComparisonResult.isMatch && aiComparisonResult.similarity > 0.75) {
           verificationStatus = 'verified';
           console.log('✅ AI verification successful - setting status to verified');
-        } else if (aiComparisonResult.similarity < 0.4) {
+        } else if (aiComparisonResult.similarity < 0.55) {
           verificationStatus = 'rejected';
           console.log('❌ AI verification failed - setting status to rejected');
         } else {
@@ -691,6 +692,23 @@ export default class UserVerificationService {
       .limit(1)
       .update({ phone_number: newPhoneNumber });
 
+    // Enforce uniqueness: reject if another user already has this phone
+    const existingUserWithPhone = await db('users')
+      .where('phone', newPhoneNumber)
+      .andWhereNot('id', userId)
+      .first();
+    if (existingUserWithPhone) {
+      throw new Error('Phone number already in use by another account');
+    }
+
+    // Persist verified phone number onto users table as the canonical phone
+    const affected = await db('users')
+      .where({ id: userId })
+      .update({ phone: newPhoneNumber, updated_at: new Date() });
+    if (!affected) {
+      console.warn(`[PhoneOTP] No user row updated for ${userId}.`);
+    }
+
     // Check latest verification status and update user if needed
     const latestVerification = await db('user_verifications')
       .where({ user_id: userId })
@@ -706,7 +724,8 @@ export default class UserVerificationService {
         .update({
           phone_verified: true,
           kyc_status: 'verified',
-          id_verification_status: 'verified'
+          id_verification_status: 'verified',
+          updated_at: new Date()
         });
     }
   }

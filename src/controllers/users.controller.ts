@@ -16,6 +16,7 @@ import UserService from '@/services/UserService';
 import cloudinary from '@/config/cloudinary';
 import { Response } from 'express';
 import { UpdateUserData, UserFilters, AuthenticatedRequest } from '@/types';
+import UserVerificationService from '@/services/userVerification.service';
 
 // Define AuthenticatedRequest interface locally since it's not exported
 // interface AuthenticatedRequest<T = any> extends Request {
@@ -110,7 +111,8 @@ export class UsersController extends BaseController {
     const usersWithKyc = result.data.data.map((u: any) => ({
       ...u,
       kyc_status: u.kyc_status || 'unverified',
-      preferred_currency: u.preferred_currency ?? u.preferredCurrency ?? null
+      preferred_currency: u.preferred_currency ?? u.preferredCurrency ?? null,
+      phone: u.phone ?? u.phone_number ?? null
     }));
 
     // Wrap in PaginationResult to match expected type
@@ -163,6 +165,7 @@ export class UsersController extends BaseController {
       ...userResult.data,
       kyc_status: userResult.data.kyc_status || 'unverified',
       preferred_currency: (userResult.data as any).preferred_currency ?? (userResult.data as any).preferredCurrency ?? null,
+      phone: (userResult.data as any).phone ?? (userResult.data as any).phone_number ?? null,
       verifications,
       kycProgress,
       location: locationData
@@ -469,11 +472,37 @@ export class UsersController extends BaseController {
     
     // Performance: Single optimized query with indexing
     return await db('user_verifications')
-      .select('verification_type', 'verification_status', 'created_at', 'updated_at')
+      .select(
+        'verification_type',
+        'verification_status',
+        'document_image_url',
+        'selfie_image_url',
+        'created_at',
+        'updated_at'
+      )
       .where({ user_id: userId })
       .orderBy('created_at', 'desc')
       .limit(50); // Prevent excessive data transfer
   }
+
+  /**
+   * Get user verification documents (document and selfie image URLs)
+   * GET /api/v1/users/:id/verifications/documents
+   */
+  public getUserVerificationDocuments = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+
+    // Authorization: Users can only view their own verification documents unless admin
+    if (req.user.role !== 'admin' && req.user.id !== id) {
+      return this.handleUnauthorized(res, 'Not authorized to view these verification documents');
+    }
+
+    const docs = await UserVerificationService.getUserVerificationDocuments(id);
+
+    this.logAction('GET_USER_VERIFICATION_DOCUMENTS', (req as any)?.user?.id ?? 'anonymous', id);
+
+    return ResponseHelper.success(res, 'Verification documents retrieved successfully', { verifications: docs });
+  });
 
   /**
    * Fetch user location geometry data

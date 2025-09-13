@@ -1,11 +1,16 @@
 import { Router } from 'express';
 import adminController from '@/controllers/admin.controller';
 import ModerationController from '@/controllers/moderation.controller';
+import AdminSettingsController from '@/controllers/adminSettings.controller';
 import { authenticateToken as authenticate, requireRole } from '@/middleware/auth.middleware';
+import { uploadSingle, uploadLogo } from '@/middleware/upload.middleware';
 import messagingRoutes from './messaging.routes';
 import notificationRoutes from './notification.routes';
 
 const router = Router();
+
+// Temporary test endpoint without auth
+router.post('/test/users/register', adminController.registerUser);
 
 // All admin routes require admin or super_admin role
 router.use(authenticate);
@@ -718,7 +723,28 @@ router.post('/bookings/:id/override', adminController.overrideBookingStatus);
 // Users routes
 router.get('/users', adminController.getUsers);
 router.get('/users/:id', adminController.getUserDetails);
+router.post('/users/register', adminController.registerUser);
 router.post('/users/:id/moderate', adminController.moderateUser);
+
+// Admin Settings Routes (Senior Setting Strategist)
+router.get('/settings/system', AdminSettingsController.getSystemSettings);
+router.put('/settings/system', AdminSettingsController.updateSystemSettings);
+router.get('/settings/theme', AdminSettingsController.getThemeSettings);
+router.put('/settings/theme', AdminSettingsController.updateThemeSettings);
+router.get('/settings/security', AdminSettingsController.getSecuritySettings);
+router.put('/settings/security', AdminSettingsController.updateSecuritySettings);
+router.get('/settings/business', AdminSettingsController.getBusinessSettings);
+router.put('/settings/business', AdminSettingsController.updateBusinessSettings);
+router.post('/settings/logo', uploadLogo, AdminSettingsController.uploadLogo);
+router.delete('/settings/logo', AdminSettingsController.deleteLogo);
+router.post('/settings/cleanup', AdminSettingsController.cleanupBusinessData);
+router.post('/settings/cleanup-invalid', AdminSettingsController.cleanupInvalidFields);
+router.post('/settings/reset-corrupted', AdminSettingsController.resetCorruptedSettings);
+router.post('/settings/debug', AdminSettingsController.debugBusinessSettings);
+router.put('/settings/social-media', AdminSettingsController.updateSocialMedia);
+router.get('/settings/notifications', AdminSettingsController.getNotificationSettings);
+router.post('/settings/backup', AdminSettingsController.createBackup);
+router.post('/settings/reset', AdminSettingsController.resetSettings);
 
 /**
  * @swagger
@@ -775,6 +801,11 @@ router.get('/activity', adminController.getActivity);
 // Financial routes
 router.get('/financial/reports', adminController.getFinancialReports);
 router.post('/financial/payouts/process', adminController.processPayouts);
+
+// System routes
+router.get('/system/health', adminController.getSystemHealth);
+router.get('/audit-logs', adminController.getAuditLogs);
+router.post('/export', adminController.exportData);
 
 // Messaging routes
 router.use('/chats', messagingRoutes);

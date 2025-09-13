@@ -36,6 +36,7 @@ import handoverReturnRoutes from './handoverReturn.routes';
 import notificationRoutes from './notification.routes';
 import violationRoutes from './violation.routes';
 import testRoutes from './test.routes';
+import validationRoutes from './validation.routes';
 
 const router = Router();
 
@@ -104,6 +105,10 @@ router.use('/violations', violationRoutes);
 console.log('🔧 Mounting Test routes at /test');
 router.use('/test', testRoutes);
 
+// Validation routes
+console.log('🔧 Mounting Validation routes at /validate');
+router.use('/validate', validationRoutes);
+
 // Placeholder routes - remove when actual routes are implemented
 router.get('/', (_req, res) => {
   res.status(200).json({
@@ -126,6 +131,7 @@ router.get('/', (_req, res) => {
       handover_return: '/api/v1/handover-return',
       notifications: '/api/v1/notifications',
       violations: '/api/v1/violations',
+      validate: '/api/v1/validate',
       product_prices: '/api/v1/product-prices',
       category_regulations: '/api/v1/category-regulations',
       localization: '/api/v1/localization',

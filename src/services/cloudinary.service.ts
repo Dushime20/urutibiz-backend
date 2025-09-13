@@ -125,6 +125,105 @@ export class CloudinaryService {
   }
 
   /**
+   * Upload logo image to Cloudinary
+   */
+  static async uploadLogoImage(
+    file: Express.Multer.File,
+    context: string = 'platform'
+  ): Promise<CloudinaryUploadResult> {
+    try {
+      // Fallback: If Cloudinary is not configured or running in demo/dev, return local file URL
+      const isDemo = process.env.NODE_ENV === 'demo' || process.env.DEMO === 'true';
+      const isCloudinaryConfigured = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+      if (!isCloudinaryConfigured || isDemo) {
+        const normalized = file.path.replace(/\\/g, '/');
+        const url = normalized.startsWith('/') ? normalized : `/${normalized}`;
+        return {
+          success: true,
+          url,
+          publicId: undefined
+        };
+      }
+
+      // Create a unique folder for logo images
+      const folder = `platform/${context}/logos`;
+      
+      // Upload to Cloudinary with logo optimization settings
+      const result = await cloudinary.uploader.upload(file.path, {
+        folder,
+        public_id: `logo_${Date.now()}`,
+        transformation: [
+          { width: 200, height: 200, crop: 'limit', gravity: 'center' },
+          { quality: 'auto:best' },
+          { fetch_format: 'auto' }
+        ],
+        resource_type: 'image',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'],
+        overwrite: true,
+        invalidate: true
+      });
+
+      return {
+        success: true,
+        url: result.secure_url,
+        publicId: result.public_id
+      };
+    } catch (error) {
+      console.error('[CloudinaryService] Logo upload error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Logo upload failed'
+      };
+    }
+  }
+
+  /**
+   * Delete logo image from Cloudinary
+   */
+  static async deleteLogoImage(publicId: string): Promise<boolean> {
+    try {
+      const isDemo = process.env.NODE_ENV === 'demo' || process.env.DEMO === 'true';
+      const isCloudinaryConfigured = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+      
+      if (!isCloudinaryConfigured || isDemo) {
+        return true; // Skip deletion in demo mode
+      }
+
+      await cloudinary.uploader.destroy(publicId);
+      return true;
+    } catch (error) {
+      console.error('[CloudinaryService] Logo deletion error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get optimized logo URL with custom transformations
+   */
+  static getOptimizedLogoUrl(
+    publicId: string, 
+    width: number = 200, 
+    height: number = 200,
+    format: string = 'auto'
+  ): string {
+    const isDemo = process.env.NODE_ENV === 'demo' || process.env.DEMO === 'true';
+    const isCloudinaryConfigured = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+    
+    if (!isCloudinaryConfigured || isDemo) {
+      return publicId; // Return original URL in demo mode
+    }
+
+    return cloudinary.url(publicId, {
+      width,
+      height,
+      crop: 'limit',
+      gravity: 'center',
+      quality: 'auto:best',
+      fetch_format: format
+    });
+  }
+
+  /**
    * Delete profile image from Cloudinary
    */
   static async deleteProfileImage(publicId: string): Promise<boolean> {

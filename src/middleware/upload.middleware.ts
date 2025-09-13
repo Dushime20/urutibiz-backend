@@ -14,7 +14,7 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const allowedTypes = ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.doc', '.docx'];
+  const allowedTypes = ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.doc', '.docx', '.webp', '.svg'];
   const fileExtension = path.extname(file.originalname).toLowerCase();
   
   if (allowedTypes.includes(fileExtension)) {
@@ -31,6 +31,14 @@ export const uploadSingle = multer({
     fileSize: 5 * 1024 * 1024, // 5MB
   }
 }).single('file');
+
+export const uploadLogo = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  }
+}).single('logo');
 
 export const uploadMultiple = multer({
   storage,

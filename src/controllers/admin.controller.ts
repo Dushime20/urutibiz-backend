@@ -191,6 +191,122 @@ export class AdminController extends BaseController {
   }
 
   /**
+   * Register new user (Admin only)
+   * @swagger
+   * /admin/users/register:
+   *   post:
+   *     summary: Register new user as admin
+   *     tags: [Admin]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [firstName, lastName, email, password, role]
+   *             properties:
+   *               firstName:
+   *                 type: string
+   *                 minLength: 2
+   *                 maxLength: 50
+   *               lastName:
+   *                 type: string
+   *                 minLength: 2
+   *                 maxLength: 50
+   *               email:
+   *                 type: string
+   *                 format: email
+   *               password:
+   *                 type: string
+   *                 minLength: 8
+   *               role:
+   *                 type: string
+   *                 enum: [admin, user, provider, moderator, inspector]
+   *               phone:
+   *                 type: string
+   *               countryId:
+   *                 type: string
+   *     responses:
+   *       201:
+   *         description: User registered successfully
+   *       400:
+   *         description: Invalid input data
+   *       409:
+   *         description: Email already exists
+   */
+  public async registerUser(req: Request, res: Response) {
+    try {
+      const { firstName, lastName, email, password, role, phone } = req.body;
+      const adminId = (req as any).user.id;
+
+      // Validate required fields
+      if (!firstName || !lastName || !email || !password || !role) {
+        return ResponseHelper.error(res, 'Missing required fields: firstName, lastName, email, password, role', undefined, 400);
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return ResponseHelper.error(res, 'Invalid email format', undefined, 400);
+      }
+
+      // Validate password strength
+      if (password.length < 8) {
+        return ResponseHelper.error(res, 'Password must be at least 8 characters long', undefined, 400);
+      }
+
+      // Validate role
+      const validRoles = ['admin', 'user', 'provider', 'moderator', 'inspector'];
+      if (!validRoles.includes(role)) {
+        return ResponseHelper.error(res, 'Invalid role. Must be one of: admin, user, provider, moderator, inspector', undefined, 400);
+      }
+
+      // Check if email already exists
+      const db = require('@/config/database').getDatabase();
+      const existingUser = await db('users').where('email', email).first();
+      if (existingUser) {
+        return ResponseHelper.error(res, 'Email already exists', undefined, 409);
+      }
+
+      // Hash password
+      const bcrypt = require('bcryptjs');
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      // Create user - using the actual database schema
+      const [userRow] = await db('users').insert({
+        first_name: firstName,
+        last_name: lastName,
+        email: email,
+        password_hash: passwordHash,
+        role: role,
+        phone: phone || null, // Using 'phone' instead of 'phone_number'
+        status: 'active', // Using 'status' instead of 'is_active'
+        email_verified: true, // Admin-created users are auto-verified
+        created_at: new Date(),
+        updated_at: new Date()
+      }, ['id', 'email', 'first_name', 'last_name', 'role', 'status', 'email_verified', 'created_at']);
+
+      // Log admin action
+      logger.info(`Admin ${adminId} registered new user: ${email} with role: ${role}`);
+
+      return ResponseHelper.success(res, 'User registered successfully', {
+        id: userRow.id,
+        email: userRow.email,
+        firstName: userRow.first_name,
+        lastName: userRow.last_name,
+        role: userRow.role,
+        status: userRow.status,
+        emailVerified: userRow.email_verified,
+        createdAt: userRow.created_at
+      }, 201);
+
+    } catch (error: any) {
+      logger.error(`Error in registerUser: ${error.message}`);
+      return ResponseHelper.error(res, 'Failed to register user', error);
+    }
+  }
+
+  /**
    * Update user KYC status
    */
   public async updateUserKycStatus(req: Request, res: Response) {

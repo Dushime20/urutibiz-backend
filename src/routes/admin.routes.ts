@@ -740,9 +740,13 @@ router.delete('/settings/logo', AdminSettingsController.deleteLogo);
 router.post('/settings/cleanup', AdminSettingsController.cleanupBusinessData);
 router.post('/settings/cleanup-invalid', AdminSettingsController.cleanupInvalidFields);
 router.post('/settings/reset-corrupted', AdminSettingsController.resetCorruptedSettings);
+router.post('/settings/initialize-system', AdminSettingsController.initializeSystemSettings);
 router.post('/settings/debug', AdminSettingsController.debugBusinessSettings);
 router.put('/settings/social-media', AdminSettingsController.updateSocialMedia);
 router.get('/settings/notifications', AdminSettingsController.getNotificationSettings);
+router.put('/settings/notifications', AdminSettingsController.updateNotificationSettings);
+router.get('/settings/platform', AdminSettingsController.getPlatformSettings);
+router.put('/settings/platform', AdminSettingsController.updatePlatformSettings);
 router.post('/settings/backup', AdminSettingsController.createBackup);
 router.post('/settings/reset', AdminSettingsController.resetSettings);
 

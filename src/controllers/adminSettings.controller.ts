@@ -340,8 +340,28 @@ export class AdminSettingsController extends BaseController {
       const updatedSettings: any = {};
 
       for (const [key, value] of Object.entries(securityUpdates)) {
-        const stringValue = typeof value === 'string' ? value : String(value);
+        // Properly serialize complex data types
+        let stringValue: string;
         
+        if (typeof value === 'object' && value !== null) {
+          // Handle objects (like passwordPolicy) properly
+          stringValue = JSON.stringify(value);
+        } else if (typeof value === 'string') {
+          // Check if it's already a JSON string to avoid double encoding
+          try {
+            JSON.parse(value);
+            // If it parses successfully, it's already JSON - use as is
+            stringValue = value;
+          } catch {
+            // If it doesn't parse, it's a regular string
+            stringValue = value;
+          }
+        } else {
+          // Handle numbers, booleans, etc.
+          stringValue = String(value);
+        }
+        
+        // Try to update first
         const result = await db('system_settings')
           .where({ key, category: 'security' })
           .update({
@@ -352,15 +372,41 @@ export class AdminSettingsController extends BaseController {
           .returning('*');
 
         if (result.length === 0) {
-          await db('system_settings').insert({
-            key,
-            value: stringValue,
-            type: typeof value === 'object' ? 'object' : typeof value,
-            category: 'security',
-            description: `Security setting for ${key}`,
-            created_by: adminId,
-            updated_by: adminId
-          });
+          // If no record exists, insert new one
+          try {
+            await db('system_settings').insert({
+              key,
+              value: stringValue,
+              type: typeof value === 'object' ? 'object' : typeof value,
+              category: 'security',
+              description: `Security setting for ${key}`,
+              created_by: adminId,
+              updated_by: adminId
+            });
+          } catch (insertError: any) {
+            // If insert fails due to duplicate key, try to update with different approach
+            if (insertError.code === '23505') { // PostgreSQL unique violation
+              logger.warn(`Duplicate key detected for ${key}, attempting to update existing record`);
+              
+              // Try to find and update the existing record
+              const existingRecord = await db('system_settings')
+                .where({ key })
+                .first();
+                
+              if (existingRecord) {
+                await db('system_settings')
+                  .where({ id: existingRecord.id })
+                  .update({
+                    value: stringValue,
+                    category: 'security',
+                    updated_at: new Date(),
+                    updated_by: adminId
+                  });
+              }
+            } else {
+              throw insertError;
+            }
+          }
         }
 
         updatedSettings[key] = value;
@@ -1349,6 +1395,81 @@ export class AdminSettingsController extends BaseController {
 
   /**
    * @swagger
+   * /admin/settings/initialize-system:
+   *   post:
+   *     summary: Initialize system settings with default values
+   *     tags: [AdminSettings]
+   *     responses:
+   *       200:
+   *         description: System settings initialized successfully
+   */
+  public async initializeSystemSettings(req: Request, res: Response) {
+    try {
+      const adminId = (req as any).user.id;
+      const db = getDatabase();
+
+      // Check if system settings already exist
+      const existingSettings = await db('system_settings')
+        .where('category', 'system')
+        .count('* as count')
+        .first();
+
+      if (existingSettings && existingSettings.count > 0) {
+        return ResponseHelper.success(res, 'System settings already initialized', {
+          message: 'System settings already exist in the database',
+          count: existingSettings.count
+        });
+      }
+
+      // Default system settings
+      const defaultSystemSettings = [
+        { key: 'appName', value: 'UruTiBiz', type: 'text', category: 'system', description: 'Application name' },
+        { key: 'appVersion', value: '1.0.0', type: 'text', category: 'system', description: 'Application version' },
+        { key: 'maintenanceMode', value: 'false', type: 'boolean', category: 'system', description: 'Enable maintenance mode' },
+        { key: 'registrationEnabled', value: 'true', type: 'boolean', category: 'system', description: 'Allow new user registrations' },
+        { key: 'emailNotifications', value: 'true', type: 'boolean', category: 'system', description: 'Enable email notifications' },
+        { key: 'smsNotifications', value: 'false', type: 'boolean', category: 'system', description: 'Enable SMS notifications' },
+        { key: 'maxFileSize', value: '10485760', type: 'number', category: 'system', description: 'Maximum file upload size in bytes (10MB)' },
+        { key: 'sessionTimeout', value: '3600', type: 'number', category: 'system', description: 'Session timeout in seconds (1 hour)' },
+        { key: 'maxLoginAttempts', value: '5', type: 'number', category: 'system', description: 'Maximum login attempts before lockout' },
+        { key: 'passwordMinLength', value: '8', type: 'number', category: 'system', description: 'Minimum password length' },
+        { key: 'apiRateLimit', value: '1000', type: 'number', category: 'system', description: 'API rate limit per hour per user' },
+        { key: 'cacheEnabled', value: 'true', type: 'boolean', category: 'system', description: 'Enable system cache' },
+        { key: 'logLevel', value: 'info', type: 'text', category: 'system', description: 'Logging level (error, warn, info, debug)' },
+        { key: 'autoBackupEnabled', value: 'true', type: 'boolean', category: 'system', description: 'Enable automatic backups' },
+        { key: 'backupFrequency', value: 'daily', type: 'text', category: 'system', description: 'Backup frequency (hourly, daily, weekly)' },
+        { key: 'autoApproveProducts', value: 'false', type: 'boolean', category: 'system', description: 'Auto-approve new product listings' },
+        { key: 'defaultCurrency', value: 'RWF', type: 'text', category: 'system', description: 'Default platform currency' },
+        { key: 'contentModerationEnabled', value: 'true', type: 'boolean', category: 'system', description: 'Enable content moderation' },
+        { key: 'analyticsEnabled', value: 'true', type: 'boolean', category: 'system', description: 'Enable analytics tracking' },
+        { key: 'fromEmail', value: 'noreply@urutibiz.com', type: 'text', category: 'system', description: 'Default sender email address' }
+      ];
+
+      // Insert with created_by and updated_by
+      const settingsWithAudit = defaultSystemSettings.map(setting => ({
+        ...setting,
+        created_by: adminId,
+        updated_by: adminId
+      }));
+
+      await db('system_settings').insert(settingsWithAudit);
+
+      logger.info(`Admin ${adminId} initialized system settings with ${defaultSystemSettings.length} default values`);
+
+      return ResponseHelper.success(res, 'System settings initialized successfully', {
+        message: 'System settings have been initialized with default values',
+        settingsCount: defaultSystemSettings.length,
+        settings: defaultSystemSettings.map(s => s.key)
+      });
+
+    } catch (error: any) {
+      logger.error(`Error in initializeSystemSettings: ${error.message}`);
+      return ResponseHelper.error(res, 'Failed to initialize system settings', error);
+    }
+  }
+
+  /**
+   * @swagger
    * /admin/settings/notifications:
    *   get:
    *     summary: Get notification settings
@@ -1414,6 +1535,465 @@ export class AdminSettingsController extends BaseController {
     } catch (error: any) {
       logger.error(`Error in getNotificationSettings: ${error.message}`);
       return ResponseHelper.error(res, 'Failed to retrieve notification settings', error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /admin/settings/notifications:
+   *   put:
+   *     summary: Update notification settings
+   *     tags: [AdminSettings]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               emailEnabled:
+   *                 type: boolean
+   *               smsEnabled:
+   *                 type: boolean
+   *               pushEnabled:
+   *                 type: boolean
+   *               quietHours:
+   *                 type: object
+   *               adminAlerts:
+   *                 type: boolean
+   *               systemMaintenance:
+   *                 type: object
+   *     responses:
+   *       200:
+   *         description: Notification settings updated successfully
+   */
+  public async updateNotificationSettings(req: Request, res: Response) {
+    try {
+      const notificationUpdates = req.body;
+      const adminId = (req as any).user.id;
+
+      const db = getDatabase();
+      const updatedSettings: any = {};
+
+      for (const [key, value] of Object.entries(notificationUpdates)) {
+        // Properly serialize complex data types
+        let stringValue: string;
+        
+        if (typeof value === 'object' && value !== null) {
+          // Handle objects (like quietHours, systemMaintenance) properly
+          stringValue = JSON.stringify(value);
+        } else if (typeof value === 'string') {
+          // Check if it's already a JSON string to avoid double encoding
+          try {
+            JSON.parse(value);
+            // If it parses successfully, it's already JSON - use as is
+            stringValue = value;
+          } catch {
+            // If it doesn't parse, it's a regular string
+            stringValue = value;
+          }
+        } else {
+          // Handle numbers, booleans, etc.
+          stringValue = String(value);
+        }
+        
+        // Try to update first
+        const result = await db('system_settings')
+          .where({ key, category: 'notifications' })
+          .update({
+            value: stringValue,
+            updated_at: new Date(),
+            updated_by: adminId
+          })
+          .returning('*');
+
+        if (result.length === 0) {
+          // If no record exists, insert new one
+          try {
+            await db('system_settings').insert({
+              key,
+              value: stringValue,
+              type: typeof value === 'object' ? 'object' : typeof value,
+              category: 'notifications',
+              description: `Notification setting for ${key}`,
+              created_by: adminId,
+              updated_by: adminId
+            });
+          } catch (insertError: any) {
+            // If insert fails due to duplicate key, try to update with different approach
+            if (insertError.code === '23505') { // PostgreSQL unique violation
+              logger.warn(`Duplicate key detected for ${key}, attempting to update existing record`);
+              
+              // Try to find and update the existing record
+              const existingRecord = await db('system_settings')
+                .where({ key })
+                .first();
+                
+              if (existingRecord) {
+                await db('system_settings')
+                  .where({ id: existingRecord.id })
+                  .update({
+                    value: stringValue,
+                    category: 'notifications',
+                    updated_at: new Date(),
+                    updated_by: adminId
+                  });
+              }
+            } else {
+              throw insertError;
+            }
+          }
+        }
+
+        updatedSettings[key] = value;
+      }
+
+      logger.info(`Admin ${adminId} updated notification settings`, { settings: Object.keys(updatedSettings) });
+
+      return ResponseHelper.success(res, 'Notification settings updated successfully', updatedSettings);
+    } catch (error: any) {
+      logger.error(`Error in updateNotificationSettings: ${error.message}`);
+      return ResponseHelper.error(res, 'Failed to update notification settings', error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /admin/settings/platform:
+   *   get:
+   *     summary: Get platform settings
+   *     tags: [AdminSettings]
+   *     responses:
+   *       200:
+   *         description: Platform settings retrieved successfully
+   */
+  public async getPlatformSettings(req: Request, res: Response) {
+    try {
+      const db = getDatabase();
+      
+      const platformSettings = await db('system_settings')
+        .select('*')
+        .where('category', 'platform')
+        .orderBy('key');
+
+      const platformObject = platformSettings.reduce((acc: any, setting: any) => {
+        acc[setting.key] = {
+          value: setting.value,
+          type: setting.type,
+          description: setting.description
+        };
+        return acc;
+      }, {});
+
+      const defaultPlatform = {
+        // Site Configuration
+        siteName: { 
+          value: 'UruTiBiz', 
+          type: 'text', 
+          description: 'Platform name' 
+        },
+        siteTagline: { 
+          value: 'Your trusted rental marketplace', 
+          type: 'text', 
+          description: 'Platform tagline' 
+        },
+        siteDescription: { 
+          value: 'A comprehensive rental marketplace platform', 
+          type: 'text', 
+          description: 'Platform description' 
+        },
+        siteKeywords: { 
+          value: 'rental, marketplace, equipment, tools', 
+          type: 'text', 
+          description: 'SEO keywords' 
+        },
+        
+        // Appearance & Branding
+        primaryColor: { 
+          value: '#3B82F6', 
+          type: 'color', 
+          description: 'Primary brand color' 
+        },
+        secondaryColor: { 
+          value: '#10B981', 
+          type: 'color', 
+          description: 'Secondary brand color' 
+        },
+        logoUrl: { 
+          value: '', 
+          type: 'image', 
+          description: 'Platform logo URL' 
+        },
+        faviconUrl: { 
+          value: '', 
+          type: 'image', 
+          description: 'Favicon URL' 
+        },
+        
+        // User Interface
+        defaultLanguage: { 
+          value: 'en', 
+          type: 'select', 
+          description: 'Default language' 
+        },
+        supportedLanguages: { 
+          value: ['en', 'fr', 'sw'], 
+          type: 'array', 
+          description: 'Supported languages' 
+        },
+        timezone: { 
+          value: 'Africa/Kigali', 
+          type: 'select', 
+          description: 'Platform timezone' 
+        },
+        dateFormat: { 
+          value: 'DD/MM/YYYY', 
+          type: 'select', 
+          description: 'Date format' 
+        },
+        currency: { 
+          value: 'RWF', 
+          type: 'select', 
+          description: 'Default currency' 
+        },
+        currencySymbol: { 
+          value: '₣', 
+          type: 'text', 
+          description: 'Currency symbol' 
+        },
+        
+        // User Registration & Access
+        allowUserRegistration: { 
+          value: true, 
+          type: 'boolean', 
+          description: 'Allow new user registration' 
+        },
+        requireEmailVerification: { 
+          value: true, 
+          type: 'boolean', 
+          description: 'Require email verification' 
+        },
+        allowGuestBookings: { 
+          value: false, 
+          type: 'boolean', 
+          description: 'Allow bookings without registration' 
+        },
+        
+        // Content & Moderation
+        autoApproveListings: { 
+          value: false, 
+          type: 'boolean', 
+          description: 'Auto-approve new listings' 
+        },
+        requireListingVerification: { 
+          value: true, 
+          type: 'boolean', 
+          description: 'Require listing verification' 
+        },
+        moderationEnabled: { 
+          value: true, 
+          type: 'boolean', 
+          description: 'Enable content moderation' 
+        },
+        
+        // Search & Discovery
+        searchRadius: { 
+          value: 50, 
+          type: 'number', 
+          description: 'Default search radius in kilometers' 
+        },
+        maxSearchResults: { 
+          value: 50, 
+          type: 'number', 
+          description: 'Maximum search results per page' 
+        },
+        featuredListingsCount: { 
+          value: 6, 
+          type: 'number', 
+          description: 'Number of featured listings to show' 
+        },
+        
+        // Contact & Support
+        contactEmail: { 
+          value: 'support@urutibiz.com', 
+          type: 'email', 
+          description: 'Contact email address' 
+        },
+        contactPhone: { 
+          value: '+250 123 456 789', 
+          type: 'text', 
+          description: 'Contact phone number' 
+        },
+        supportHours: { 
+          value: 'Mon-Fri 8AM-6PM', 
+          type: 'text', 
+          description: 'Support hours' 
+        },
+        
+        // Legal & Compliance
+        termsOfServiceUrl: { 
+          value: '/terms', 
+          type: 'url', 
+          description: 'Terms of service URL' 
+        },
+        privacyPolicyUrl: { 
+          value: '/privacy', 
+          type: 'url', 
+          description: 'Privacy policy URL' 
+        },
+        cookiePolicyUrl: { 
+          value: '/cookies', 
+          type: 'url', 
+          description: 'Cookie policy URL' 
+        },
+        
+        // Analytics & Tracking
+        googleAnalyticsId: { 
+          value: '', 
+          type: 'text', 
+          description: 'Google Analytics tracking ID' 
+        },
+        facebookPixelId: { 
+          value: '', 
+          type: 'text', 
+          description: 'Facebook Pixel ID' 
+        },
+        enableCookies: { 
+          value: true, 
+          type: 'boolean', 
+          description: 'Enable cookie consent' 
+        }
+      };
+
+      const finalPlatform = Object.keys(platformObject).length > 0 ? platformObject : defaultPlatform;
+
+      return ResponseHelper.success(res, 'Platform settings retrieved successfully', finalPlatform);
+    } catch (error: any) {
+      logger.error(`Error in getPlatformSettings: ${error.message}`);
+      return ResponseHelper.error(res, 'Failed to retrieve platform settings', error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /admin/settings/platform:
+   *   put:
+   *     summary: Update platform settings
+   *     tags: [AdminSettings]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               siteName:
+   *                 type: string
+   *               siteTagline:
+   *                 type: string
+   *               primaryColor:
+   *                 type: string
+   *               secondaryColor:
+   *                 type: string
+   *               defaultLanguage:
+   *                 type: string
+   *               timezone:
+   *                 type: string
+   *               currency:
+   *                 type: string
+   *               allowUserRegistration:
+   *                 type: boolean
+   *     responses:
+   *       200:
+   *         description: Platform settings updated successfully
+   */
+  public async updatePlatformSettings(req: Request, res: Response) {
+    try {
+      const platformUpdates = req.body;
+      const adminId = (req as any).user.id;
+
+      const db = getDatabase();
+      const updatedSettings: any = {};
+
+      for (const [key, value] of Object.entries(platformUpdates)) {
+        // Properly serialize complex data types
+        let stringValue: string;
+        
+        if (typeof value === 'object' && value !== null) {
+          // Handle objects and arrays properly
+          stringValue = JSON.stringify(value);
+        } else if (typeof value === 'string') {
+          // Check if it's already a JSON string to avoid double encoding
+          try {
+            JSON.parse(value);
+            // If it parses successfully, it's already JSON - use as is
+            stringValue = value;
+          } catch {
+            // If it doesn't parse, it's a regular string
+            stringValue = value;
+          }
+        } else {
+          // Handle numbers, booleans, etc.
+          stringValue = String(value);
+        }
+        
+        // Try to update first
+        const result = await db('system_settings')
+          .where({ key, category: 'platform' })
+          .update({
+            value: stringValue,
+            updated_at: new Date(),
+            updated_by: adminId
+          })
+          .returning('*');
+
+        if (result.length === 0) {
+          // If no record exists, insert new one
+          try {
+            await db('system_settings').insert({
+              key,
+              value: stringValue,
+              type: typeof value === 'object' ? 'object' : typeof value,
+              category: 'platform',
+              description: `Platform setting for ${key}`,
+              created_by: adminId,
+              updated_by: adminId
+            });
+          } catch (insertError: any) {
+            // If insert fails due to duplicate key, try to update with different approach
+            if (insertError.code === '23505') { // PostgreSQL unique violation
+              logger.warn(`Duplicate key detected for ${key}, attempting to update existing record`);
+              
+              // Try to find and update the existing record
+              const existingRecord = await db('system_settings')
+                .where({ key })
+                .first();
+                
+              if (existingRecord) {
+                await db('system_settings')
+                  .where({ id: existingRecord.id })
+                  .update({
+                    value: stringValue,
+                    category: 'platform',
+                    updated_at: new Date(),
+                    updated_by: adminId
+                  });
+              }
+            } else {
+              throw insertError;
+            }
+          }
+        }
+
+        updatedSettings[key] = value;
+      }
+
+      logger.info(`Admin ${adminId} updated platform settings`, { settings: Object.keys(updatedSettings) });
+
+      return ResponseHelper.success(res, 'Platform settings updated successfully', updatedSettings);
+    } catch (error: any) {
+      logger.error(`Error in updatePlatformSettings: ${error.message}`);
+      return ResponseHelper.error(res, 'Failed to update platform settings', error);
     }
   }
 

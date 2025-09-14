@@ -3,7 +3,7 @@ import adminController from '@/controllers/admin.controller';
 import ModerationController from '@/controllers/moderation.controller';
 import AdminSettingsController from '@/controllers/adminSettings.controller';
 import { authenticateToken as authenticate, requireRole } from '@/middleware/auth.middleware';
-import { uploadSingle, uploadLogo } from '@/middleware/upload.middleware';
+import { uploadLogo } from '@/middleware/upload.middleware';
 import messagingRoutes from './messaging.routes';
 import notificationRoutes from './notification.routes';
 
@@ -443,6 +443,105 @@ router.use(requireRole(['admin', 'super_admin']));
 
 /**
  * @swagger
+ * /admin/settings/analytics:
+ *   get:
+ *     summary: Get analytics configuration settings
+ *     tags: [AdminSettings]
+ *     responses:
+ *       200:
+ *         description: Analytics configuration retrieved successfully
+ */
+
+/**
+ * @swagger
+ * /admin/settings/analytics:
+ *   put:
+ *     summary: Update analytics configuration settings
+ *     tags: [AdminSettings]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               core:
+ *                 type: object
+ *               privacy:
+ *                 type: object
+ *               retention:
+ *                 type: object
+ *               realTime:
+ *                 type: object
+ *               integrations:
+ *                 type: object
+ *               reporting:
+ *                 type: object
+ *               performance:
+ *                 type: object
+ *               security:
+ *                 type: object
+ *               alerting:
+ *                 type: object
+ *               system:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Analytics settings updated successfully
+ */
+
+/**
+ * @swagger
+ * /admin/settings/analytics/health:
+ *   get:
+ *     summary: Get analytics system health status
+ *     tags: [AdminSettings]
+ *     responses:
+ *       200:
+ *         description: Analytics health status retrieved successfully
+ */
+
+/**
+ * @swagger
+ * /admin/settings/analytics/export:
+ *   post:
+ *     summary: Export analytics data or configuration
+ *     tags: [AdminSettings]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               type:
+ *                 type: string
+ *                 enum: [data, report, config]
+ *               format:
+ *                 type: string
+ *                 enum: [csv, excel, pdf, json]
+ *               dateRange:
+ *                 type: object
+ *                 properties:
+ *                   start:
+ *                     type: string
+ *                     format: date
+ *                   end:
+ *                     type: string
+ *                     format: date
+ *               filters:
+ *                 type: object
+ *               metrics:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Export request processed successfully
+ */
+
+/**
+ * @swagger
  * tags:
  *   name: Moderation
  *   description: Automated Moderation Management
@@ -747,8 +846,16 @@ router.get('/settings/notifications', AdminSettingsController.getNotificationSet
 router.put('/settings/notifications', AdminSettingsController.updateNotificationSettings);
 router.get('/settings/platform', AdminSettingsController.getPlatformSettings);
 router.put('/settings/platform', AdminSettingsController.updatePlatformSettings);
+router.get('/settings/backup-recovery', AdminSettingsController.getBackupRecoverySettings);
+router.put('/settings/backup-recovery', AdminSettingsController.updateBackupRecoverySettings);
 router.post('/settings/backup', AdminSettingsController.createBackup);
 router.post('/settings/reset', AdminSettingsController.resetSettings);
+
+// Analytics Configuration Routes
+router.get('/settings/analytics', AdminSettingsController.getAnalyticsSettings);
+router.put('/settings/analytics', AdminSettingsController.updateAnalyticsSettings);
+router.get('/settings/analytics/health', AdminSettingsController.getAnalyticsHealth);
+router.post('/settings/analytics/export', AdminSettingsController.exportAnalyticsData);
 
 /**
  * @swagger

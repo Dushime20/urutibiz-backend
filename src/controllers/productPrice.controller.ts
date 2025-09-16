@@ -49,6 +49,27 @@ export class ProductPriceController {
         return;
       }
 
+      // Validate price limits to prevent database overflow
+      const MAX_PRICE = 999999.99; // $999,999.99 maximum
+      const priceFields = [
+        { field: 'price_per_hour', value: data.price_per_hour, name: 'hourly price' },
+        { field: 'price_per_day', value: data.price_per_day, name: 'daily price' },
+        { field: 'price_per_week', value: data.price_per_week, name: 'weekly price' },
+        { field: 'price_per_month', value: data.price_per_month, name: 'monthly price' },
+        { field: 'security_deposit', value: data.security_deposit, name: 'security deposit' }
+      ];
+
+      for (const { field, value, name } of priceFields) {
+        if (value !== undefined && value !== null && value > MAX_PRICE) {
+          console.warn(`[DEBUG] ${field} exceeds maximum limit:`, value);
+          res.status(400).json({
+            success: false,
+            message: `${name} cannot exceed $${MAX_PRICE.toLocaleString()}. Please check your input values.`,
+          });
+          return;
+        }
+      }
+
       console.log('[DEBUG] Creating product price with payload:', {
         product_id: data.product_id,
         country_id: data.country_id,

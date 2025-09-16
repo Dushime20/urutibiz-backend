@@ -29,7 +29,26 @@ class ProductService {
   async getById(id: string) {
     const result = await ProductRepository.findById(id);
     if (!result.success) return { success: false, error: result.error };
-    return { success: true, data: result.data };
+
+    // Enhance product with pricing information from product_prices
+    try {
+      const { productPriceService } = await import('./productPrice.service');
+      const pricesResult = await productPriceService.getProductPrices({
+        product_id: id,
+        is_active: true,
+        limit: 100
+      });
+
+      const enhanced = {
+        ...result.data,
+        pricing: pricesResult.prices || []
+      } as any;
+
+      return { success: true, data: enhanced };
+    } catch (e) {
+      console.warn('[DEBUG] Failed to attach pricing to product', id, e);
+      return { success: true, data: result.data };
+    }
   }
 
   async update(id: string, data: UpdateProductData) {

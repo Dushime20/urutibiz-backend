@@ -203,6 +203,11 @@ const controller = new UsersController();
  *           type: string
  *         description: Search term for user name or email
  *       - in: query
+ *         name: q
+ *         schema:
+ *           type: string
+ *         description: Alias for search; min length 2; matches email, first/last name, username, phone
+ *       - in: query
  *         name: status
  *         schema:
  *           type: string

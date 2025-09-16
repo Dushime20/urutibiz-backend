@@ -134,15 +134,15 @@ export class TwoFactorService {
         .select('two_factor_secret', 'two_factor_enabled')
         .where({ id: userId })
         .first();
-
+ 
       if (!user?.two_factor_enabled) {
         throw new Error('2FA is not enabled for this user');
       }
-
+ 
       if (!user?.two_factor_secret) {
         throw new Error('2FA secret not found');
       }
-
+ 
       // Verify the token
       return authenticator.verify({
         token,
@@ -157,7 +157,7 @@ export class TwoFactorService {
   /**
    * Verify a backup code
    */
-  static async verifyBackupCode(userId: string, backupCode: string): Promise<boolean> {
+  static async verifyBackupCode(userId: string, backupCode: string): Promise<{ valid: boolean; status: 'ok' | 'used' | 'not_found' }> {
     try {
       const db = getDatabase();
       
@@ -166,35 +166,60 @@ export class TwoFactorService {
         .select('two_factor_backup_codes')
         .where({ id: userId })
         .first();
-
+ 
       if (!user?.two_factor_backup_codes) {
-        return false;
+        return { valid: false, status: 'not_found' };
       }
-
-      const backupCodes: TwoFactorBackupCode[] = JSON.parse(user.two_factor_backup_codes);
-      
-      // Find and mark the backup code as used
-      const codeIndex = backupCodes.findIndex(code => 
-        code.code === backupCode && !code.used
+ 
+      // two_factor_backup_codes may be stored as TEXT (stringified JSON) or JSON/JSONB (parsed object)
+      const rawCodes = user.two_factor_backup_codes as unknown;
+      let backupCodes: TwoFactorBackupCode[];
+      if (typeof rawCodes === 'string') {
+        try {
+          backupCodes = JSON.parse(rawCodes);
+        } catch (e) {
+          // Invalid JSON format in DB
+          throw new Error('Invalid backup codes format');
+        }
+      } else if (Array.isArray(rawCodes)) {
+        backupCodes = rawCodes as TwoFactorBackupCode[];
+      } else if (typeof rawCodes === 'object' && rawCodes !== null) {
+        // Some drivers may return object
+        backupCodes = rawCodes as TwoFactorBackupCode[];
+      } else {
+        throw new Error('Invalid backup codes data type');
+      }
+ 
+      // Normalize input: trim and uppercase to match generated codes
+      const normalizedInput = String(backupCode).trim().toUpperCase();
+      if (!normalizedInput) {
+        return { valid: false, status: 'not_found' };
+      }
+       
+      // Find match regardless of used status
+      const anyIndex = backupCodes.findIndex(code => 
+        code && typeof code.code === 'string' && code.code.toUpperCase() === normalizedInput
       );
-
-      if (codeIndex === -1) {
-        return false;
+      if (anyIndex === -1) {
+        return { valid: false, status: 'not_found' };
       }
-
+      if (backupCodes[anyIndex].used) {
+        return { valid: false, status: 'used' };
+      }
+ 
       // Mark code as used
-      backupCodes[codeIndex].used = true;
-      backupCodes[codeIndex].usedAt = new Date();
-
-      // Update the database
+      backupCodes[anyIndex].used = true;
+      (backupCodes[anyIndex] as any).usedAt = new Date();
+ 
+      // Update the database (store as stringified JSON for compatibility)
       await db('users')
         .where({ id: userId })
         .update({
           two_factor_backup_codes: JSON.stringify(backupCodes),
           updated_at: new Date()
         });
-
-      return true;
+ 
+      return { valid: true, status: 'ok' };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       throw new Error(`Failed to verify backup code: ${errorMessage}`);

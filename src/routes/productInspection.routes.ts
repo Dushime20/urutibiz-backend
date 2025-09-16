@@ -893,7 +893,7 @@ router.put('/:id', requireAuth, controller.updateInspection);
  *       500:
  *         description: Server error
  */
-router.post('/:id/start', requireAuth, controller.startInspection);
+router.post('/:id/start', requireAuth, requireRole(['inspector', 'admin', 'super_admin']), controller.startInspection);
 
 /**
  * @swagger

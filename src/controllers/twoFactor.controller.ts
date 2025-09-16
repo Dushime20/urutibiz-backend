@@ -96,18 +96,22 @@ export class TwoFactorController {
   static async verifyBackupCode(req: Request, res: Response): Promise<void> {
     try {
       const { userId, backupCode } = req.body;
-
+ 
       if (!userId || !backupCode) {
         ResponseHelper.badRequest(res, 'User ID and backup code are required');
         return;
       }
-
-      const isValid = await TwoFactorService.verifyBackupCode(userId, backupCode);
+ 
+      const result = await TwoFactorService.verifyBackupCode(userId, backupCode);
       
-      if (isValid) {
+      if (result.valid) {
         ResponseHelper.success(res, 'Backup code verified successfully');
       } else {
-        ResponseHelper.badRequest(res, 'Invalid backup code');
+        if (result.status === 'used') {
+          ResponseHelper.badRequest(res, 'Backup code has already been used');
+        } else {
+          ResponseHelper.badRequest(res, 'Invalid backup code');
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

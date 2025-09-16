@@ -68,8 +68,13 @@ const normalizeUserFilters = (query: any): UserFilters => {
   if (query.countryId && typeof query.countryId === 'string') {
     filters.countryId = query.countryId;
   }
-  if (query.search && typeof query.search === 'string' && query.search.length > 0) {
-    filters.search = query.search.trim().toLowerCase();
+  // Accept `search` or `q` as the search term; require at least 2 chars
+  const rawSearch = typeof query.search === 'string' && query.search.length > 0
+    ? query.search
+    : (typeof query.q === 'string' ? query.q : '');
+  const normalized = rawSearch.trim().toLowerCase();
+  if (normalized.length >= 2) {
+    filters.search = normalized;
   }
   
   // Cache the normalized filters

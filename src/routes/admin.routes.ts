@@ -2,7 +2,7 @@ import { Router } from 'express';
 import adminController from '@/controllers/admin.controller';
 import ModerationController from '@/controllers/moderation.controller';
 import AdminSettingsController from '@/controllers/adminSettings.controller';
-import { authenticateToken as authenticate, requireRole } from '@/middleware/auth.middleware';
+import { authenticateToken as authenticate, requireRole, requireAuth } from '@/middleware/auth.middleware';
 import { uploadLogo } from '@/middleware/upload.middleware';
 import messagingRoutes from './messaging.routes';
 import notificationRoutes from './notification.routes';
@@ -918,10 +918,14 @@ router.get('/system/health', adminController.getSystemHealth);
 router.get('/audit-logs', adminController.getAuditLogs);
 router.post('/export', adminController.exportData);
 
-// Messaging routes
-router.use('/chats', messagingRoutes);
+// Messaging routes (mounted at base to avoid double "/chats")
+router.use('/', messagingRoutes);
 
 // Notification routes
 router.use('/notifications', notificationRoutes);
+
+// Handover & Return messages (admin)
+import handoverReturnController from '@/controllers/handoverReturn.controller';
+router.get('/handover-return/messages', requireAuth, handoverReturnController.getAllSessionMessagesAdmin);
 
 export default router;

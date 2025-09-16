@@ -122,150 +122,167 @@
  *           type: integer
  *           description: Remaining requests in rate limit window
  */
-
-import { Router } from 'express';
-import AuthController from '@/controllers/auth.controller';
-const router = Router();
+ 
+ import { Router } from 'express';
+ import AuthController from '@/controllers/auth.controller';
+ import { authenticateToken } from '@/middleware/auth.middleware';
+ const router = Router();
+ 
+ /**
+  * @swagger
+  * /auth/register:
+  *   post:
+  *     summary: Register new user account
+  *     description: |
+  *       Create a new user account with comprehensive validation and security.
+  *       **Security Features:**
+  *       - Strong password requirements
+  *       - Email verification workflow
+  *       - Rate limiting protection
+  *       - Input sanitization and validation
+  *       - Secure password hashing with bcrypt
+  *     tags: [Authentication]
+  *     requestBody:
+  *       required: true
+  *       content:
+  *         application/json:
+  *           schema:
+  *             $ref: '#/components/schemas/RegisterRequest'
+  *           example:
+  *             email: "john.doe@example.com"
+  *             password: "SecurePass123!"
+  *             firstName: "John"
+  *             lastName: "Doe"
+  *             phone: "+1234567890"
+  *     responses:
+  *       201:
+  *         description: User registered successfully
+  *         content:
+  *           application/json:
+  *             schema:
+  *               type: object
+  *               properties:
+  *                 user:
+  *                   type: object
+  *                   properties:
+  *                     id:
+  *                       type: string
+  *                       format: uuid
+  *                     email:
+  *                       type: string
+  *                       format: email
+  *                     firstName:
+  *                       type: string
+  *                     lastName:
+  *                       type: string
+  *                     isVerified:
+  *                       type: boolean
+  *                       example: false
+  *                 message:
+  *                   type: string
+  *                   example: "Registration successful. Please check your email for verification."
+  *                 meta:
+  *                   $ref: '#/components/schemas/PerformanceMetrics'
+  *       400:
+  *         description: Invalid input data
+  *         content:
+  *           application/json:
+  *             schema:
+  *               type: object
+  *               properties:
+  *                 error:
+  *                   type: string
+  *                   example: "Invalid email format"
+  *                 errors:
+  *                   type: array
+  *                   items:
+  *                     type: object
+  *                     properties:
+  *                       field:
+  *                         type: string
+  *                       message:
+  *                         type: string
+  *       409:
+  *         description: Email already exists
+  *       429:
+  *         description: Too many registration attempts
+  *       500:
+  *         description: Server error
+  */
+ router.post('/register', AuthController.register);
 
 /**
  * @swagger
- * /auth/register:
- *   post:
- *     summary: Register new user account
- *     description: |
- *       Create a new user account with comprehensive validation and security.
- *       **Security Features:**
- *       - Strong password requirements
- *       - Email verification workflow
- *       - Rate limiting protection
- *       - Input sanitization and validation
- *       - Secure password hashing with bcrypt
+ * /auth/me:
+ *   get:
+ *     summary: Get the authenticated user's profile
  *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/RegisterRequest'
- *           example:
- *             email: "john.doe@example.com"
- *             password: "SecurePass123!"
- *             firstName: "John"
- *             lastName: "Doe"
- *             phone: "+1234567890"
- *     responses:
- *       201:
- *         description: User registered successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 user:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       format: uuid
- *                     email:
- *                       type: string
- *                       format: email
- *                     firstName:
- *                       type: string
- *                     lastName:
- *                       type: string
- *                     isVerified:
- *                       type: boolean
- *                       example: false
- *                 message:
- *                   type: string
- *                   example: "Registration successful. Please check your email for verification."
- *                 meta:
- *                   $ref: '#/components/schemas/PerformanceMetrics'
- *       400:
- *         description: Invalid input data
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "Invalid email format"
- *                 errors:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       field:
- *                         type: string
- *                       message:
- *                         type: string
- *       409:
- *         description: Email already exists
- *       429:
- *         description: Too many registration attempts
- *       500:
- *         description: Server error
- */
-router.post('/register', AuthController.register);
-
-/**
- * @swagger
- * /auth/login:
- *   post:
- *     summary: Login user
- *     description: |
- *       Authenticate user and return access tokens.
- *       **Security Features:**
- *       - Secure password verification
- *       - JWT token generation
- *       - Rate limiting protection
- *       - Failed login attempt tracking
- *       - Account lockout protection
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LoginRequest'
- *           example:
- *             email: "john.doe@example.com"
- *             password: "SecurePass123!"
- *             rememberMe: false
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Login successful
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   $ref: '#/components/schemas/AuthResponse'
- *                 meta:
- *                   $ref: '#/components/schemas/PerformanceMetrics'
- *       400:
- *         description: Invalid credentials
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "Invalid email or password"
+ *         description: Current authenticated user info
  *       401:
- *         description: Authentication failed
- *       423:
- *         description: Account locked due to too many failed attempts
- *       429:
- *         description: Too many login attempts
- *       500:
- *         description: Server error
+ *         description: Unauthorized
  */
-router.post('/login', AuthController.login);
+router.get('/me', authenticateToken, AuthController.me);
+ 
+ /**
+  * @swagger
+  * /auth/login:
+  *   post:
+  *     summary: Login user
+  *     description: |
+  *       Authenticate user and return access tokens.
+  *       **Security Features:**
+  *       - Secure password verification
+  *       - JWT token generation
+  *       - Rate limiting protection
+  *       - Failed login attempt tracking
+  *       - Account lockout protection
+  *     tags: [Authentication]
+  *     requestBody:
+  *       required: true
+  *       content:
+  *         application/json:
+  *           schema:
+  *             $ref: '#/components/schemas/LoginRequest'
+  *           example:
+  *             email: "john.doe@example.com"
+  *             password: "SecurePass123!"
+  *             rememberMe: false
+  *     responses:
+  *       200:
+  *         description: Login successful
+  *         content:
+  *           application/json:
+  *             schema:
+  *               type: object
+  *               properties:
+  *                 data:
+  *                   $ref: '#/components/schemas/AuthResponse'
+  *                 meta:
+  *                   $ref: '#/components/schemas/PerformanceMetrics'
+  *       400:
+  *         description: Invalid credentials
+  *         content:
+  *           application/json:
+  *             schema:
+  *               type: object
+  *               properties:
+  *                 error:
+  *                   type: string
+  *                   example: "Invalid email or password"
+  *       401:
+  *         description: Authentication failed
+  *       423:
+  *         description: Account locked due to too many failed attempts
+  *       429:
+  *         description: Too many login attempts
+  *       500:
+  *         description: Server error
+  */
+ router.post('/login', AuthController.login);
 
 /**
  * @swagger

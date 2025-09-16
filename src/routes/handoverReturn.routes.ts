@@ -1121,6 +1121,34 @@ router.post('/messages', requireAuth, controller.sendMessage);
  */
 router.get('/messages', requireAuth, controller.getMessages);
 
+/**
+ * @swagger
+ * /handover-return/messages/combined:
+ *   get:
+ *     summary: Get combined handover and return messages by bookingId
+ *     tags: [Handover & Return]
+ *     parameters:
+ *       - in: query
+ *         name: bookingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/messages/combined', requireAuth, controller.getCombinedMessages);
+
 // =====================================================
 // NOTIFICATION MANAGEMENT
 // =====================================================

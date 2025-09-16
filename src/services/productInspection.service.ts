@@ -376,7 +376,7 @@ export class ProductInspectionService {
   /**
    * Start an inspection
    */
-  async startInspection(inspectionId: string, inspectorId: string): Promise<ServiceResponse<ProductInspection>> {
+  async startInspection(inspectionId: string, userId: string, allowAdminOverride: boolean = false): Promise<ServiceResponse<ProductInspection>> {
     try {
       const inspection = await this.inspectionRepo.getById(inspectionId);
       if (!inspection.success || !inspection.data) {
@@ -387,7 +387,7 @@ export class ProductInspectionService {
         return { success: false, error: 'Inspection cannot be started' };
       }
 
-      if (inspection.data.inspectorId !== inspectorId) {
+      if (!allowAdminOverride && inspection.data.inspectorId !== userId) {
         return { success: false, error: 'Not authorized to start this inspection' };
       }
 
@@ -414,8 +414,8 @@ export class ProductInspectionService {
    * Complete an inspection
    */
   async completeInspection(
-    inspectionId: string, 
-    inspectorId: string,
+    inspectionId: string,
+    userId: string,
     items: CreateInspectionItemRequest[],
     inspectionData?: {
       inspectorNotes?: string;
@@ -423,7 +423,8 @@ export class ProductInspectionService {
       ownerNotes?: string;
       renterNotes?: string;
       inspectionLocation?: string;
-    }
+    },
+    allowAdminOverride: boolean = false
   ): Promise<ServiceResponse<InspectionReport>> {
     try {
       const inspection = await this.inspectionRepo.getById(inspectionId);
@@ -435,7 +436,7 @@ export class ProductInspectionService {
         return { success: false, error: 'Inspection is not in progress' };
       }
 
-      if (inspection.data.inspectorId !== inspectorId) {
+      if (!allowAdminOverride && inspection.data.inspectorId !== userId) {
         return { success: false, error: 'Not authorized to complete this inspection' };
       }
 

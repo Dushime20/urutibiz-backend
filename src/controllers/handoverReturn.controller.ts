@@ -337,6 +337,211 @@ export class HandoverReturnController extends BaseController {
     return ResponseHelper.success(res, 'Messages retrieved successfully', result.data.items, 200, result.data.pagination);
   });
 
+  /**
+   * Admin: Get all handover and return messages (merged)
+   * GET /api/v1/admin/handover-return/messages
+   * Optional filters: bookingId, sessionType (handover|return), senderId, fromDate, toDate, page, limit
+   */
+  public getAllSessionMessagesAdmin = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const offset = (page - 1) * limit;
+
+    const bookingId = req.query.bookingId as string | undefined;
+    const sessionType = (req.query.sessionType as 'handover' | 'return' | undefined);
+    const senderId = req.query.senderId as string | undefined;
+    const fromDate = req.query.fromDate ? new Date(req.query.fromDate as string) : undefined;
+    const toDate = req.query.toDate ? new Date(req.query.toDate as string) : undefined;
+
+    const db = require('@/config/database').getDatabase();
+
+    // Build base queries
+    const handoverBase = db('handover_messages as hm')
+      .join('handover_sessions as hs', 'hm.handover_session_id', 'hs.id')
+      .modify((qb: any) => {
+        if (bookingId) qb.where('hs.booking_id', bookingId);
+        if (senderId) qb.where('hm.sender_id', senderId);
+        if (fromDate) qb.where('hm.timestamp', '>=', fromDate);
+        if (toDate) qb.where('hm.timestamp', '<=', toDate);
+      })
+      .select(
+        'hm.id',
+        'hm.handover_session_id as sessionId',
+        db.raw("'handover' as sessionType"),
+        'hs.booking_id as bookingId',
+        'hm.sender_id as senderId',
+        'hm.sender_type as senderType',
+        'hm.message',
+        'hm.message_type as messageType',
+        'hm.attachments',
+        'hm.timestamp'
+      );
+
+    const returnBase = db('return_messages as rm')
+      .join('return_sessions as rs', 'rm.return_session_id', 'rs.id')
+      .modify((qb: any) => {
+        if (bookingId) qb.where('rs.booking_id', bookingId);
+        if (senderId) qb.where('rm.sender_id', senderId);
+        if (fromDate) qb.where('rm.timestamp', '>=', fromDate);
+        if (toDate) qb.where('rm.timestamp', '<=', toDate);
+      })
+      .select(
+        'rm.id',
+        'rm.return_session_id as sessionId',
+        db.raw("'return' as sessionType"),
+        'rs.booking_id as bookingId',
+        'rm.sender_id as senderId',
+        'rm.sender_type as senderType',
+        'rm.message',
+        'rm.message_type as messageType',
+        'rm.attachments',
+        'rm.timestamp'
+      );
+
+    // Execute based on sessionType filter
+    const queries: Array<Promise<any>> = [];
+    const countQueries: Array<Promise<any>> = [];
+
+    if (!sessionType || sessionType === 'handover') {
+      queries.push(
+        handoverBase.clone()
+          .orderBy('hm.timestamp', 'desc')
+          .limit(limit)
+          .offset(offset)
+      );
+      countQueries.push(
+        db('handover_messages as hm')
+          .join('handover_sessions as hs', 'hm.handover_session_id', 'hs.id')
+          .modify((qb: any) => {
+            if (bookingId) qb.where('hs.booking_id', bookingId);
+            if (senderId) qb.where('hm.sender_id', senderId);
+            if (fromDate) qb.where('hm.timestamp', '>=', fromDate);
+            if (toDate) qb.where('hm.timestamp', '<=', toDate);
+          })
+          .count('* as count')
+          .first()
+      );
+    }
+
+    if (!sessionType || sessionType === 'return') {
+      queries.push(
+        returnBase.clone()
+          .orderBy('rm.timestamp', 'desc')
+          .limit(limit)
+          .offset(offset)
+      );
+      countQueries.push(
+        db('return_messages as rm')
+          .join('return_sessions as rs', 'rm.return_session_id', 'rs.id')
+          .modify((qb: any) => {
+            if (bookingId) qb.where('rs.booking_id', bookingId);
+            if (senderId) qb.where('rm.sender_id', senderId);
+            if (fromDate) qb.where('rm.timestamp', '>=', fromDate);
+            if (toDate) qb.where('rm.timestamp', '<=', toDate);
+          })
+          .count('* as count')
+          .first()
+      );
+    }
+
+    const results = await Promise.all(queries);
+    const counts = await Promise.all(countQueries);
+
+    const items = ([] as any[]).concat(...results)
+      .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, limit);
+
+    const totals = {
+      handover: counts[0] ? parseInt((counts[0] as any).count || '0', 10) : 0,
+      returns: counts[1] ? parseInt((counts[1] as any).count || '0', 10) : (!sessionType || sessionType === 'return' ? parseInt((counts[0] as any).count || '0', 10) : 0)
+    };
+
+    return ResponseHelper.success(res, 'All session messages retrieved successfully', {
+      items,
+      totals,
+      page,
+      limit
+    });
+  });
+
+  /**
+   * Get combined messages for a booking across handover and return sessions
+   * GET /api/v1/handover-return/messages/combined?bookingId=...&page=1&limit=50
+   */
+  public getCombinedMessages = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const bookingId = req.query.bookingId as string;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    if (!bookingId) {
+      return this.handleBadRequest(res, 'bookingId is required');
+    }
+
+    const db = require('@/config/database').getDatabase();
+    const offset = (page - 1) * limit;
+
+    // Fetch messages joined via sessions for the booking
+    const [handoverMsgs, returnMsgs, handoverCount, returnCount] = await Promise.all([
+      db('handover_messages as hm')
+        .join('handover_sessions as hs', 'hm.handover_session_id', 'hs.id')
+        .where('hs.booking_id', bookingId)
+        .select(
+          'hm.id',
+          'hm.handover_session_id as sessionId',
+          db.raw("'handover' as sessionType"),
+          'hm.sender_id as senderId',
+          'hm.sender_type as senderType',
+          'hm.message',
+          'hm.message_type as messageType',
+          'hm.attachments',
+          'hm.timestamp'
+        )
+        .orderBy('hm.timestamp', 'desc')
+        .limit(limit)
+        .offset(offset),
+      db('return_messages as rm')
+        .join('return_sessions as rs', 'rm.return_session_id', 'rs.id')
+        .where('rs.booking_id', bookingId)
+        .select(
+          'rm.id',
+          'rm.return_session_id as sessionId',
+          db.raw("'return' as sessionType"),
+          'rm.sender_id as senderId',
+          'rm.sender_type as senderType',
+          'rm.message',
+          'rm.message_type as messageType',
+          'rm.attachments',
+          'rm.timestamp'
+        )
+        .orderBy('rm.timestamp', 'desc')
+        .limit(limit)
+        .offset(offset),
+      db('handover_messages as hm')
+        .join('handover_sessions as hs', 'hm.handover_session_id', 'hs.id')
+        .where('hs.booking_id', bookingId)
+        .count('* as count')
+        .first(),
+      db('return_messages as rm')
+        .join('return_sessions as rs', 'rm.return_session_id', 'rs.id')
+        .where('rs.booking_id', bookingId)
+        .count('* as count')
+        .first()
+    ]);
+
+    const items = [...handoverMsgs, ...returnMsgs]
+      .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, limit);
+
+    return ResponseHelper.success(res, 'Combined messages retrieved successfully', {
+      items,
+      totals: {
+        handover: parseInt((handoverCount as any)?.count || '0', 10),
+        returns: parseInt((returnCount as any)?.count || '0', 10)
+      },
+      page,
+      limit
+    });
+  });
+
   // =====================================================
   // NOTIFICATION MANAGEMENT
   // =====================================================

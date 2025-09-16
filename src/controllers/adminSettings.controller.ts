@@ -699,8 +699,8 @@ export class AdminSettingsController extends BaseController {
         // Extract other fields
         for (const [key, value] of Object.entries(settingsData)) {
           if (key !== 'socialMedia' && key !== 'contactInfo' && key !== 'timezone' && 
-              value && typeof value === 'object' && value.value !== undefined) {
-            businessUpdates[key] = value.value;
+              value && typeof value === 'object' && (value as any).value !== undefined) {
+            businessUpdates[key] = (value as any).value;
           }
         }
         
@@ -793,16 +793,35 @@ export class AdminSettingsController extends BaseController {
           .returning('*');
 
         if (result.length === 0) {
-          // Create new setting if it doesn't exist
-          await db('system_settings').insert({
-            key,
-            value: stringValue,
-            type: AdminSettingsController.getBusinessSettingType(key),
-            category: 'business',
-            description: AdminSettingsController.getBusinessSettingDescription(key),
-            created_by: adminId,
-            updated_by: adminId
-          });
+          // No record in business category. Check if a record with the same key exists in any category
+          const existingAnyCategory = await db('system_settings')
+            .where({ key })
+            .first();
+
+          if (existingAnyCategory) {
+            // Update the existing row and move it to business category to avoid unique key conflict on key
+            await db('system_settings')
+              .where({ id: existingAnyCategory.id })
+              .update({
+                value: stringValue,
+                type: AdminSettingsController.getBusinessSettingType(key),
+                category: 'business',
+                description: AdminSettingsController.getBusinessSettingDescription(key),
+                updated_at: new Date(),
+                updated_by: adminId
+              });
+          } else {
+            // Create new setting if no record exists at all
+            await db('system_settings').insert({
+              key,
+              value: stringValue,
+              type: AdminSettingsController.getBusinessSettingType(key),
+              category: 'business',
+              description: AdminSettingsController.getBusinessSettingDescription(key),
+              created_by: adminId,
+              updated_by: adminId
+            });
+          }
         }
 
         updatedSettings[key] = value;
@@ -1422,10 +1441,11 @@ export class AdminSettingsController extends BaseController {
         .count('* as count')
         .first();
 
-      if (existingSettings && existingSettings.count > 0) {
+      const existingCount = existingSettings ? Number((existingSettings as any).count) : 0;
+      if (existingCount > 0) {
         return ResponseHelper.success(res, 'System settings already initialized', {
           message: 'System settings already exist in the database',
-          count: existingSettings.count
+          count: existingCount
         });
       }
 

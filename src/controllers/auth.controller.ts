@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import AuthService from '../services/auth.service';
 import EmailVerificationService from '@/services/emailVerification.service';
+import { AuthenticatedRequest } from '@/types';
 
 export default class AuthController {
   static async register(req: Request, res: Response) {
@@ -53,5 +54,13 @@ export default class AuthController {
     if (!email || !otp) return res.status(400).json({ success: false, message: 'Email and OTP are required' });
     const result = await EmailVerificationService.verifyEmailOtp(email, otp);
     return res.status(result.success ? 200 : 400).json(result);
+  }
+
+  static async me(req: AuthenticatedRequest, res: Response) {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    return res.status(200).json({ success: true, data: user });
   }
 }

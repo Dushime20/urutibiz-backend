@@ -298,7 +298,8 @@ export class ProductInspectionController extends BaseController {
   public startInspection = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
 
-    const result = await ProductInspectionService.startInspection(id, req.user.id);
+    const isAdmin = (req.user.role === 'admin' || req.user.role === 'super_admin');
+    const result = await ProductInspectionService.startInspection(id, req.user.id, isAdmin);
     
     if (!result.success) {
       return ResponseHelper.error(res, result.error || 'Failed to start inspection', 400);
@@ -346,7 +347,8 @@ export class ProductInspectionController extends BaseController {
       inspectionLocation
     };
 
-    const result = await ProductInspectionService.completeInspection(id, req.user.id, items, inspectionData);
+    const isAdmin = (req.user.role === 'admin' || req.user.role === 'super_admin');
+    const result = await ProductInspectionService.completeInspection(id, req.user.id, items, inspectionData, isAdmin);
     
     if (!result.success) {
       return ResponseHelper.error(res, result.error || 'Failed to complete inspection', 400);

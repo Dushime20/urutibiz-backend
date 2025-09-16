@@ -16,7 +16,7 @@ export class MessagingController {
 
       ResponseHelper.success(res, result.data, 'Chats fetched successfully');
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to fetch chats', error, 500);
     }
   }
 
@@ -37,7 +37,7 @@ export class MessagingController {
 
       ResponseHelper.success(res, result.data, 'Chat fetched successfully');
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to fetch chat', error, 500);
     }
   }
 
@@ -56,7 +56,47 @@ export class MessagingController {
 
       ResponseHelper.success(res, result.data, 'Messages fetched successfully');
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to fetch messages', error, 500);
+    }
+  }
+
+  /**
+   * List messages across all chats (admin)
+   * GET /api/v1/admin/chats/messages
+   */
+  static async getAllChatMessages(req: Request, res: Response): Promise<void> {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const offset = (page - 1) * limit;
+      const db = require('@/config/database').getDatabase();
+
+      const [messages, count] = await Promise.all([
+        db('messages')
+          .select(
+            'messages.id',
+            'messages.chat_id as chatId',
+            'messages.sender_id as senderId',
+            'messages.content',
+            'messages.message_type as messageType',
+            'messages.is_read as isRead',
+            'messages.created_at as createdAt',
+            'messages.updated_at as updatedAt'
+          )
+          .orderBy('messages.created_at', 'desc')
+          .limit(limit)
+          .offset(offset),
+        db('messages').count('* as count').first()
+      ]);
+
+      ResponseHelper.success(res, {
+        items: messages,
+        total: parseInt((count as any)?.count || '0', 10),
+        page,
+        limit
+      }, 'All chat messages fetched successfully');
+    } catch (error: any) {
+      ResponseHelper.error(res, 'Failed to fetch all chat messages', error, 500);
     }
   }
 
@@ -80,7 +120,7 @@ export class MessagingController {
 
       ResponseHelper.created(res, result.data, 'Message sent successfully');
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to send message', error, 500);
     }
   }
 
@@ -98,7 +138,7 @@ export class MessagingController {
 
       ResponseHelper.success(res, result.data, 'Message updated successfully');
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to update message', error, 500);
     }
   }
 
@@ -114,7 +154,7 @@ export class MessagingController {
 
       ResponseHelper.success(res, null, 'Message deleted successfully');
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to delete message', error, 500);
     }
   }
 

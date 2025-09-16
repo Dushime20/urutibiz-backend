@@ -42,7 +42,31 @@ class ProductService extends BaseService<ProductData, CreateProductData, UpdateP
     if (!product) {
       return { success: false, error: 'Product not found' };
     }
-    return { success: true, data: product };
+
+    // Fetch pricing information from product_prices table
+    try {
+      const { productPriceService } = await import('./productPrice.service');
+      const prices = await productPriceService.getProductPrices({
+        product_id: id,
+        is_active: true
+      });
+      
+      // Add pricing data to product
+      const enhancedProduct = {
+        ...product,
+        pricing: prices.prices || [],
+        // Ensure delivery fee is included
+        delivery_fee: product.delivery_fee || 0,
+        delivery_available: product.delivery_available || false,
+        delivery_radius_km: product.delivery_radius_km || 0
+      };
+      
+      return { success: true, data: enhancedProduct };
+    } catch (error) {
+      // If pricing fetch fails, return product without pricing
+      console.warn('Failed to fetch pricing for product:', id, error);
+      return { success: true, data: product };
+    }
   }
 }
 

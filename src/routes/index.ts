@@ -35,6 +35,7 @@ import riskManagementRoutes from './riskManagement.routes';
 import handoverReturnRoutes from './handoverReturn.routes';
 import notificationRoutes from './notification.routes';
 import violationRoutes from './violation.routes';
+import systemRoutes from './system.routes';
 import testRoutes from './test.routes';
 import validationRoutes from './validation.routes';
 
@@ -100,6 +101,8 @@ console.log('🔧 Mounting Notification routes at /notifications');
 router.use('/notifications', notificationRoutes);
 console.log('🔧 Mounting Violation routes at /violations');
 router.use('/violations', violationRoutes);
+console.log('🔧 Mounting System routes at /system');
+router.use('/system', systemRoutes);
 
 // Test routes for development
 console.log('🔧 Mounting Test routes at /test');

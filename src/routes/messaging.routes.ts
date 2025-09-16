@@ -9,6 +9,8 @@ router.use(authenticateToken);
 
 // Chat Management
 router.get('/chats', MessagingController.getChats);
+// Admin: list messages across all chats (must be before :chatId route)
+router.get('/chats/messages', MessagingController.getAllChatMessages);
 router.get('/chats/:chatId', MessagingController.getChatById);
 router.get('/chats/:chatId/messages', MessagingController.getChatMessages);
 router.post('/chats/:chatId/messages', MessagingController.sendMessage);

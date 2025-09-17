@@ -402,6 +402,53 @@ router.put('/:id', requireAuth, controller.updateBooking);
 
 /**
  * @swagger
+ * /bookings/{id}/recalculate-pricing:
+ *   put:
+ *     summary: Recalculate booking pricing (Admin only)
+ *     description: Recalculate pricing for an existing booking using current product pricing
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Booking ID
+ *     responses:
+ *       200:
+ *         description: Pricing recalculated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     booking_id:
+ *                       type: string
+ *                     new_pricing:
+ *                       type: object
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: Booking or product not found
+ *       500:
+ *         description: Server error
+ */
+router.put('/:id/recalculate-pricing', requireAuth, controller.recalculateBookingPricing);
+
+/**
+ * @swagger
  * /bookings/{id}/cancel:
  *   post:
  *     summary: Cancel booking with cleanup

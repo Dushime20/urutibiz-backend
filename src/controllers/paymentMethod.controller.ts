@@ -70,6 +70,19 @@ export class PaymentMethodController {
         message: 'Payment method created successfully',
       });
     } catch (error: any) {
+      console.error('Error creating payment method:', error);
+      
+      // Handle specific PostgreSQL constraint errors
+      if (error.code === '23505') {
+        if (error.constraint === 'payment_methods_user_default_idx') {
+          res.status(400).json({
+            success: false,
+            message: 'User already has a default payment method. The transaction should have handled this automatically. Please try again.',
+          });
+          return;
+        }
+      }
+      
       res.status(500).json({
         success: false,
         message: error.message || 'Internal server error',

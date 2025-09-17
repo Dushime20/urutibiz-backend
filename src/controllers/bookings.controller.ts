@@ -748,7 +748,7 @@ export class BookingsController extends BaseController {
       return ResponseHelper.notFound(res, 'Product not found');
     }
 
-    const newPricing = this.calculateBookingPricing(
+    const newPricing = await this.calculateBookingPricing(
       product.data, 
       booking.start_date.toISOString(), 
       booking.end_date.toISOString(), 
@@ -914,7 +914,7 @@ export class BookingsController extends BaseController {
     }
 
     // Performance: Optimized pricing calculation
-    const pricing = this.calculateBookingPricing(product, start_date, end_date, insurance_type);
+    const pricing = await this.calculateBookingPricing(product, start_date, end_date, insurance_type);
     const total_amount = pricing.totalAmount;
     const base_amount = pricing.subtotal;
 
@@ -1074,44 +1074,196 @@ export class BookingsController extends BaseController {
   /**
    * Calculate booking pricing with insurance considerations
    */
-  private calculateBookingPricing(product: any, startDate: string, endDate: string, insuranceType?: InsuranceType) {
+  private async calculateBookingPricing(product: any, startDate: string, endDate: string, insuranceType?: InsuranceType) {
     const startDateObj = new Date(startDate);
     const endDateObj = new Date(endDate);
     const totalDays = Math.max(1, Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)));
+    const rentalDurationHours = totalDays * 24;
     
-    // Fix: Use correct product property names
-    // Product-level base price was removed; use 0 here. Final pricing comes from product_prices service.
-    const basePrice = 0;
-    const subtotal = basePrice * totalDays;
-    const platformFee = subtotal * 0.1; // 10% platform fee
-    const taxAmount = subtotal * 0.08; // 8% tax
-    
-    // Calculate insurance fee based on type
-    let insuranceFee = 0;
-    if (insuranceType && insuranceType !== 'none') {
-      const insuranceRates: Record<string, number> = {
-        basic: 0.02,    // 2% of subtotal
-        standard: 0.04, // 4% of subtotal
-        premium: 0.06   // 6% of subtotal
-      };
-      insuranceFee = subtotal * (insuranceRates[insuranceType] || 0);
-    }
-    
-    const totalAmount = subtotal + platformFee + taxAmount + insuranceFee;
+    try {
+      // Use Knex directly to get pricing (avoid Sequelize service issues)
+      const db = getDatabase();
+      
+      const priceRecord = await db('product_prices')
+        .where({
+          product_id: product.id,
+          country_id: product.country_id || '1',
+          is_active: true
+        })
+        .where('effective_from', '<=', startDateObj)
+        .where(function() {
+          this.whereNull('effective_until')
+              .orWhere('effective_until', '>=', startDateObj);
+        })
+        .orderBy('created_at', 'desc')
+        .first();
+      
+      if (!priceRecord) {
+        console.log('[BookingsController] No active pricing found, using fallback');
+        throw new Error('No active pricing found');
+      }
+      
+      console.log('[BookingsController] Found pricing record:', {
+        price_per_day: priceRecord.price_per_day,
+        price_per_hour: priceRecord.price_per_hour,
+        currency: priceRecord.currency
+      });
+      
+      // Calculate base amount using the pricing tier
+      const rentalDays = totalDays;
+      let baseRate: number;
+      let unitsUsed: number;
+      
+      // Choose the most economical pricing tier
+      if (rentalDays >= 30 && priceRecord.price_per_month) {
+        baseRate = parseFloat(priceRecord.price_per_month);
+        unitsUsed = Math.ceil(rentalDays / 30);
+      } else if (rentalDays >= 7 && priceRecord.price_per_week) {
+        baseRate = parseFloat(priceRecord.price_per_week);
+        unitsUsed = Math.ceil(rentalDays / 7);
+      } else if (rentalDays >= 1) {
+        baseRate = parseFloat(priceRecord.price_per_day);
+        unitsUsed = Math.ceil(rentalDays);
+      } else if (priceRecord.price_per_hour) {
+        baseRate = parseFloat(priceRecord.price_per_hour);
+        unitsUsed = rentalDurationHours;
+      } else {
+        // Fallback to daily rate
+        baseRate = parseFloat(priceRecord.price_per_day);
+        unitsUsed = Math.ceil(rentalDays);
+      }
+      
+      let baseAmount = baseRate * unitsUsed;
+      
+      // Apply market adjustment
+      const marketAdjustment = parseFloat(priceRecord.market_adjustment_factor || 1);
+      baseAmount *= marketAdjustment;
+      
+      const subtotal = baseAmount;
+      const platformFee = subtotal * 0.1; // 10% platform fee
+      const taxAmount = subtotal * 0.08; // 8% tax
+      
+      // Calculate insurance fee based on type
+      let insuranceFee = 0;
+      if (insuranceType && insuranceType !== 'none') {
+        const insuranceRates: Record<string, number> = {
+          basic: 0.02,    // 2% of subtotal
+          standard: 0.04, // 4% of subtotal
+          premium: 0.06   // 6% of subtotal
+        };
+        insuranceFee = subtotal * (insuranceRates[insuranceType] || 0);
+      }
+      
+      const totalAmount = subtotal + platformFee + taxAmount + insuranceFee;
 
-    return {
-      basePrice: basePrice,
-      currency: 'USD',
-      totalDays,
-      subtotal,
-      platformFee,
-      taxAmount,
-      insuranceFee,
-      totalAmount,
-      securityDeposit: 0,
-      discountAmount: 0 // Could be calculated based on promotions
-    };
+      return {
+        basePrice: baseRate,
+        currency: priceRecord.currency || 'RWF',
+        totalDays,
+        subtotal,
+        platformFee,
+        taxAmount,
+        insuranceFee,
+        totalAmount,
+        securityDeposit: parseFloat(priceRecord.security_deposit || 0),
+        discountAmount: 0
+      };
+      
+    } catch (error) {
+      console.error('[BookingsController] Error calculating pricing:', error);
+      
+      // Fallback to simple calculation if pricing service fails
+      const basePrice = product.price || 0; // Use product.price as fallback
+      const subtotal = basePrice * totalDays;
+      const platformFee = subtotal * 0.1; // 10% platform fee
+      const taxAmount = subtotal * 0.08; // 8% tax
+      
+      let insuranceFee = 0;
+      if (insuranceType && insuranceType !== 'none') {
+        const insuranceRates: Record<string, number> = {
+          basic: 0.02,    // 2% of subtotal
+          standard: 0.04, // 4% of subtotal
+          premium: 0.06   // 6% of subtotal
+        };
+        insuranceFee = subtotal * (insuranceRates[insuranceType] || 0);
+      }
+      
+      const totalAmount = subtotal + platformFee + taxAmount + insuranceFee;
+
+      return {
+        basePrice: basePrice,
+        currency: 'RWF',
+        totalDays,
+        subtotal,
+        platformFee,
+        taxAmount,
+        insuranceFee,
+        totalAmount,
+        securityDeposit: 0,
+        discountAmount: 0
+      };
+    }
   }
+
+  /**
+   * Recalculate booking pricing (admin endpoint)
+   * PUT /api/v1/bookings/:id/recalculate-pricing
+   */
+  public recalculateBookingPricing = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return ResponseHelper.unauthorized(res, 'Authentication required');
+    }
+
+    // Only admin can recalculate pricing
+    if (req.user?.role !== 'admin') {
+      return ResponseHelper.forbidden(res, 'Admin access required');
+    }
+
+    try {
+      const db = getDatabase();
+      
+      // Get the booking
+      const booking = await db('bookings').where('id', id).first();
+      if (!booking) {
+        return ResponseHelper.notFound(res, 'Booking not found');
+      }
+
+      // Get the product
+      const product = await db('products').where('id', booking.product_id).first();
+      if (!product) {
+        return ResponseHelper.notFound(res, 'Product not found');
+      }
+
+      // Recalculate pricing
+      const pricing = await this.calculateBookingPricing(
+        product, 
+        booking.start_date, 
+        booking.end_date, 
+        booking.insurance_type
+      );
+
+      // Update the booking with new pricing
+      await db('bookings')
+        .where('id', id)
+        .update({
+          total_amount: pricing.totalAmount,
+          base_amount: pricing.subtotal,
+          updated_at: new Date()
+        });
+
+      ResponseHelper.success(res, 'Booking pricing recalculated successfully', {
+        booking_id: id,
+        new_pricing: pricing
+      });
+
+    } catch (error) {
+      console.error('[BookingsController] Error recalculating pricing:', error);
+      ResponseHelper.serverError(res, 'Failed to recalculate booking pricing');
+    }
+  });
 
   /**
    * Check booking access authorization

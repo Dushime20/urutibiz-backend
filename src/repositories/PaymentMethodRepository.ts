@@ -49,10 +49,28 @@ export class PaymentMethodRepository {
    * Create a new payment method
    */
   async create(data: CreatePaymentMethodData): Promise<PaymentMethodData> {
-    const [created] = await this.db<PaymentMethodData>('payment_methods')
-      .insert({ ...data, created_at: new Date(), updated_at: new Date() })
-      .returning('*');
-    return created;
+    // If this is a default payment method, use transaction to handle constraint
+    if (data.is_default === true) {
+      return await this.db.transaction(async (trx) => {
+        // First, unset any existing default for this user
+        await trx('payment_methods')
+          .where({ user_id: data.user_id, is_default: true })
+          .update({ is_default: false, updated_at: trx.fn.now() });
+        
+        // Then insert the new default payment method
+        const [created] = await trx<PaymentMethodData>('payment_methods')
+          .insert({ ...data, created_at: trx.fn.now(), updated_at: trx.fn.now() })
+          .returning('*');
+        
+        return created;
+      });
+    } else {
+      // Regular insert for non-default payment methods
+      const [created] = await this.db<PaymentMethodData>('payment_methods')
+        .insert({ ...data, created_at: new Date(), updated_at: new Date() })
+        .returning('*');
+      return created;
+    }
   }
 
   /**

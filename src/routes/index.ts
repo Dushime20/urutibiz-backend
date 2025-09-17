@@ -38,6 +38,7 @@ import violationRoutes from './violation.routes';
 import systemRoutes from './system.routes';
 import testRoutes from './test.routes';
 import validationRoutes from './validation.routes';
+import walletRoutes from './wallet.routes';
 
 const router = Router();
 
@@ -112,6 +113,10 @@ router.use('/test', testRoutes);
 console.log('🔧 Mounting Validation routes at /validate');
 router.use('/validate', validationRoutes);
 
+// Wallet routes
+console.log('🔧 Mounting Wallet routes at /wallet');
+router.use('/wallet', walletRoutes);
+
 // Placeholder routes - remove when actual routes are implemented
 router.get('/', (_req, res) => {
   res.status(200).json({
@@ -135,6 +140,7 @@ router.get('/', (_req, res) => {
       notifications: '/api/v1/notifications',
       violations: '/api/v1/violations',
       validate: '/api/v1/validate',
+      wallet: '/api/v1/wallet',
       product_prices: '/api/v1/product-prices',
       category_regulations: '/api/v1/category-regulations',
       localization: '/api/v1/localization',

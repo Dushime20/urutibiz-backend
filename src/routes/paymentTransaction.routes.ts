@@ -88,7 +88,7 @@ router.get('/booking/:bookingId', controller.getTransactionsByBooking);
  * @access  Private (requires authentication in production)
  * @params  userId - User ID
  */
-router.get('/user/:userId/summary', controller.getUserTransactionSummary);
+router.get('/user/:userId/summary', requireAuth, controller.getUserTransactionSummary);
 
 // =====================================================
 // PAYMENT PROCESSING ROUTES

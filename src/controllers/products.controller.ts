@@ -728,7 +728,7 @@ export class ProductsController extends BaseController {
     if (body.model !== undefined) (update_data as any).model = body.model;
     if (body.year_manufactured !== undefined) (update_data as any).year_manufactured = body.year_manufactured;
     if (body.address_line !== undefined) (update_data as any).address_line = body.address_line;
-    if (body.delivery_fee !== undefined) (update_data as any).delivery_fee = body.delivery_fee;
+    if (body.delivery_fee !== undefined) (update_data as any).delivery_fee = (body.delivery_fee === '' ? 0 : body.delivery_fee);
     if (body.included_accessories !== undefined) (update_data as any).included_accessories = body.included_accessories;
     if (body.country_id !== undefined) (update_data as any).country_id = body.country_id;
     if (body.category_id !== undefined) (update_data as any).category_id = body.category_id;

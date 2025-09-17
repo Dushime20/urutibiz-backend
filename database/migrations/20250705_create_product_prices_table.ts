@@ -1,11 +1,15 @@
 import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
-  // Create product_prices table
-  await knex.schema.createTable('product_prices', (table) => {
-    table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
-    table.uuid('product_id').notNullable().references('id').inTable('products').onDelete('CASCADE');
-    table.uuid('country_id').notNullable().references('id').inTable('countries').onDelete('RESTRICT');
+  // Check if table already exists
+  const hasTable = await knex.schema.hasTable('product_prices');
+  
+  if (!hasTable) {
+    await knex.schema.createTable('product_prices', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
+      // Defer FKs to avoid ordering issues
+      table.uuid('product_id').notNullable().comment('Reference to product');
+      table.uuid('country_id').notNullable().comment('Reference to country');
     table.string('currency', 3).notNullable().comment('ISO 4217 currency code');
     
     // Pricing tiers
@@ -79,255 +83,43 @@ export async function up(knex: Knex): Promise<void> {
     table.check('bulk_discount_percentage >= 0 AND bulk_discount_percentage <= 1', [], 'chk_product_prices_bulk_discount_valid');
     table.check('peak_season_multiplier > 0', [], 'chk_product_prices_peak_multiplier_positive');
     table.check('off_season_multiplier > 0', [], 'chk_product_prices_off_season_multiplier_positive');
-    table.check('effective_until IS NULL OR effective_until > effective_from', [], 'chk_product_prices_effective_period_valid');
-  });
+      table.check('effective_until IS NULL OR effective_until > effective_from', [], 'chk_product_prices_effective_period_valid');
+    });
 
-  // Create trigger for updated_at
-  await knex.raw(`
-    CREATE OR REPLACE FUNCTION update_product_prices_updated_at()
-    RETURNS TRIGGER AS $$
-    BEGIN
-      NEW.updated_at = CURRENT_TIMESTAMP;
-      RETURN NEW;
-    END;
-    $$ language 'plpgsql';
-  `);
+    // Conditionally add FKs if referenced tables exist
+    const hasProducts = await knex.schema.hasTable('products');
+    const hasCountries = await knex.schema.hasTable('countries');
+    
+    await knex.schema.alterTable('product_prices', (table) => {
+      if (hasProducts) {
+        table.foreign('product_id').references('products.id').onDelete('CASCADE');
+      }
+      if (hasCountries) {
+        table.foreign('country_id').references('countries.id').onDelete('RESTRICT');
+      }
+    });
 
-  await knex.raw(`
-    CREATE TRIGGER trigger_product_prices_updated_at
-      BEFORE UPDATE ON product_prices
-      FOR EACH ROW
-      EXECUTE FUNCTION update_product_prices_updated_at();
-  `);
+    // Create trigger for updated_at
+    await knex.raw(`
+      CREATE OR REPLACE FUNCTION update_product_prices_updated_at()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        NEW.updated_at = CURRENT_TIMESTAMP;
+        RETURN NEW;
+      END;
+      $$ language 'plpgsql';
+    `);
 
-  // Insert sample product prices data
-  await knex('product_prices').insert([
-    // Uganda (UGX) - Photography Equipment
-    {
-      id: knex.raw('uuid_generate_v4()'),
-      product_id: knex.raw('(SELECT id FROM products WHERE name LIKE \'%Canon%\' OR name LIKE \'%photography%\' LIMIT 1)'),
-      country_id: knex.raw('(SELECT id FROM countries WHERE code = \'UG\' LIMIT 1)'),
-      currency: 'UGX',
-      price_per_hour: 50000.00,
-      price_per_day: 300000.00,
-      price_per_week: 1800000.00,
-      price_per_month: 6000000.00,
-      security_deposit: 1000000.00,
-      market_adjustment_factor: 0.85,
-      auto_convert: true,
-      base_price: 85.00,
-      base_currency: 'USD',
-      exchange_rate: 3529.41,
-      min_rental_duration_hours: 4.0,
-      max_rental_duration_days: 30.0,
-      weekly_discount_percentage: 0.10,
-      monthly_discount_percentage: 0.20,
-      dynamic_pricing_enabled: true,
-      peak_season_multiplier: 1.25,
-      off_season_multiplier: 0.90,
-      seasonal_adjustments: '{"12": 1.3, "1": 1.3, "7": 1.2, "8": 1.2}',
-      is_active: true,
-      notes: 'Professional photography equipment pricing for Uganda market'
-    },
-    // Kenya (KES) - Construction Tools
-    {
-      id: knex.raw('uuid_generate_v4()'),
-      product_id: knex.raw('(SELECT id FROM products WHERE name LIKE \'%drill%\' OR name LIKE \'%construction%\' LIMIT 1)'),
-      country_id: knex.raw('(SELECT id FROM countries WHERE code = \'KE\' LIMIT 1)'),
-      currency: 'KES',
-      price_per_hour: 800.00,
-      price_per_day: 5000.00,
-      price_per_week: 28000.00,
-      price_per_month: 90000.00,
-      security_deposit: 15000.00,
-      market_adjustment_factor: 1.10,
-      auto_convert: true,
-      base_price: 35.00,
-      base_currency: 'USD',
-      exchange_rate: 142.86,
-      min_rental_duration_hours: 2.0,
-      max_rental_duration_days: 60.0,
-      weekly_discount_percentage: 0.15,
-      monthly_discount_percentage: 0.25,
-      bulk_discount_threshold: 3,
-      bulk_discount_percentage: 0.10,
-      dynamic_pricing_enabled: false,
-      peak_season_multiplier: 1.15,
-      off_season_multiplier: 0.95,
-      is_active: true,
-      notes: 'Construction tools pricing optimized for Kenyan construction market'
-    },
-    // Rwanda (RWF) - Event Equipment
-    {
-      id: knex.raw('uuid_generate_v4()'),
-      product_id: knex.raw('(SELECT id FROM products WHERE name LIKE \'%sound%\' OR name LIKE \'%speaker%\' OR name LIKE \'%event%\' LIMIT 1)'),
-      country_id: knex.raw('(SELECT id FROM countries WHERE code = \'RW\' LIMIT 1)'),
-      currency: 'RWF',
-      price_per_hour: 8000.00,
-      price_per_day: 45000.00,
-      price_per_week: 250000.00,
-      price_per_month: 800000.00,
-      security_deposit: 100000.00,
-      market_adjustment_factor: 0.90,
-      auto_convert: true,
-      base_price: 40.00,
-      base_currency: 'USD',
-      exchange_rate: 1125.00,
-      min_rental_duration_hours: 6.0,
-      max_rental_duration_days: 14.0,
-      early_return_fee_percentage: 0.25,
-      late_return_fee_per_hour: 5000.00,
-      weekly_discount_percentage: 0.12,
-      monthly_discount_percentage: 0.22,
-      dynamic_pricing_enabled: true,
-      peak_season_multiplier: 1.40,
-      off_season_multiplier: 0.85,
-      seasonal_adjustments: '{"12": 1.5, "6": 1.3, "7": 1.3, "8": 1.2}',
-      is_active: true,
-      notes: 'Event equipment pricing for Rwanda with peak season adjustments'
-    },
-    // Tanzania (TZS) - Agricultural Equipment
-    {
-      id: knex.raw('uuid_generate_v4()'),
-      product_id: knex.raw('(SELECT id FROM products WHERE name LIKE \'%tractor%\' OR name LIKE \'%farm%\' OR name LIKE \'%agricultural%\' LIMIT 1)'),
-      country_id: knex.raw('(SELECT id FROM countries WHERE code = \'TZ\' LIMIT 1)'),
-      currency: 'TZS',
-      price_per_day: 120000.00,
-      price_per_week: 700000.00,
-      price_per_month: 2500000.00,
-      security_deposit: 500000.00,
-      market_adjustment_factor: 0.75,
-      auto_convert: true,
-      base_price: 50.00,
-      base_currency: 'USD',
-      exchange_rate: 2400.00,
-      min_rental_duration_hours: 8.0,
-      max_rental_duration_days: 90.0,
-      weekly_discount_percentage: 0.18,
-      monthly_discount_percentage: 0.30,
-      dynamic_pricing_enabled: false,
-      peak_season_multiplier: 1.20,
-      off_season_multiplier: 0.80,
-      seasonal_adjustments: '{"3": 1.3, "4": 1.4, "10": 1.2, "11": 1.2}',
-      is_active: true,
-      notes: 'Agricultural equipment pricing for Tanzania farming seasons'
-    },
-    // Nigeria (NGN) - Technology Equipment
-    {
-      id: knex.raw('uuid_generate_v4()'),
-      product_id: knex.raw('(SELECT id FROM products WHERE name LIKE \'%laptop%\' OR name LIKE \'%computer%\' OR name LIKE \'%tech%\' LIMIT 1)'),
-      country_id: knex.raw('(SELECT id FROM countries WHERE code = \'NG\' LIMIT 1)'),
-      currency: 'NGN',
-      price_per_hour: 5000.00,
-      price_per_day: 35000.00,
-      price_per_week: 200000.00,
-      price_per_month: 650000.00,
-      security_deposit: 150000.00,
-      market_adjustment_factor: 1.25,
-      auto_convert: true,
-      base_price: 45.00,
-      base_currency: 'USD',
-      exchange_rate: 777.78,
-      min_rental_duration_hours: 1.0,
-      max_rental_duration_days: 45.0,
-      early_return_fee_percentage: 0.15,
-      late_return_fee_per_hour: 2500.00,
-      weekly_discount_percentage: 0.08,
-      monthly_discount_percentage: 0.18,
-      bulk_discount_threshold: 5,
-      bulk_discount_percentage: 0.12,
-      dynamic_pricing_enabled: true,
-      peak_season_multiplier: 1.30,
-      off_season_multiplier: 0.90,
-      is_active: true,
-      notes: 'Technology equipment pricing for Nigerian tech market'
-    },
-    // South Africa (ZAR) - Automotive Equipment
-    {
-      id: knex.raw('uuid_generate_v4()'),
-      product_id: knex.raw('(SELECT id FROM products WHERE name LIKE \'%car%\' OR name LIKE \'%vehicle%\' OR name LIKE \'%auto%\' LIMIT 1)'),
-      country_id: knex.raw('(SELECT id FROM countries WHERE code = \'ZA\' LIMIT 1)'),
-      currency: 'ZAR',
-      price_per_hour: 150.00,
-      price_per_day: 950.00,
-      price_per_week: 5500.00,
-      price_per_month: 18000.00,
-      security_deposit: 5000.00,
-      market_adjustment_factor: 1.15,
-      auto_convert: true,
-      base_price: 55.00,
-      base_currency: 'USD',
-      exchange_rate: 17.27,
-      min_rental_duration_hours: 3.0,
-      max_rental_duration_days: 30.0,
-      early_return_fee_percentage: 0.20,
-      late_return_fee_per_hour: 100.00,
-      weekly_discount_percentage: 0.12,
-      monthly_discount_percentage: 0.25,
-      dynamic_pricing_enabled: true,
-      peak_season_multiplier: 1.35,
-      off_season_multiplier: 0.85,
-      seasonal_adjustments: '{"12": 1.4, "1": 1.4, "7": 1.2, "4": 1.1}',
-      is_active: true,
-      notes: 'Automotive equipment pricing for South African market'
-    },
-    // Ghana (GHS) - Medical Equipment
-    {
-      id: knex.raw('uuid_generate_v4()'),
-      product_id: knex.raw('(SELECT id FROM products WHERE name LIKE \'%medical%\' OR name LIKE \'%health%\' OR name LIKE \'%hospital%\' LIMIT 1)'),
-      country_id: knex.raw('(SELECT id FROM countries WHERE code = \'GH\' LIMIT 1)'),
-      currency: 'GHS',
-      price_per_hour: 80.00,
-      price_per_day: 500.00,
-      price_per_week: 3000.00,
-      price_per_month: 10000.00,
-      security_deposit: 2000.00,
-      market_adjustment_factor: 0.95,
-      auto_convert: true,
-      base_price: 75.00,
-      base_currency: 'USD',
-      exchange_rate: 6.67,
-      min_rental_duration_hours: 12.0,
-      max_rental_duration_days: 60.0,
-      weekly_discount_percentage: 0.10,
-      monthly_discount_percentage: 0.20,
-      dynamic_pricing_enabled: false,
-      peak_season_multiplier: 1.10,
-      off_season_multiplier: 0.95,
-      is_active: true,
-      notes: 'Medical equipment pricing for Ghana healthcare market'
-    },
-    // Egypt (EGP) - Industrial Equipment
-    {
-      id: knex.raw('uuid_generate_v4()'),
-      product_id: knex.raw('(SELECT id FROM products WHERE name LIKE \'%industrial%\' OR name LIKE \'%factory%\' OR name LIKE \'%machine%\' LIMIT 1)'),
-      country_id: knex.raw('(SELECT id FROM countries WHERE code = \'EG\' LIMIT 1)'),
-      currency: 'EGP',
-      price_per_hour: 400.00,
-      price_per_day: 2500.00,
-      price_per_week: 15000.00,
-      price_per_month: 50000.00,
-      security_deposit: 10000.00,
-      market_adjustment_factor: 0.80,
-      auto_convert: true,
-      base_price: 80.00,
-      base_currency: 'USD',
-      exchange_rate: 31.25,
-      min_rental_duration_hours: 8.0,
-      max_rental_duration_days: 120.0,
-      weekly_discount_percentage: 0.15,
-      monthly_discount_percentage: 0.28,
-      bulk_discount_threshold: 2,
-      bulk_discount_percentage: 0.08,
-      dynamic_pricing_enabled: false,
-      peak_season_multiplier: 1.12,
-      off_season_multiplier: 0.92,
-      is_active: true,
-      notes: 'Industrial equipment pricing for Egyptian manufacturing sector'
-    }
-  ]);
+    await knex.raw(`
+      CREATE TRIGGER trigger_product_prices_updated_at
+        BEFORE UPDATE ON product_prices
+        FOR EACH ROW
+        EXECUTE FUNCTION update_product_prices_updated_at();
+    `);
+  }
 
-  console.log('✅ Product prices table created successfully with sample data');
+  // Skip sample data seeding for now - referenced tables may not be seeded yet
+  console.log('✅ Product prices table created (sample data skipped - referenced tables not yet seeded)');
 }
 
 export async function down(knex: Knex): Promise<void> {

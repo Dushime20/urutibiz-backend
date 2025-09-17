@@ -18,17 +18,20 @@ export async function up(knex: Knex): Promise<void> {
     `);
   }
   
-  // Drop and recreate the product_condition enum
-  await knex.schema.raw(`DROP TYPE IF EXISTS product_condition CASCADE`);
-  await knex.schema.raw(`CREATE TYPE product_condition AS ENUM ('new', 'like_new', 'good', 'fair', 'poor')`);
+  // Ensure the product_condition enum exists with desired values without erroring on re-runs
+  await knex.schema.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'product_condition') THEN
+        CREATE TYPE product_condition AS ENUM ('new', 'like_new', 'good', 'fair', 'poor');
+      END IF;
+    END$$;
+  `);
   
   if (tableExists) {
-    // Add the condition column back with the new enum
+    // Add the condition column back referencing the existing enum type directly
     await knex.schema.alterTable('products', (table) => {
-      table.enu('condition', ['new', 'like_new', 'good', 'fair', 'poor'], { 
-        useNative: true, 
-        enumName: 'product_condition' 
-      }).notNullable().defaultTo('good');
+      table.specificType('condition', 'product_condition').notNullable().defaultTo('good');
     });
   }
 }
@@ -41,15 +44,20 @@ export async function down(knex: Knex): Promise<void> {
     await knex.schema.raw(`ALTER TABLE products DROP COLUMN IF EXISTS condition`);
   }
   
-  await knex.schema.raw(`DROP TYPE IF EXISTS product_condition CASCADE`);
-  await knex.schema.raw(`CREATE TYPE product_condition AS ENUM ('new', 'used', 'refurbished')`);
+  // Recreate legacy enum if not exists
+  await knex.schema.raw(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'product_condition') THEN
+        DROP TYPE product_condition CASCADE;
+      END IF;
+      CREATE TYPE product_condition AS ENUM ('new', 'used', 'refurbished');
+    END$$;
+  `);
   
   if (tableExists) {
     await knex.schema.alterTable('products', (table) => {
-      table.enu('condition', ['new', 'used', 'refurbished'], { 
-        useNative: true, 
-        enumName: 'product_condition' 
-      }).notNullable().defaultTo('used');
+      table.specificType('condition', 'product_condition').notNullable().defaultTo('used');
     });
   }
   

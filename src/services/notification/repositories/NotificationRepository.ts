@@ -165,11 +165,29 @@ export class NotificationRepository extends OptimizedBaseRepository<Notification
       const { status, type, priority, page = 1, limit = 20 } = filters;
       const db = getDatabase();
 
-      let query = db(this.tableName).where({ recipient_id: recipientId });
+      // Introspect columns once to adapt to schema differences
+      const columnsInfo = await db(this.tableName).columnInfo();
 
-      if (status) query = query.where({ status });
-      if (type) query = query.where({ notification_type: type });
-      if (priority) query = query.where({ priority });
+      // Use the correct recipient column (prefer user_id, fallback to recipient_id)
+      const recipientColumn = columnsInfo.user_id ? 'user_id' : 'recipient_id';
+      let query = db(this.tableName).where({ [recipientColumn]: recipientId });
+
+      // Optional filters applied only if the column exists
+      if (status && columnsInfo.status) {
+        query = query.where({ status });
+      }
+
+      if (type) {
+        if (columnsInfo.type) {
+          query = query.where({ type });
+        } else if (columnsInfo.notification_type) {
+          query = query.where({ notification_type: type });
+        }
+      }
+
+      if (priority && columnsInfo.priority) {
+        query = query.where({ priority });
+      }
 
       const total = await query.clone().count('* as count').first();
       const totalCount = total ? parseInt(total.count as string) : 0;

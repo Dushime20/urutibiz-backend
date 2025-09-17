@@ -6,40 +6,49 @@ import { Knex } from 'knex';
  */
 export async function up(knex: Knex): Promise<void> {
   console.log('🔧 Creating user_favorites table...');
-  
-  await knex.schema.createTable('user_favorites', (table) => {
-    // Primary key
-    table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
-    
-    // Foreign keys
-    table.uuid('user_id').notNullable()
-      .references('id').inTable('users')
-      .onUpdate('CASCADE')
-      .onDelete('CASCADE');
-    
-    table.uuid('product_id').notNullable()
-      .references('id').inTable('products')
-      .onUpdate('CASCADE')
-      .onDelete('CASCADE');
-    
-    // Metadata
-    table.jsonb('metadata').nullable().comment('Additional favorite metadata like tags, notes, etc.');
-    
-    // Timestamps
-    table.timestamp('created_at').defaultTo(knex.fn.now()).notNullable();
-    table.timestamp('updated_at').defaultTo(knex.fn.now()).notNullable();
-    
-    // Indexes for performance
-    table.index(['user_id'], 'idx_user_favorites_user_id');
-    table.index(['product_id'], 'idx_user_favorites_product_id');
-    table.index(['created_at'], 'idx_user_favorites_created_at');
-    
-    // Unique constraint - user can only favorite a product once
-    table.unique(['user_id', 'product_id'], 'uk_user_product_favorite');
-    
-    // Table comments
-    table.comment('User favorite products with optimized querying');
-  });
+
+  const exists = await knex.schema.hasTable('user_favorites');
+  if (!exists) {
+    await knex.schema.createTable('user_favorites', (table) => {
+      // Primary key
+      table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+
+      // Foreign keys
+      table.uuid('user_id').notNullable()
+        .references('id').inTable('users')
+        .onUpdate('CASCADE')
+        .onDelete('CASCADE');
+
+      // Defer product FK to avoid ordering issues on fresh DBs
+      table.uuid('product_id').notNullable();
+
+      // Metadata
+      table.jsonb('metadata').nullable().comment('Additional favorite metadata like tags, notes, etc.');
+
+      // Timestamps
+      table.timestamp('created_at').defaultTo(knex.fn.now()).notNullable();
+      table.timestamp('updated_at').defaultTo(knex.fn.now()).notNullable();
+
+      // Indexes for performance
+      table.index(['user_id'], 'idx_user_favorites_user_id');
+      table.index(['product_id'], 'idx_user_favorites_product_id');
+      table.index(['created_at'], 'idx_user_favorites_created_at');
+
+      // Unique constraint - user can only favorite a product once
+      table.unique(['user_id', 'product_id'], 'uk_user_product_favorite');
+
+      // Table comments
+      table.comment('User favorite products with optimized querying');
+    });
+  }
+
+  // Conditionally add FK to products if it exists
+  const hasProducts = await knex.schema.hasTable('products');
+  if (hasProducts) {
+    await knex.schema.alterTable('user_favorites', (table) => {
+      table.foreign('product_id').references('products.id').onUpdate('CASCADE').onDelete('CASCADE');
+    });
+  }
 
   console.log('✅ user_favorites table created successfully');
 }

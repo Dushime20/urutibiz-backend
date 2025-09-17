@@ -1,9 +1,30 @@
 import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
-  await knex.schema.raw(`CREATE TYPE product_condition AS ENUM ('new', 'like_new', 'good', 'fair', 'poor')`);
-  await knex.schema.raw(`CREATE TYPE product_status AS ENUM ('draft', 'active', 'inactive', 'suspended', 'deleted')`);
-  await knex.schema.createTable('products', (table) => {
+  // Create enums only if they don't exist (use DO blocks to avoid transaction aborts)
+  await knex.schema.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'product_condition') THEN
+        CREATE TYPE product_condition AS ENUM ('new', 'like_new', 'good', 'fair', 'poor');
+      END IF;
+    END$$;
+  `);
+
+  await knex.schema.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'product_status') THEN
+        CREATE TYPE product_status AS ENUM ('draft', 'active', 'inactive', 'suspended', 'deleted');
+      END IF;
+    END$$;
+  `);
+  
+  // Check if table already exists
+  const hasTable = await knex.schema.hasTable('products');
+  
+  if (!hasTable) {
+    await knex.schema.createTable('products', (table) => {
     table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
     table.uuid('owner_id').notNullable().references('id').inTable('users');
     table.uuid('category_id').notNullable().references('id').inTable('categories');
@@ -42,7 +63,8 @@ export async function up(knex: Knex): Promise<void> {
     table.timestamp('updated_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('published_at', { useTz: true });
     table.timestamp('last_booked_at', { useTz: true });
-  });
+    });
+  }
 }
 
 export async function down(knex: Knex): Promise<void> {

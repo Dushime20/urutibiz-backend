@@ -1,16 +1,38 @@
 import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
+  // Ensure enums exist without erroring on re-runs
+  await knex.schema.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'booking_status') THEN
+        CREATE TYPE booking_status AS ENUM ('pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'disputed');
+      END IF;
+    END$$;
+  `);
+  await knex.schema.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_status') THEN
+        CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded');
+      END IF;
+    END$$;
+  `);
+  await knex.schema.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'insurance_type') THEN
+        CREATE TYPE insurance_type AS ENUM ('basic', 'standard', 'premium', 'none');
+      END IF;
+    END$$;
+  `);
   // Check if bookings table exists
   const tableExists = await knex.schema.hasTable('bookings');
   
   if (tableExists) {
     // Add insurance_type column to existing bookings table
     await knex.schema.alterTable('bookings', (table) => {
-      table.enu('insurance_type', ['basic', 'standard', 'premium', 'none'], { 
-        useNative: true, 
-        enumName: 'insurance_type' 
-      }).defaultTo('none');
+      table.specificType('insurance_type', 'insurance_type').defaultTo('none');
     });
     
     // Update existing status columns to use the new enum types if needed
@@ -25,18 +47,9 @@ export async function up(knex: Knex): Promise<void> {
       
       // Core booking information
       table.string('booking_number', 50).unique(); // Unique booking reference number
-      table.enu('status', ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'disputed'], { 
-        useNative: true, 
-        enumName: 'booking_status' 
-      }).defaultTo('pending');
-      table.enu('payment_status', ['pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded'], { 
-        useNative: true, 
-        enumName: 'payment_status' 
-      }).defaultTo('pending');
-      table.enu('insurance_type', ['basic', 'standard', 'premium', 'none'], { 
-        useNative: true, 
-        enumName: 'insurance_type' 
-      }).defaultTo('none');
+      table.specificType('status', 'booking_status').defaultTo('pending');
+      table.specificType('payment_status', 'payment_status').defaultTo('pending');
+      table.specificType('insurance_type', 'insurance_type').defaultTo('none');
       
       // Booking dates and times
       table.timestamp('start_date', { useTz: true }).notNullable();
@@ -99,20 +112,23 @@ export async function up(knex: Knex): Promise<void> {
       table.index(['created_at']);
     });
     
-    // Create booking status history table for audit trail
-    await knex.schema.createTable('booking_status_history', (table) => {
-      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
-      table.uuid('booking_id').notNullable().references('id').inTable('bookings').onDelete('CASCADE');
-      table.string('previous_status', 50);
-      table.string('new_status', 50).notNullable();
-      table.uuid('changed_by').notNullable().references('id').inTable('users');
-      table.text('reason');
-      table.jsonb('metadata'); // Additional context for the change
-      table.timestamp('changed_at', { useTz: true }).defaultTo(knex.fn.now());
-      
-      table.index(['booking_id', 'changed_at']);
-      table.index(['changed_by']);
-    });
+    // Create booking status history table for audit trail (only if it doesn't exist)
+    const hasBsh = await knex.schema.hasTable('booking_status_history');
+    if (!hasBsh) {
+      await knex.schema.createTable('booking_status_history', (table) => {
+        table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
+        table.uuid('booking_id').notNullable().references('id').inTable('bookings').onDelete('CASCADE');
+        table.string('previous_status', 50);
+        table.string('new_status', 50).notNullable();
+        table.uuid('changed_by').notNullable().references('id').inTable('users');
+        table.text('reason');
+        table.jsonb('metadata'); // Additional context for the change
+        table.timestamp('changed_at', { useTz: true }).defaultTo(knex.fn.now());
+        
+        table.index(['booking_id', 'changed_at']);
+        table.index(['changed_by']);
+      });
+    }
   }
 }
 

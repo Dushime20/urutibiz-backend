@@ -1,10 +1,15 @@
 import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
-  return knex.schema.createTable('ai_recommendations', (table) => {
+  const exists = await knex.schema.hasTable('ai_recommendations');
+  if (exists) {
+    return;
+  }
+  await knex.schema.createTable('ai_recommendations', (table) => {
     table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
     table.uuid('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE');
-    table.uuid('product_id').notNullable().references('id').inTable('products').onDelete('CASCADE');
+    // Defer product FK to avoid ordering issues on fresh DBs
+    table.uuid('product_id').notNullable();
     table.enum('recommendation_type', ['collaborative_filtering', 'content_based', 'behavior_based', 'trending']).notNullable();
     table.decimal('confidence_score', 3, 2).notNullable().defaultTo(0.5);
     table.integer('ranking_position');
@@ -27,8 +32,16 @@ export async function up(knex: Knex): Promise<void> {
     // Unique constraint to prevent duplicate recommendations
     table.unique(['user_id', 'product_id', 'recommendation_type']);
   });
+
+  // Conditionally add product FK after creation when products table exists
+  const hasProducts = await knex.schema.hasTable('products');
+  if (hasProducts) {
+    await knex.schema.alterTable('ai_recommendations', (table) => {
+      table.foreign('product_id').references('products.id').onDelete('CASCADE');
+    });
+  }
 }
 
 export async function down(knex: Knex): Promise<void> {
-  return knex.schema.dropTable('ai_recommendations');
+  return knex.schema.dropTableIfExists('ai_recommendations');
 }

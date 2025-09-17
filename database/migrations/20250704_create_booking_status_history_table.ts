@@ -6,7 +6,8 @@ export async function up(knex: Knex): Promise<void> {
   if (!exists) {
     await knex.schema.createTable('booking_status_history', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
-      table.uuid('booking_id').notNullable().references('id').inTable('bookings').onDelete('CASCADE');
+      // Defer FK to avoid ordering issues on fresh DBs
+      table.uuid('booking_id').notNullable();
       table.string('previous_status', 50);
       table.string('new_status', 50).notNullable();
       table.uuid('changed_by').notNullable().references('id').inTable('users');
@@ -19,6 +20,13 @@ export async function up(knex: Knex): Promise<void> {
       table.index(['new_status']);
       table.index(['changed_at']);
     });
+    // Add FK only if bookings table exists
+    const hasBookings = await knex.schema.hasTable('bookings');
+    if (hasBookings) {
+      await knex.schema.alterTable('booking_status_history', (table) => {
+        table.foreign('booking_id').references('bookings.id').onDelete('CASCADE');
+      });
+    }
     console.log('✅ Created booking_status_history table with audit trail functionality');
   } else {
     console.log('ℹ️ booking_status_history table already exists, skipping creation');

@@ -1,9 +1,14 @@
 import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
-  // Create the new enum type with the requested values
+  // Create the new enum type with the requested values (no error if exists)
   await knex.schema.raw(`
-    CREATE TYPE availability_type AS ENUM ('available', 'booked', 'maintenance', 'unavailable')
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'availability_type') THEN
+        CREATE TYPE availability_type AS ENUM ('available', 'booked', 'maintenance', 'unavailable');
+      END IF;
+    END$$;
   `);
   
   // If the table already exists, we need to update it
@@ -17,12 +22,9 @@ export async function up(knex: Knex): Promise<void> {
       DROP COLUMN IF EXISTS availability_type
     `);
     
-    // Add the column back with the new enum type
+    // Add the column back referencing the existing enum type directly
     await knex.schema.alterTable('product_availability', (table) => {
-      table.enu('availability_type', ['available', 'booked', 'maintenance', 'unavailable'], { 
-        useNative: true, 
-        enumName: 'availability_type' 
-      }).defaultTo('available');
+      table.specificType('availability_type', 'availability_type').defaultTo('available');
     });
   }
 }

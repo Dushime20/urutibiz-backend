@@ -9,9 +9,9 @@ export async function up(knex: Knex): Promise<void> {
       // Primary key
       table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
       
-      // Foreign keys
-      table.uuid('product_id').notNullable().references('id').inTable('products').onDelete('CASCADE');
-      table.uuid('booking_id').notNullable().references('id').inTable('bookings').onDelete('CASCADE');
+      // Foreign keys (deferred to avoid ordering issues on fresh DBs)
+      table.uuid('product_id').notNullable();
+      table.uuid('booking_id').notNullable();
       table.uuid('inspector_id').notNullable().references('id').inTable('users').onDelete('CASCADE');
       table.uuid('renter_id').notNullable().references('id').inTable('users').onDelete('CASCADE');
       table.uuid('owner_id').notNullable().references('id').inTable('users').onDelete('CASCADE');
@@ -47,6 +47,20 @@ export async function up(knex: Knex): Promise<void> {
       table.index(['status']);
       table.index(['scheduled_at']);
     });
+
+    // Add FKs only if referenced tables exist
+    const hasProducts = await knex.schema.hasTable('products');
+    if (hasProducts) {
+      await knex.schema.alterTable('product_inspections', (table) => {
+        table.foreign('product_id').references('products.id').onDelete('CASCADE');
+      });
+    }
+    const hasBookings = await knex.schema.hasTable('bookings');
+    if (hasBookings) {
+      await knex.schema.alterTable('product_inspections', (table) => {
+        table.foreign('booking_id').references('bookings.id').onDelete('CASCADE');
+      });
+    }
   }
 
   // Create inspection_items table for detailed inspection checklist

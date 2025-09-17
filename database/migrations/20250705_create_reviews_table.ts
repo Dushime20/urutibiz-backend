@@ -10,12 +10,16 @@ export async function up(knex: Knex): Promise<void> {
     END $$;
   `);
 
-  // Create reviews table
-  await knex.schema.createTable('reviews', (table) => {
-    table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
-    table.uuid('booking_id').notNullable().references('id').inTable('bookings').onDelete('CASCADE').comment('Reference to the booking being reviewed');
-    table.uuid('reviewer_id').notNullable().references('id').inTable('users').onDelete('CASCADE').comment('User who wrote the review');
-    table.uuid('reviewed_user_id').notNullable().references('id').inTable('users').onDelete('CASCADE').comment('User being reviewed (owner or renter)');
+  // Check if table already exists
+  const hasTable = await knex.schema.hasTable('reviews');
+  
+  if (!hasTable) {
+    await knex.schema.createTable('reviews', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
+      // Defer FKs to avoid ordering issues
+      table.uuid('booking_id').notNullable().comment('Reference to the booking being reviewed');
+      table.uuid('reviewer_id').notNullable().comment('User who wrote the review');
+      table.uuid('reviewed_user_id').notNullable().comment('User being reviewed (owner or renter)');
     
     // Ratings (1-5 scale)
     table.integer('overall_rating').notNullable().comment('Overall rating from 1-5');
@@ -67,199 +71,89 @@ export async function up(knex: Knex): Promise<void> {
     table.index(['is_verified_booking']);
     table.index(['reviewer_id', 'reviewed_user_id']);
     table.index(['reviewed_user_id', 'moderation_status']);
-    table.index(['booking_id', 'reviewer_id']);
-  });
+      table.index(['booking_id', 'reviewer_id']);
+    });
 
-  // Add check constraints
-  await knex.raw(`
-    ALTER TABLE reviews 
-    ADD CONSTRAINT check_overall_rating_range 
-    CHECK (overall_rating BETWEEN 1 AND 5);
-  `);
-
-  await knex.raw(`
-    ALTER TABLE reviews 
-    ADD CONSTRAINT check_communication_rating_range 
-    CHECK (communication_rating IS NULL OR communication_rating BETWEEN 1 AND 5);
-  `);
-
-  await knex.raw(`
-    ALTER TABLE reviews 
-    ADD CONSTRAINT check_condition_rating_range 
-    CHECK (condition_rating IS NULL OR condition_rating BETWEEN 1 AND 5);
-  `);
-
-  await knex.raw(`
-    ALTER TABLE reviews 
-    ADD CONSTRAINT check_value_rating_range 
-    CHECK (value_rating IS NULL OR value_rating BETWEEN 1 AND 5);
-  `);
-
-  await knex.raw(`
-    ALTER TABLE reviews 
-    ADD CONSTRAINT check_delivery_rating_range 
-    CHECK (delivery_rating IS NULL OR delivery_rating BETWEEN 1 AND 5);
-  `);
-
-  await knex.raw(`
-    ALTER TABLE reviews 
-    ADD CONSTRAINT check_ai_sentiment_score_range 
-    CHECK (ai_sentiment_score IS NULL OR ai_sentiment_score BETWEEN -1 AND 1);
-  `);
-
-  await knex.raw(`
-    ALTER TABLE reviews 
-    ADD CONSTRAINT check_ai_toxicity_score_range 
-    CHECK (ai_toxicity_score IS NULL OR ai_toxicity_score BETWEEN 0 AND 1);
-  `);
-
-  await knex.raw(`
-    ALTER TABLE reviews 
-    ADD CONSTRAINT check_ai_helpfulness_score_range 
-    CHECK (ai_helpfulness_score IS NULL OR ai_helpfulness_score BETWEEN 0 AND 1);
-  `);
-
-  // Prevent users from reviewing themselves
-  await knex.raw(`
-    ALTER TABLE reviews 
-    ADD CONSTRAINT check_no_self_review 
-    CHECK (reviewer_id != reviewed_user_id);
-  `);
-
-  // Ensure only one review per booking per reviewer
-  await knex.raw(`
-    ALTER TABLE reviews 
-    ADD CONSTRAINT unique_review_per_booking_reviewer 
-    UNIQUE (booking_id, reviewer_id);
-  `);
-
-  // Insert sample reviews for testing
-  const users = await knex('users').select('id').limit(5);
-  const bookings = await knex('bookings').select('id', 'renter_id', 'owner_id').limit(3);
-  
-  if (users.length >= 2 && bookings.length > 0) {
-    const sampleReviews = [
-      {
-        booking_id: bookings[0].id,
-        reviewer_id: bookings[0].renter_id || users[0].id,
-        reviewed_user_id: bookings[0].owner_id || users[1].id,
-        overall_rating: 5,
-        communication_rating: 5,
-        condition_rating: 5,
-        value_rating: 4,
-        delivery_rating: 5,
-        title: 'Excellent camera equipment and service!',
-        comment: 'The camera equipment was in perfect condition and exactly as described. The owner was very responsive and helpful throughout the rental process. Pickup was smooth and the equipment worked flawlessly during my photoshoot. Highly recommended!',
-        ai_sentiment_score: 0.85,
-        ai_toxicity_score: 0.02,
-        ai_helpfulness_score: 0.92,
-        moderation_status: 'approved',
-        is_verified_booking: true,
-        review_type: 'renter_to_owner',
-        metadata: {
-          rental_duration: '3 days',
-          equipment_type: 'camera',
-          experience_level: 'professional'
-        },
-        created_by: 'user',
-        moderated_by: 'admin_system',
-        moderated_at: knex.fn.now()
-      },
-      {
-        booking_id: bookings[0].id,
-        reviewer_id: bookings[0].owner_id || users[1].id,
-        reviewed_user_id: bookings[0].renter_id || users[0].id,
-        overall_rating: 4,
-        communication_rating: 5,
-        condition_rating: 4,
-        value_rating: 4,
-        delivery_rating: 4,
-        title: 'Great renter, very careful with equipment',
-        comment: 'The renter was punctual, communicative, and took excellent care of my camera equipment. Everything was returned in the same condition it was rented. Would definitely rent to them again.',
-        ai_sentiment_score: 0.72,
-        ai_toxicity_score: 0.01,
-        ai_helpfulness_score: 0.78,
-        moderation_status: 'approved',
-        is_verified_booking: true,
-        review_type: 'owner_to_renter',
-        metadata: {
-          return_condition: 'excellent',
-          communication_quality: 'excellent'
-        },
-        created_by: 'user',
-        moderated_by: 'admin_system',
-        moderated_at: knex.fn.now()
+    // Conditionally add FKs if referenced tables exist
+    const hasBookings = await knex.schema.hasTable('bookings');
+    const hasUsers = await knex.schema.hasTable('users');
+    
+    await knex.schema.alterTable('reviews', (table) => {
+      if (hasBookings) {
+        table.foreign('booking_id').references('bookings.id').onDelete('CASCADE');
       }
-    ];
+      if (hasUsers) {
+        table.foreign('reviewer_id').references('users.id').onDelete('CASCADE');
+        table.foreign('reviewed_user_id').references('users.id').onDelete('CASCADE');
+      }
+    });
 
-    // Only add more reviews if we have more users and bookings
-    if (users.length >= 4 && bookings.length >= 2) {
-      const additionalReviews = [
-        {
-          booking_id: bookings[1].id,
-          reviewer_id: bookings[1].renter_id || users[2].id,
-          reviewed_user_id: bookings[1].owner_id || users[3].id,
-          overall_rating: 3,
-          communication_rating: 2,
-          condition_rating: 4,
-          value_rating: 3,
-          delivery_rating: 2,
-          title: 'Equipment was good but communication could be better',
-          comment: 'The equipment worked fine and was as described, but the owner was slow to respond to messages and pickup was delayed by 30 minutes without notice.',
-          ai_sentiment_score: -0.15,
-          ai_toxicity_score: 0.12,
-          ai_helpfulness_score: 0.65,
-          moderation_status: 'approved',
-          is_verified_booking: true,
-          review_type: 'renter_to_owner',
-          metadata: {
-            delay_minutes: 30,
-            response_time: 'slow'
-          },
-          created_by: 'user',
-          moderated_by: 'admin_system',
-          moderated_at: knex.fn.now()
-        },
-        {
-          booking_id: bookings[2]?.id || bookings[1].id,
-          reviewer_id: users[4]?.id || users[3].id,
-          reviewed_user_id: users[0].id,
-          overall_rating: 1,
-          communication_rating: 1,
-          condition_rating: 2,
-          value_rating: 1,
-          delivery_rating: 1,
-          title: 'Terrible experience, equipment was broken',
-          comment: 'This was a horrible experience. The equipment was clearly damaged and the owner was completely unresponsive. Complete waste of money and ruined my event.',
-          ai_sentiment_score: -0.92,
-          ai_toxicity_score: 0.78,
-          ai_helpfulness_score: 0.45,
-          moderation_status: 'flagged',
-          is_flagged: true,
-          is_verified_booking: false,
-          review_type: 'renter_to_owner',
-          metadata: {
-            equipment_issues: ['damaged_lens', 'battery_dead'],
-            escalated: true
-          },
-          created_by: 'user',
-          moderation_notes: 'Flagged for high toxicity score and unverified booking'
-        }
-      ];
+    // Add check constraints
+    await knex.raw(`
+      ALTER TABLE reviews 
+      ADD CONSTRAINT check_overall_rating_range 
+      CHECK (overall_rating BETWEEN 1 AND 5);
+    `);
 
-      await knex('reviews').insert(additionalReviews);
+    await knex.raw(`
+      ALTER TABLE reviews 
+      ADD CONSTRAINT check_communication_rating_range 
+      CHECK (communication_rating IS NULL OR communication_rating BETWEEN 1 AND 5);
+    `);
 
-      // Update the first additional review with a response
-      await knex('reviews')
-        .where({ booking_id: bookings[1].id, reviewer_id: bookings[1].renter_id || users[2].id })
-        .update({
-          response: 'Thank you for the feedback. I apologize for the delay and will work on improving my communication.',
-          response_date: knex.raw("CURRENT_TIMESTAMP + INTERVAL '2 hours'")
-        });
-    }
+    await knex.raw(`
+      ALTER TABLE reviews 
+      ADD CONSTRAINT check_condition_rating_range 
+      CHECK (condition_rating IS NULL OR condition_rating BETWEEN 1 AND 5);
+    `);
 
-    await knex('reviews').insert(sampleReviews);
+    await knex.raw(`
+      ALTER TABLE reviews 
+      ADD CONSTRAINT check_value_rating_range 
+      CHECK (value_rating IS NULL OR value_rating BETWEEN 1 AND 5);
+    `);
+
+    await knex.raw(`
+      ALTER TABLE reviews 
+      ADD CONSTRAINT check_delivery_rating_range 
+      CHECK (delivery_rating IS NULL OR delivery_rating BETWEEN 1 AND 5);
+    `);
+
+    await knex.raw(`
+      ALTER TABLE reviews 
+      ADD CONSTRAINT check_ai_sentiment_score_range 
+      CHECK (ai_sentiment_score IS NULL OR ai_sentiment_score BETWEEN -1 AND 1);
+    `);
+
+    await knex.raw(`
+      ALTER TABLE reviews 
+      ADD CONSTRAINT check_ai_toxicity_score_range 
+      CHECK (ai_toxicity_score IS NULL OR ai_toxicity_score BETWEEN 0 AND 1);
+    `);
+
+    await knex.raw(`
+      ALTER TABLE reviews 
+      ADD CONSTRAINT check_ai_helpfulness_score_range 
+      CHECK (ai_helpfulness_score IS NULL OR ai_helpfulness_score BETWEEN 0 AND 1);
+    `);
+
+    // Prevent users from reviewing themselves
+    await knex.raw(`
+      ALTER TABLE reviews 
+      ADD CONSTRAINT check_no_self_review 
+      CHECK (reviewer_id != reviewed_user_id);
+    `);
+
+    // Ensure only one review per booking per reviewer
+    await knex.raw(`
+      ALTER TABLE reviews 
+      ADD CONSTRAINT unique_review_per_booking_reviewer 
+      UNIQUE (booking_id, reviewer_id);
+    `);
   }
+
+  // Skip sample data seeding for now - referenced tables may not be seeded yet
+  console.log('✅ Reviews table created (sample data skipped - referenced tables not yet seeded)');
 
   // Create a view for review analytics
   await knex.raw(`
@@ -282,7 +176,7 @@ export async function up(knex: Knex): Promise<void> {
     GROUP BY reviewed_user_id;
   `);
 
-  // Create a view for review moderation queue
+  // Create a view for review moderation queue (fixed to use correct column names)
   await knex.raw(`
     CREATE VIEW review_moderation_queue AS
     SELECT 
@@ -299,8 +193,8 @@ export async function up(knex: Knex): Promise<void> {
       r.is_flagged,
       r.moderation_status,
       r.created_at,
-      u1.name as reviewer_name,
-      u2.name as reviewed_user_name
+      CONCAT(u1.first_name, ' ', u1.last_name) as reviewer_name,
+      CONCAT(u2.first_name, ' ', u2.last_name) as reviewed_user_name
     FROM reviews r
     LEFT JOIN users u1 ON r.reviewer_id = u1.id
     LEFT JOIN users u2 ON r.reviewed_user_id = u2.id

@@ -1,48 +1,40 @@
-import { QueryInterface, DataTypes } from 'sequelize';
+import { Knex } from 'knex';
 
-module.exports = {
-  up: async (queryInterface: QueryInterface) => {
-    await queryInterface.createTable('user_sessions', {
-      id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true,
-      },
-      user_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: { model: 'users', key: 'id' },
-        onDelete: 'CASCADE',
-      },
-      session_token: {
-        type: DataTypes.STRING(255),
-        allowNull: false,
-        unique: true,
-      },
-      refresh_token: {
-        type: DataTypes.STRING(255),
-        allowNull: true,
-        unique: true,
-      },
-      ip_address: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      user_agent: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
-      expires_at: {
-        type: DataTypes.DATE,
-        allowNull: false,
-      },
-      created_at: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
+export async function up(knex: Knex): Promise<void> {
+  // Check if table already exists
+  const hasTable = await knex.schema.hasTable('user_sessions');
+  if (!hasTable) {
+    await knex.schema.createTable('user_sessions', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
+      table.uuid('user_id').notNullable(); // Defer FK
+      table.string('session_token', 255).notNullable().unique();
+      table.string('refresh_token', 255).nullable().unique();
+      table.string('ip_address').nullable();
+      table.text('user_agent').nullable();
+      table.timestamp('expires_at').notNullable();
+      table.timestamp('created_at').defaultTo(knex.fn.now());
     });
-  },
-  down: async (queryInterface: QueryInterface) => {
-    await queryInterface.dropTable('user_sessions');
-  },
-};
+
+    // Add foreign key if users table exists
+    const hasUsers = await knex.schema.hasTable('users');
+    if (hasUsers) {
+      await knex.schema.alterTable('user_sessions', (table) => {
+        table.foreign('user_id').references('users.id').onDelete('CASCADE');
+      });
+    }
+
+    console.log('✅ User sessions table created successfully');
+  } else {
+    console.log('⚠️ user_sessions table already exists, skipping...');
+  }
+}
+
+export async function down(knex: Knex): Promise<void> {
+  const hasTable = await knex.schema.hasTable('user_sessions');
+  if (hasTable) {
+    await knex.schema.dropTable('user_sessions');
+    console.log('✅ User sessions table dropped successfully');
+  } else {
+    console.log('⚠️ user_sessions table does not exist, skipping...');
+  }
+}

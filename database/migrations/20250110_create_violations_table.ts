@@ -11,8 +11,9 @@ export async function up(knex: Knex): Promise<void> {
       
       // Foreign keys
       table.uuid('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE');
-      table.uuid('product_id').references('id').inTable('products').onDelete('SET NULL');
-      table.uuid('booking_id').references('id').inTable('bookings').onDelete('SET NULL');
+      // Defer foreign keys for products/bookings to avoid ordering issues; add later if tables exist
+      table.uuid('product_id').nullable();
+      table.uuid('booking_id').nullable();
       table.uuid('reported_by').notNullable().references('id').inTable('users').onDelete('CASCADE');
       table.uuid('assigned_to').references('id').inTable('users').onDelete('SET NULL');
       
@@ -110,6 +111,20 @@ export async function up(knex: Knex): Promise<void> {
       table.index(['user_id', 'status']);
       table.index(['assigned_to', 'status']);
     });
+
+    // Conditionally add foreign keys after table creation to avoid missing reference errors on fresh DBs
+    const hasProducts = await knex.schema.hasTable('products');
+    if (hasProducts) {
+      await knex.schema.alterTable('violations', (table) => {
+        table.foreign('product_id').references('products.id').onDelete('SET NULL');
+      });
+    }
+    const hasBookings = await knex.schema.hasTable('bookings');
+    if (hasBookings) {
+      await knex.schema.alterTable('violations', (table) => {
+        table.foreign('booking_id').references('bookings.id').onDelete('SET NULL');
+      });
+    }
   }
 
   // Create violation_evidence table for storing evidence files

@@ -86,16 +86,63 @@ export class User implements Partial<UserData> {
   }
 
   static async findById(id: string): Promise<User | null> {
-    const db = getDatabase();
-    const user = await db('users').where({ id }).first();
-    return user ? User.fromDb(user) : null;
+    try {
+      const db = getDatabase();
+      const user = await db('users').where({ id }).first();
+      return user ? User.fromDb(user) : null;
+    } catch (error: any) {
+      // If database connection is lost, try to reconnect
+      if (error.message.includes('Database is not initialized') || 
+          error.message.includes('Undefined binding') ||
+          error.message.includes('connection')) {
+        console.warn('Database connection lost, attempting to reconnect...');
+        try {
+          const { connectDatabase } = require('@/config/database');
+          await connectDatabase();
+          
+          // Wait for the connection to stabilize
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          const db = getDatabase();
+          
+          // Use raw SQL query instead of Knex query builder to avoid schema issues
+          const result = await db.raw(`
+            SELECT * FROM users WHERE id = ? LIMIT 1
+          `, [id]);
+          
+          if (result.rows && result.rows.length > 0) {
+            return User.fromDb(result.rows[0]);
+          }
+          
+          return null;
+        } catch (reconnectError) {
+          console.error('Failed to reconnect to database:', reconnectError);
+          throw new Error('Database connection failed. Please try again.');
+        }
+      }
+      throw error;
+    }
   }
 
   static async findByEmail(email: string): Promise<User | null> {
+    if (!email) {
+      throw new Error('Email parameter is required');
+    }
+    
     const db = getDatabase();
-    const user = await db('users').where({ email }).first();
-    return user ? User.fromDb(user) : null;
+  
+    const result = await db.raw(
+      'SELECT * FROM users WHERE email = ? LIMIT 1', // use ? for Knex raw
+      [email]
+    );
+  
+    if (result.rows && result.rows.length > 0) {
+      return User.fromDb(result.rows[0]);
+    }
+  
+    return null;
   }
+  
 
   static fromDb(row: any): User {
     return new User({

@@ -1,12 +1,52 @@
 import { Request, Response } from 'express';
 import AuthService from '../services/auth.service';
 import EmailVerificationService from '@/services/emailVerification.service';
-import { AuthenticatedRequest } from '@/types';
 
 export default class AuthController {
   static async register(req: Request, res: Response) {
-    const result = await AuthService.register(req.body);
-    res.status(result.success ? 201 : 400).json(result);
+    try {
+      // Debug logging to help identify the issue
+      console.log('[AUTH REGISTER] Request body:', JSON.stringify(req.body, null, 2));
+      console.log('[AUTH REGISTER] Request headers:', JSON.stringify(req.headers, null, 2));
+      console.log('[AUTH REGISTER] Content-Type:', req.headers['content-type']);
+      
+      const { email, password, firstName, lastName } = req.body;
+      
+      // Debug individual field extraction
+      console.log('[AUTH REGISTER] Extracted fields:', {
+        email: email,
+        password: password ? '[REDACTED]' : 'undefined',
+        firstName: firstName,
+        lastName: lastName
+      });
+
+      // Validate required fields
+      if (!email || !password || !firstName || !lastName) {
+        console.log('[AUTH REGISTER] Validation failed:', {
+          email: !!email,
+          password: !!password,
+          firstName: !!firstName,
+          lastName: !!lastName
+        });
+        return res.status(400).json({
+          success: false,
+          message: 'All fields are required: email, password, firstName, lastName'
+        });
+      }
+
+      // Call AuthService to register user
+      const result = await AuthService.register({ email, password, firstName, lastName });
+
+      // Return response
+      return res.status(result.success ? 201 : 400).json(result);
+
+    } catch (err: any) {
+      console.error('Error in register controller:', err);
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
   }
 
   static async login(req: Request, res: Response) {
@@ -56,7 +96,7 @@ export default class AuthController {
     return res.status(result.success ? 200 : 400).json(result);
   }
 
-  static async me(req: AuthenticatedRequest, res: Response) {
+  static async me(req: Request, res: Response) {
     const user = req.user as any;
     if (!user) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -102,33 +142,33 @@ export default class AuthController {
     const response = {
       id: user.id,
       email: user.email,
-      firstName: user.first_name ?? user.firstName,
-      lastName: user.last_name ?? user.lastName,
+      firstName: user.firstName,
+      lastName: user.lastName,
       role: user.role,
       status: user.status ?? 'active',
-      phone: user.phone ?? user.phone_number ?? null,
-      emailVerified: !!(user.email_verified ?? user.emailVerified),
-      phoneVerified: !!(user.phone_verified ?? user.phoneVerified),
-      passwordHash: user.password_hash ?? undefined,
-      createdAt: user.created_at ?? user.createdAt,
-      updatedAt: user.updated_at ?? user.updatedAt,
+      phone: user.phone ?? null,
+      emailVerified: !!user.emailVerified,
+      phoneVerified: !!user.phoneVerified,
+      passwordHash: user.passwordHash ?? undefined,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
       kyc_status: user.kyc_status ?? 'unverified',
-      profileImageUrl: user.profile_image_url ?? user.profileImageUrl ?? null,
-      profileImagePublicId: user.profile_image_public_id ?? user.profileImagePublicId ?? null,
+      profileImageUrl: user.profileImageUrl ?? null,
+      profileImagePublicId: user.profileImagePublicId ?? null,
       district: user.district ?? null,
       sector: user.sector ?? null,
       cell: user.cell ?? null,
       village: user.village ?? null,
       gender: user.gender ?? null,
       province: user.province ?? null,
-      addressLine: user.address_line ?? user.addressLine ?? null,
+      addressLine: user.addressLine ?? null,
       location: locationData,
       bio: user.bio ?? null,
-      dateOfBirth: user.date_of_birth ?? user.dateOfBirth ?? null,
-      twoFactorEnabled: !!(user.two_factor_enabled ?? user.twoFactorEnabled),
-      twoFactorSecret: user.two_factor_secret ?? user.twoFactorSecret ?? null,
-      twoFactorVerified: !!(user.two_factor_verified ?? user.twoFactorVerified),
-      preferred_currency: user.preferred_currency ?? user.preferredCurrency ?? null,
+      dateOfBirth: user.dateOfBirth ?? null,
+      twoFactorEnabled: !!user.twoFactorEnabled,
+      twoFactorSecret: user.twoFactorSecret ?? null,
+      twoFactorVerified: !!user.twoFactorVerified,
+      preferred_currency: user.preferred_currency ?? null,
     };
 
     return res.status(200).json({ success: true, message: 'User retrieved successfully', data: response });

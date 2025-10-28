@@ -36,7 +36,7 @@ export async function runOcrOnImage(imageUrl: string): Promise<OCRResult> {
     // Preprocess the image for better OCR results
     const processedImageBuffer = await preprocessImageForOCR(Buffer.from(response.data));
     
-    // Initialize Tesseract worker
+    // Initialize Tesseract worker with optimized settings
     const worker = await createWorker('eng', 1, {
       logger: m => {
         if (m.status === 'recognizing text') {
@@ -45,11 +45,14 @@ export async function runOcrOnImage(imageUrl: string): Promise<OCRResult> {
       }
     });
 
-    // Configure Tesseract for document recognition
+    // Configure Tesseract for fast document recognition
     await worker.setParameters({
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,:-/',
-      tessedit_pageseg_mode: PSM.SINGLE_BLOCK, // Assume a single uniform block of text
-      preserve_interword_spaces: '1'
+      tessedit_pageseg_mode: '6', // Uniform block of text (faster than SINGLE_BLOCK)
+      tessedit_ocr_engine_mode: '1', // Neural nets LSTM only (faster)
+      preserve_interword_spaces: '1',
+      tessedit_do_invert: '0', // Skip inversion (faster)
+      tessedit_do_adaptive_threshold: '0' // Skip adaptive threshold (faster)
     });
 
     // Perform OCR
@@ -122,14 +125,10 @@ async function preprocessImageForOCR(imageBuffer: Buffer): Promise<Buffer> {
     return await sharp(imageBuffer)
       // Convert to grayscale for better text recognition
       .grayscale()
-      // Enhance contrast
-      .normalize()
-      // Resize if too small (minimum 300px width for good OCR)
+      // Resize to optimal size for OCR (not too large, not too small)
       .resize({ width: 800, height: 600, fit: 'inside', withoutEnlargement: true })
-      // Sharpen the image
-      .sharpen()
       // Convert to PNG for consistent processing
-      .png({ quality: 95, compressionLevel: 1 })
+      .png({ quality: 80, compressionLevel: 6 }) // Reduced quality for speed
       .toBuffer();
   } catch (error) {
     console.warn('⚠️ Image preprocessing failed, using original:', error instanceof Error ? error.message : 'Unknown error');

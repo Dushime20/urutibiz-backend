@@ -12,7 +12,12 @@ function validateRequiredEnvVars(): void {
   const required = [
     'JWT_SECRET',
     'JWT_REFRESH_SECRET',
-    'ENCRYPTION_KEY'
+    'ENCRYPTION_KEY',
+    'DB_HOST',
+    'DB_PORT',
+    'DB_NAME',
+    'DB_USER',
+    'DB_PASSWORD'
   ];
 
   const missing = required.filter(key => !process.env[key]);
@@ -52,13 +57,16 @@ function parseNumber(value: string | undefined, fallback: number): number {
  * Gets and validates the application configuration
  */
 export function getConfig(): AppConfig {
-  // Validate required environment variables in production
-  if (process.env.NODE_ENV === 'production') {
-    validateRequiredEnvVars();
-  }
+  // Validate required environment variables
+  validateRequiredEnvVars();
 
-  console.log('[DEBUG] process.env.DB_USER:', process.env.DB_USER);
-  console.log('[DEBUG] process.env.DB_PASSWORD:', process.env.DB_PASSWORD);
+  console.log('[DEBUG] Database Configuration from .env:');
+  console.log('[DEBUG] DB_HOST:', process.env.DB_HOST);
+  console.log('[DEBUG] DB_PORT:', process.env.DB_PORT);
+  console.log('[DEBUG] DB_NAME:', process.env.DB_NAME);
+  console.log('[DEBUG] DB_USER:', process.env.DB_USER);
+  console.log('[DEBUG] DB_PASSWORD:', process.env.DB_PASSWORD ? '***' : 'NOT SET');
+  console.log('[DEBUG] DB_SSL:', process.env.DB_SSL);
 
   const config: AppConfig = {
     nodeEnv: (process.env.NODE_ENV as Environment) || 'development',
@@ -67,11 +75,11 @@ export function getConfig(): AppConfig {
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
     
     database: {
-      host: process.env.DB_HOST || 'localhost',
-      port: parseNumber(process.env.DB_PORT, 5432),
-      name: process.env.DB_NAME || 'urutibiz_dev',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'password',
+      host: process.env.DB_HOST!,
+      port: parseNumber(process.env.DB_PORT!, 5432),
+      name: process.env.DB_NAME!,
+      user: process.env.DB_USER!,
+      password: process.env.DB_PASSWORD!,
       ssl: parseBoolean(process.env.DB_SSL),
       maxConnections: parseNumber(process.env.DB_MAX_CONNECTIONS, 10),
       idleTimeoutMs: parseNumber(process.env.DB_IDLE_TIMEOUT, 10000),

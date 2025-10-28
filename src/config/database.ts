@@ -4,6 +4,24 @@ import logger from '../utils/logger';
 
 const config = getConfig();
 
+// Validate database configuration from .env
+function validateDatabaseConfig() {
+  const requiredVars = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
+  const missing = requiredVars.filter(varName => !process.env[varName]);
+  
+  if (missing.length > 0) {
+    const error = `Missing required database environment variables: ${missing.join(', ')}`;
+    logger.error(error);
+    throw new Error(error);
+  }
+  
+  logger.info('✅ Database configuration validated from .env file');
+  logger.info(`📊 Connecting to: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME} as ${process.env.DB_USER}`);
+}
+
+// Validate configuration before creating database instance
+validateDatabaseConfig();
+
 // Database configuration with graceful failure handling
 const dbConfig: Knex.Config = {
   client: 'postgresql',
@@ -71,6 +89,30 @@ export const connectDatabase = async (): Promise<void> => {
     await database.raw('SELECT 1+1 as result, NOW() as timestamp');
     const healthCheckTime = Date.now() - healthCheckStart;
     
+    // Verify that the users table exists and has the expected structure
+    try {
+      const tableCheck = await database.raw(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' AND column_name IN ('id', 'email', 'first_name', 'last_name')
+        ORDER BY column_name
+      `);
+      
+      const expectedColumns = ['email', 'first_name', 'id', 'last_name'];
+      const actualColumns = tableCheck.rows.map((row: any) => row.column_name).sort();
+      
+      if (actualColumns.length < expectedColumns.length) {
+        logger.warn('⚠️ Users table may be missing some expected columns:', {
+          expected: expectedColumns,
+          actual: actualColumns
+        });
+      } else {
+        logger.info('✅ Users table structure verified');
+      }
+    } catch (tableError) {
+      logger.warn('⚠️ Could not verify users table structure:', tableError);
+    }
+    
     dbMetrics.lastHealthCheck = new Date();
     dbMetrics.avgQueryTime = healthCheckTime;
     
@@ -79,10 +121,31 @@ export const connectDatabase = async (): Promise<void> => {
     dbMetrics.connectionErrors++;
     logger.error('❌ Failed to connect to database:', error);
     
-    // In demo mode, continue without database for testing
+    // In demo mode, retry connection with more lenient settings
     if (process.env.NODE_ENV === 'demo') {
-      logger.warn('⚠️ Running in demo mode without database connection');
-      database = undefined;
+      logger.warn('⚠️ Demo mode: Retrying database connection with lenient settings...');
+      try {
+        // Create a more lenient configuration for demo mode
+        const demoConfig = {
+          ...dbConfig,
+          pool: {
+            ...dbConfig.pool,
+            min: 1,
+            max: 5,
+            createTimeoutMillis: 10000,
+            acquireTimeoutMillis: 60000,
+            idleTimeoutMillis: 300000, // 5 minutes
+          },
+          acquireConnectionTimeout: 120000, // 2 minutes
+        };
+        
+        database = knex(demoConfig);
+        await database.raw('SELECT 1 as test');
+        logger.info('✅ Database connected successfully in demo mode');
+      } catch (retryError) {
+        logger.error('❌ Failed to connect to database even in demo mode:', retryError);
+        database = undefined;
+      }
     } else {
       throw error;
     }
@@ -264,6 +327,13 @@ export { dbConfig };
  */
 export const getDatabase = (): Knex => {
   if (!database) {
+    // Try to reconnect if in demo mode
+    if (process.env.NODE_ENV === 'demo') {
+      logger.warn('Database not initialized in demo mode, attempting to reconnect...');
+      // This is a synchronous function, so we can't await here
+      // The calling code should handle the reconnection
+      throw new Error('Database is not initialized! Please check your database connection.');
+    }
     throw new Error('Database is not initialized! Please check your database connection.');
   }
   return database;

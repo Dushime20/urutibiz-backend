@@ -15,17 +15,35 @@ export async function up(knex: Knex): Promise<void> {
 
   if (currentType.toLowerCase() !== 'jsonb') {
     try { await knex.raw(`ALTER TABLE products ALTER COLUMN pickup_methods DROP DEFAULT`); } catch {}
-    await knex.raw(`
-      ALTER TABLE products
-      ALTER COLUMN pickup_methods TYPE jsonb
-      USING (
-        CASE
-          WHEN pg_typeof(pickup_methods)::text = 'jsonb' THEN pickup_methods
-          WHEN pg_typeof(pickup_methods)::text = 'text[]' THEN to_jsonb(pickup_methods)
-          ELSE to_jsonb(pickup_methods)
-        END
-      )
-    `);
+    
+    // Handle different column types separately
+    if (currentType === 'text[]') {
+      await knex.raw(`
+        ALTER TABLE products
+        ALTER COLUMN pickup_methods TYPE jsonb
+        USING to_jsonb(pickup_methods)
+      `);
+    } else if (currentType === 'text') {
+      await knex.raw(`
+        ALTER TABLE products
+        ALTER COLUMN pickup_methods TYPE jsonb
+        USING (
+          CASE 
+            WHEN pickup_methods IS NULL THEN NULL
+            WHEN pickup_methods = '' THEN '[]'::jsonb
+            ELSE pickup_methods::jsonb
+          END
+        )
+      `);
+    } else {
+      // For other types, try direct conversion
+      await knex.raw(`
+        ALTER TABLE products
+        ALTER COLUMN pickup_methods TYPE jsonb
+        USING to_jsonb(pickup_methods)
+      `);
+    }
+    
     await knex.raw(`ALTER TABLE products ALTER COLUMN pickup_methods SET DEFAULT '[]'::jsonb`);
     console.log('✅ Coerced products.pickup_methods to jsonb');
   }

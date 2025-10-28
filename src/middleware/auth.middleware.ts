@@ -9,12 +9,12 @@ import config from '../config/config';
 import { UnauthorizedError, ForbiddenError } from '../utils/ErrorHandler';
 import User from '../models/User.model';
 
-interface AuthenticatedRequest extends Request {
-  user: {
-    id: string;
-    email: string;
-    role: string;
-  };
+declare global {
+  namespace Express {
+    interface Request {
+      user?: User;
+    }
+  }
 }
 
 interface JWTPayload {
@@ -54,7 +54,7 @@ function verifyToken(token: string) {
   }
 }
 
-export const authenticateToken: RequestHandler = async (req: Request, _res: Response, next: NextFunction) => {
+export const authenticateToken: RequestHandler = async (req, _res, next) => {
   try {
     console.log('[AUTH] Starting authentication...');
     console.log('[AUTH] Headers:', JSON.stringify(req.headers, null, 2));
@@ -76,7 +76,7 @@ export const authenticateToken: RequestHandler = async (req: Request, _res: Resp
     }
     
     // Set user on request
-    (req as AuthenticatedRequest).user = user;
+    req.user = user;
     console.log('[AUTH] User set on request:', user.id, user.email, user.role);
     
     next();
@@ -89,12 +89,11 @@ export const authenticateToken: RequestHandler = async (req: Request, _res: Resp
 export const requireRole = (roles: string[]): RequestHandler => {
   return (req: Request, _res: Response, next: NextFunction): void => {
     try {
-      const authReq = req as AuthenticatedRequest;
-      if (!authReq.user) {
+      if (!req.user) {
         throw new UnauthorizedError('Authentication required');
       }
       
-      if (!roles.includes(authReq.user.role)) {
+      if (!roles.includes(req.user.role)) {
         throw new ForbiddenError(`Insufficient permissions. Required roles: ${roles.join(', ')}`);
       }
       

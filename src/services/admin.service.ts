@@ -223,41 +223,48 @@ export class AdminService {
 
   static async getUserDetails(id: string): Promise<any> {
     try {
+      // Fetch base user row first to avoid GROUP BY on users.* with aggregates
       const user = await this.db('users')
-        .select(
-          'users.*',
-          this.db.raw('COUNT(DISTINCT bookings.id) as total_bookings'),
-          this.db.raw('COUNT(DISTINCT products.id) as total_products'),
-          this.db.raw('COUNT(DISTINCT reviews.id) as total_reviews'),
-          this.db.raw('AVG(reviews.rating) as average_rating')
-        )
-        .leftJoin('bookings', 'users.id', 'bookings.renter_id')
-        .leftJoin('products', 'users.id', 'products.owner_id')
-        .leftJoin('reviews', function() {
-          this.on('users.id', '=', 'reviews.reviewer_id')
-              .orOn('users.id', '=', 'reviews.reviewee_id');
-        })
-        .where('users.id', id)
-        .groupBy('users.id')
+        .select('*')
+        .where('id', id)
         .first();
 
       if (!user) {
         throw new Error('User not found');
       }
 
-      // Ensure profile_image_url and other important fields are included in the response
+      // Compute related aggregates with separate lightweight queries
+      const [bookingsAgg, productsAgg, reviewsAgg, avgRatingAgg] = await Promise.all([
+        this.db('bookings').where('renter_id', id).countDistinct('id as total_bookings').first(),
+        this.db('products').where('owner_id', id).countDistinct('id as total_products').first(),
+        this.db('reviews').where(function() {
+          this.where('reviewer_id', id).orWhere('reviewee_id', id);
+        }).countDistinct('id as total_reviews').first().catch(() => ({ total_reviews: 0 })),
+        this.db('reviews').where(function() {
+          this.where('reviewer_id', id).orWhere('reviewee_id', id);
+        }).avg('rating as average_rating').first().catch(() => ({ average_rating: null })),
+      ]);
+
+      const totals = {
+        total_bookings: parseInt((bookingsAgg as any)?.total_bookings ?? 0, 10) || 0,
+        total_products: parseInt((productsAgg as any)?.total_products ?? 0, 10) || 0,
+        total_reviews: parseInt((reviewsAgg as any)?.total_reviews ?? 0, 10) || 0,
+        average_rating: avgRatingAgg ? parseFloat((avgRatingAgg as any)?.average_rating ?? 0) || null : null,
+      };
+
+      // Normalize and map important fields
       const userWithProfileImage = {
         ...user,
+        ...totals,
         profileImageUrl: user.profile_image_url || null,
         profileImagePublicId: user.profile_image_public_id || null,
-        // Map snake_case to camelCase for consistency
         firstName: user.first_name,
         lastName: user.last_name,
         phoneNumber: user.phone,
         emailVerified: user.email_verified,
         phoneVerified: user.phone_verified,
         createdAt: user.created_at,
-        updatedAt: user.updated_at
+        updatedAt: user.updated_at,
       };
 
       return userWithProfileImage;

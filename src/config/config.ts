@@ -9,16 +9,17 @@ dotenv.config();
  * Validates required environment variables
  */
 function validateRequiredEnvVars(): void {
+  const usingConnectionString = !!process.env.DATABASE_URL;
   const required = [
     'JWT_SECRET',
     'JWT_REFRESH_SECRET',
     'ENCRYPTION_KEY',
-    'DB_HOST',
-    'DB_PORT',
-    'DB_NAME',
-    'DB_USER',
-    'DB_PASSWORD'
   ];
+
+  // If no DATABASE_URL, require discrete DB_* vars
+  if (!usingConnectionString) {
+    required.push('DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD');
+  }
 
   const missing = required.filter(key => !process.env[key]);
   
@@ -61,12 +62,16 @@ export function getConfig(): AppConfig {
   validateRequiredEnvVars();
 
   console.log('[DEBUG] Database Configuration from .env:');
-  console.log('[DEBUG] DB_HOST:', process.env.DB_HOST);
-  console.log('[DEBUG] DB_PORT:', process.env.DB_PORT);
-  console.log('[DEBUG] DB_NAME:', process.env.DB_NAME);
-  console.log('[DEBUG] DB_USER:', process.env.DB_USER);
-  console.log('[DEBUG] DB_PASSWORD:', process.env.DB_PASSWORD ? '***' : 'NOT SET');
-  console.log('[DEBUG] DB_SSL:', process.env.DB_SSL);
+  if (process.env.DATABASE_URL) {
+    console.log('[DEBUG] DATABASE_URL: present (masked)');
+  } else {
+    console.log('[DEBUG] DB_HOST:', process.env.DB_HOST);
+    console.log('[DEBUG] DB_PORT:', process.env.DB_PORT);
+    console.log('[DEBUG] DB_NAME:', process.env.DB_NAME);
+    console.log('[DEBUG] DB_USER:', process.env.DB_USER);
+    console.log('[DEBUG] DB_PASSWORD:', process.env.DB_PASSWORD ? '***' : 'NOT SET');
+    console.log('[DEBUG] DB_SSL:', process.env.DB_SSL);
+  }
 
   const config: AppConfig = {
     nodeEnv: (process.env.NODE_ENV as Environment) || 'development',
@@ -80,7 +85,7 @@ export function getConfig(): AppConfig {
       name: process.env.DB_NAME!,
       user: process.env.DB_USER!,
       password: process.env.DB_PASSWORD!,
-      ssl: parseBoolean(process.env.DB_SSL),
+      ssl: parseBoolean(process.env.DB_SSL) || !!process.env.DATABASE_URL,
       maxConnections: parseNumber(process.env.DB_MAX_CONNECTIONS, 10),
       idleTimeoutMs: parseNumber(process.env.DB_IDLE_TIMEOUT, 10000),
       connectionTimeoutMs: parseNumber(process.env.DB_CONNECTION_TIMEOUT, 2000),

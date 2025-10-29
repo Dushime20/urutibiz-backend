@@ -426,6 +426,15 @@ export class BookingsController extends BaseController {
     const { reason }: { reason?: string } = req.body;
     const user_id = req.user.id;
 
+    // Validate reason is provided
+    if (!reason || reason.trim().length === 0) {
+      return ResponseHelper.badRequest(res, 'Cancellation reason is required');
+    }
+
+    if (reason.trim().length < 10) {
+      return ResponseHelper.badRequest(res, 'Cancellation reason must be at least 10 characters');
+    }
+
     // Performance: Use optimized model method
     const booking = await Booking.findById(id);
     if (!booking) {
@@ -444,6 +453,9 @@ export class BookingsController extends BaseController {
 
     const cancelledBooking = await booking.cancel(user_id, reason);
 
+    // Clear product availability for cancelled booking dates
+    await this.clearAvailabilityForBookingRange(cancelledBooking);
+
     // Record status change in audit trail
     await this.recordStatusChange(
       id,
@@ -460,6 +472,297 @@ export class BookingsController extends BaseController {
     this.logAction('CANCEL_BOOKING', user_id, id, { reason });
 
     return ResponseHelper.success(res, 'Booking cancelled successfully', cancelledBooking.toJSON());
+  });
+
+  /**
+   * Request cancellation (renter only)
+   * POST /api/v1/bookings/:id/request-cancellation
+   * Renter submits cancellation request with reason
+   */
+  public requestCancellation = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { reason }: { reason: string } = req.body;
+    const user_id = req.user.id;
+
+    // Validate reason is provided
+    if (!reason || reason.trim().length === 0) {
+      return ResponseHelper.badRequest(res, 'Cancellation reason is required');
+    }
+
+    if (reason.trim().length < 10) {
+      return ResponseHelper.badRequest(res, 'Cancellation reason must be at least 10 characters');
+    }
+
+    // Get booking
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return this.handleNotFound(res, 'Booking');
+    }
+
+    // Authorization: Only renter can request cancellation
+    if (String(booking.renter_id) !== String(user_id)) {
+      return this.handleUnauthorized(res, 'Only the renter can request cancellation');
+    }
+
+    // Status validation: Only confirmed bookings can be cancelled
+    if (booking.status !== 'confirmed') {
+      return ResponseHelper.badRequest(res, 'Only confirmed bookings can be cancelled');
+    }
+
+    // Update booking to cancellation_requested status
+    const db = getDatabase();
+    const now = new Date();
+    
+    await db('bookings')
+      .where('id', id)
+      .update({
+        status: 'cancellation_requested',
+        cancellation_reason: reason,
+        cancellation_requested_at: now,
+        last_modified_by: user_id,
+        updated_at: now
+      });
+
+    // Get updated booking
+    const updatedBooking = await Booking.findById(id);
+
+    // Record status change in audit trail
+    await this.recordStatusChange(
+      id,
+      'confirmed',
+      'cancellation_requested',
+      user_id,
+      reason,
+      'Renter requested cancellation'
+    );
+
+    // Invalidate related caches
+    this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
+
+    this.logAction('REQUEST_CANCELLATION', user_id, id, { reason });
+
+    return ResponseHelper.success(res, 'Cancellation request submitted successfully. Waiting for owner approval.', updatedBooking?.toJSON());
+  });
+
+  /**
+   * Review cancellation (owner only)
+   * POST /api/v1/bookings/:id/review-cancellation
+   * Owner approves or rejects the cancellation request
+   */
+  public reviewCancellation = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { action, notes }: { action: 'approve' | 'reject'; notes?: string } = req.body;
+    const user_id = req.user.id;
+
+    // Get booking
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return this.handleNotFound(res, 'Booking');
+    }
+
+    // Authorization: Only owner can review cancellation
+    if (String(booking.owner_id) !== String(user_id) && req.user.role !== 'admin') {
+      return this.handleUnauthorized(res, 'Only the owner can review cancellation requests');
+    }
+
+    // Status validation: Must be in cancellation_requested status
+    if (booking.status !== 'cancellation_requested') {
+      return ResponseHelper.badRequest(res, 'Booking is not awaiting cancellation review');
+    }
+
+    const db = getDatabase();
+    const now = new Date();
+
+    if (action === 'approve') {
+      // Approve cancellation
+      await db('bookings')
+        .where('id', id)
+        .update({
+          status: 'cancelled',
+          owner_decision: 'approved',
+          cancellation_approved_at: now,
+          last_modified_by: user_id,
+          updated_at: now,
+          owner_notes: notes || 'Cancellation approved'
+        });
+
+      // Clear product availability for cancelled booking dates
+      await this.clearAvailabilityForBookingRange(booking);
+
+      // Record status change in audit trail
+      await this.recordStatusChange(
+        id,
+        'cancellation_requested',
+        'cancelled',
+        user_id,
+        notes,
+        'Owner approved cancellation'
+      );
+
+      this.logAction('APPROVE_CANCELLATION', user_id, id, { notes });
+
+      return ResponseHelper.success(res, 'Cancellation approved successfully. Refund processing will be initiated.', booking);
+    } else {
+      // Reject cancellation
+      await db('bookings')
+        .where('id', id)
+        .update({
+          status: 'confirmed',
+          owner_decision: 'rejected',
+          cancellation_rejected_at: now,
+          cancellation_rejected_reason: notes || 'Cancellation rejected by owner',
+          last_modified_by: user_id,
+          updated_at: now
+        });
+
+      // Record status change in audit trail
+      await this.recordStatusChange(
+        id,
+        'cancellation_requested',
+        'confirmed',
+        user_id,
+        notes,
+        'Owner rejected cancellation'
+      );
+
+      this.logAction('REJECT_CANCELLATION', user_id, id, { notes });
+
+      return ResponseHelper.success(res, 'Cancellation rejected. Booking remains confirmed.', booking);
+    }
+  });
+
+  /**
+   * Admin cancel (admin override)
+   * POST /api/v1/bookings/:id/admin-cancel
+   * Admin can force cancel any booking for fraud prevention
+   */
+  public adminCancel = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { reason, admin_notes, force_refund }: { reason: string; admin_notes?: string; force_refund?: boolean } = req.body;
+    const user_id = req.user.id;
+
+    // Authorization: Only admin can override
+    if (!['admin', 'super_admin'].includes(req.user.role)) {
+      return this.handleUnauthorized(res, 'Admin access required');
+    }
+
+    // Validate reason
+    if (!reason || reason.trim().length < 10) {
+      return ResponseHelper.badRequest(res, 'Admin cancellation reason must be at least 10 characters');
+    }
+
+    // Get booking
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return this.handleNotFound(res, 'Booking');
+    }
+
+    const db = getDatabase();
+    const now = new Date();
+
+    // Admin override - force cancel
+    await db('bookings')
+      .where('id', id)
+      .update({
+        status: 'cancelled',
+        cancellation_reason: reason,
+        admin_override: true,
+        admin_notes: admin_notes || 'Admin forced cancellation',
+        cancellation_approved_at: now,
+        cancelled_at: now,
+        last_modified_by: user_id,
+        updated_at: now
+      });
+
+    // Clear product availability
+    await this.clearAvailabilityForBookingRange(booking);
+
+    // Record status change in audit trail
+    await this.recordStatusChange(
+      id,
+      booking.status,
+      'cancelled',
+      user_id,
+      reason,
+      `Admin forced cancellation: ${admin_notes || 'No additional notes'}`
+    );
+
+    // Invalidate caches
+    this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
+
+    this.logAction('ADMIN_CANCEL', user_id, id, { reason, admin_notes, force_refund });
+
+    return ResponseHelper.success(res, 'Booking cancelled by admin. Refund consistency will be initiated if applicable.', booking);
+  });
+
+  /**
+   * Process refund (admin only)
+   * POST /api/v1/bookings/:id/process-refund
+   * Admin processes refund after cancellation is approved
+   */
+  public processRefund = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { refund_amount, cancellation_fee, reason }: { refund_amount?: number; cancellation_fee?: number; reason?: string } = req.body;
+    const user_id = req.user.id;
+
+    // Authorization: Only admin can process refunds
+    if (!['admin', 'super_admin'].includes(req.user.role)) {
+      return this.handleUnauthorized(res, 'Admin access required');
+    }
+
+    // Get booking
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return this.handleNotFound(res, 'Booking');
+    }
+
+    // Status validation: Must be cancelled
+    if (booking.status !== 'cancelled') {
+      return ResponseHelper.badRequest(res, 'Booking must be cancelled before processing refund');
+    }
+
+    const db = getDatabase();
+    const now = new Date();
+
+    // Calculate refund amount
+    const totalPaid = booking.total_amount || 0;
+    const fee = cancellation_fee || 0; // Could be calculated based on cancellation policy
+    const refundToProcess = refund_amount || (totalPaid - fee);
+
+    // Update booking with refund info
+    await db('bookings')
+      .where('id', id)
+      .update({
+        payment_status: 'refunded',
+        status: 'refunded',
+        refund_amount: refundToProcess,
+        cancellation_fee: fee,
+        updated_at: now,
+        last_modified_by: user_id
+      });
+
+    // TODO: Create refund transaction record
+    // TODO: Call payment gateway to process refund
+    // TODO: Send refund notification to renter
+
+    // Record status change
+    await this.recordStatusChange(
+      id,
+      'cancelled',
+      'refunded',
+      user_id,
+      reason || `Refund processed: ${refundToProcess}, Fee: ${fee}`,
+      'Refund processed by admin'
+    );
+
+    this.logAction('PROCESS_REFUND', user_id, id, { refund_amount: refundToProcess, cancellation_fee: fee });
+
+    return ResponseHelper.success(res, 'Refund processed successfully', {
+      booking_id: id,
+      refund_amount: refundToProcess,
+      cancellation_fee: fee,
+      message: 'Refund transaction has been initiated'
+    });
   });
 
   /**
@@ -485,6 +788,9 @@ export class BookingsController extends BaseController {
     }
 
     const confirmedBooking = await booking.updateStatus('confirmed', user_id);
+
+    // Block product availability for confirmed booking dates
+    await this.blockAvailabilityForBookingRange(confirmedBooking);
 
     // Record status change in audit trail
     await this.recordStatusChange(
@@ -527,6 +833,9 @@ export class BookingsController extends BaseController {
 
     const updatedBooking = await booking.checkIn(user_id);
 
+    // Ensure product availability is still blocked for in_progress booking
+    await this.blockAvailabilityForBookingRange(updatedBooking);
+
     // Record status change in audit trail
     await this.recordStatusChange(
       id,
@@ -567,6 +876,9 @@ export class BookingsController extends BaseController {
     }
 
     const updatedBooking = await booking.checkOut(user_id);
+
+    // Clear product availability for completed booking dates
+    await this.clearAvailabilityForBookingRange(updatedBooking);
 
     // Record status change in audit trail
     await this.recordStatusChange(
@@ -1010,24 +1322,8 @@ export class BookingsController extends BaseController {
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(renter_id, product.owner_id);
     
-    // Mark product as unavailable for each day in the booking range
-    const db = getDatabase();
-    const start = new Date(finalBookingData.start_date);
-    const end = new Date(finalBookingData.end_date);
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
-      await db('product_availability')
-        .insert({
-          id: uuidv4(),
-          product_id: finalBookingData.product_id,
-          date: dateStr,
-          availability_type: 'unavailable',
-          created_at: new Date(),
-          notes: 'Booked'
-        })
-        .onConflict(['product_id', 'date'])
-        .merge({ availability_type: 'unavailable', notes: 'Booked' });
-    }
+    // Note: We DON'T mark product as unavailable here because booking is still 'pending'
+    // Availability will be blocked only when booking status becomes 'confirmed' or 'in_progress'
     
     // Return the booking data from the service (which contains the database ID)
     return ResponseHelper.success(res, 'Booking created successfully', created.data, 201);
@@ -1041,6 +1337,47 @@ export class BookingsController extends BaseController {
     const timestamp = Date.now().toString(36).toUpperCase();
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
     return `${prefix}${timestamp}${random}`;
+  }
+
+  /**
+   * Block product availability for booking dates
+   * Called when booking becomes confirmed or in_progress
+   */
+  private async blockAvailabilityForBookingRange(booking: any) {
+    const db = getDatabase();
+    const start = new Date(booking.start_date);
+    const end = new Date(booking.end_date);
+    
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      await db('product_availability')
+        .insert({
+          id: uuidv4(),
+          product_id: booking.product_id,
+          date: dateStr,
+          availability_type: 'unavailable',
+          created_at: new Date(),
+          notes: `Booked (${booking.status})`
+        })
+        .onConflict(['product_id', 'date'])
+        .merge({ availability_type: 'unavailable', notes: `Booked (${booking.status})` });
+    }
+  }
+
+  /**
+   * Clear product availability for booking dates
+   * Called when booking is cancelled or completed
+   */
+  private async clearAvailabilityForBookingRange(booking: any) {
+    const db = getDatabase();
+    const start = booking.start_date.slice(0, 10); // Get YYYY-MM-DD format
+    const end = booking.end_date.slice(0, 10);
+    
+    await db('product_availability')
+      .where('product_id', booking.product_id)
+      .andWhereBetween('date', [start, end])
+      .where('notes', 'like', '%Booked%')
+      .delete();
   }
 
   /**
@@ -1261,7 +1598,7 @@ export class BookingsController extends BaseController {
 
     } catch (error) {
       console.error('[BookingsController] Error recalculating pricing:', error);
-      ResponseHelper.serverError(res, 'Failed to recalculate booking pricing');
+      return ResponseHelper.error(res, 'Failed to recalculate booking pricing', error, 500);
     }
   });
 

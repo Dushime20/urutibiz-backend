@@ -8,8 +8,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install ALL dependencies for building TypeScript
+RUN npm ci
 
 # Copy source code
 COPY src ./src
@@ -30,6 +30,10 @@ RUN adduser -S urutibiz -u 1001
 # Set working directory
 WORKDIR /app
 
+# Environment
+ENV NODE_ENV=production
+ENV PORT=10000
+
 # Copy package files
 COPY package*.json ./
 
@@ -40,17 +44,17 @@ RUN npm ci --only=production && npm cache clean --force
 COPY --from=builder --chown=urutibiz:nodejs /app/dist ./dist
 
 # Copy other necessary files
+COPY --chown=urutibiz:nodejs healthcheck.js ./healthcheck.js
 COPY --chown=urutibiz:nodejs database ./database
-COPY --chown=urutibiz:nodejs logs ./logs
 
-# Create uploads directory
-RUN mkdir -p uploads && chown urutibiz:nodejs uploads
+# Prepare writable directories
+RUN mkdir -p logs uploads && chown -R urutibiz:nodejs logs uploads
 
 # Switch to non-root user
 USER urutibiz
 
-# Expose port
-EXPOSE 3000
+# Expose port for Render
+EXPOSE 10000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

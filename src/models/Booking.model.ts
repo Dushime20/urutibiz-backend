@@ -367,8 +367,8 @@ export class Booking {
       renter_id: this.renter_id,
       owner_id: this.owner_id,
       product_id: this.product_id,
-      start_date: this.start_date,
-      end_date: this.end_date,
+      start_date: this.start_date instanceof Date ? this.start_date.toISOString() : this.start_date,
+      end_date: this.end_date instanceof Date ? this.end_date.toISOString() : this.end_date,
       status: this.status,
       payment_status: this.payment_status,
       insurance_type: this.insurance_type,
@@ -404,7 +404,9 @@ export class Booking {
       updated_at: this.updated_at,
       metadata: this.metadata,
       is_repeat_booking: this.is_repeat_booking,
-      parent_booking_id: this.parent_booking_id
+      parent_booking_id: this.parent_booking_id,
+      createdAt: this.created_at instanceof Date ? this.created_at : new Date(this.created_at),
+      updatedAt: this.updated_at instanceof Date ? this.updated_at : new Date(this.updated_at)
     };
   }
 

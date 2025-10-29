@@ -4,7 +4,7 @@
 
 import type { PickupMethod, ProductPricing } from './product.types';
 
-export type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'disputed';
+export type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'disputed' | 'cancellation_requested';
 export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded' | 'partially_refunded';
 export type InsuranceType = 'basic' | 'standard' | 'premium' | 'none';
 export type ConditionType = 'excellent' | 'good' | 'fair' | 'poor' | 'damaged';
@@ -94,6 +94,20 @@ export interface BookingData {
   metadata?: Record<string, any>;
   is_repeat_booking?: boolean;
   parent_booking_id?: string;
+  
+  // Cancellation metadata
+  cancellation_reason?: string;
+  cancellation_requested_at?: Date;
+  cancellation_approved_at?: Date;
+  cancellation_rejected_at?: Date;
+  cancellation_rejected_reason?: string;
+  owner_decision?: 'approved' | 'rejected';
+  admin_override?: boolean;
+  
+  // Refund metadata
+  refund_amount?: number;
+  cancellation_fee?: number;
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -119,6 +133,7 @@ export interface CreateBookingData {
   security_deposit?: number;
   metadata?: Record<string, any>;
   parent_booking_id?: string; // For repeat bookings
+  is_repeat_booking?: boolean; // Flag for repeat bookings
 }
 
 export interface UpdateBookingData {

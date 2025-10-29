@@ -522,6 +522,155 @@ router.post('/:id/cancel', requireAuth, controller.cancelBooking);
 
 /**
  * @swagger
+ * /bookings/{id}/request-cancellation:
+ *   post:
+ *     summary: Request cancellation (Renter only)
+ *     description: Submit a cancellation request for a confirmed booking. Status changes to 'cancellation_requested' awaiting owner approval.
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [reason]
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 minLength: 10
+ *     responses:
+ *       200:
+ *         description: Cancellation request submitted
+ *       400:
+ *         description: Invalid reason or booking status
+ *       403:
+ *         description: Only renter can request cancellation
+ */
+router.post('/:id/request-cancellation', requireAuth, controller.requestCancellation);
+
+/**
+ * @swagger
+ * /bookings/{id}/review-cancellation:
+ *   post:
+ *     summary: Review cancellation request (Owner only)
+ *     description: Owner can approve or reject cancellation. Approve cancels booking, Reject reverts to confirmed.
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [action]
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [approve, reject]
+ *               notes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Cancellation reviewed
+ *       403:
+ *         description: Only owner can review
+ */
+router.post('/:id/review-cancellation', requireAuth, controller.reviewCancellation);
+
+/**
+ * @swagger
+ * /bookings/{id}/admin-cancel:
+ *   post:
+ *     summary: Admin force cancel (Admin only)
+ *     description: Admin can force cancel any booking for fraud prevention.
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [reason]
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 minLength: 10
+ *               admin_notes:
+ *                 type: string
+ *               force_refund:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Booking cancelled by admin
+ *       403:
+ *         description: Admin access required
+ */
+router.post('/:id/admin-cancel', requireAuth, controller.adminCancel);
+
+/**
+ * @swagger
+ * /bookings/{id}/process-refund:
+ *   post:
+ *     summary: Process refund (Admin only)
+ *     description: Admin processes refund for cancelled booking with fee calculation.
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               refund_amount:
+ *                 type: number
+ *               cancellation_fee:
+ *                 type: number
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Refund processed
+ *       403:
+ *         description: Admin access required
+ */
+router.post('/:id/process-refund', requireAuth, controller.processRefund);
+
+/**
+ * @swagger
  * /bookings/{id}/confirm:
  *   post:
  *     summary: Confirm booking with validation

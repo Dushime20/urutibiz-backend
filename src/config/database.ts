@@ -6,6 +6,10 @@ const config = getConfig();
 
 // Validate database configuration from .env
 function validateDatabaseConfig() {
+  if (process.env.DATABASE_URL) {
+    logger.info('✅ DATABASE_URL detected; using connection string');
+    return;
+  }
   const requiredVars = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
   const missing = requiredVars.filter(varName => !process.env[varName]);
   
@@ -25,22 +29,23 @@ validateDatabaseConfig();
 // Database configuration with graceful failure handling
 const dbConfig: Knex.Config = {
   client: 'postgresql',
-  connection: config.database.ssl ? {
+  connection: process.env.DATABASE_URL ? {
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  } : (config.database.ssl ? {
     host: config.database.host,
     port: config.database.port,
     database: config.database.name,
     user: config.database.user,
     password: config.database.password,
-    ssl: {
-      rejectUnauthorized: false
-    }
+    ssl: { rejectUnauthorized: false }
   } : {
     host: config.database.host,
     port: config.database.port,
     database: config.database.name,
     user: config.database.user,
     password: config.database.password,
-  },
+  }),
   pool: {
     // Dynamic pool sizing based on environment
     min: process.env.NODE_ENV === 'production' ? 5 : 2,

@@ -524,14 +524,15 @@ export class PaymentTransactionService {
     const trends: Record<string, { count: number; amount: number }> = {};
 
     transactions.forEach(transaction => {
-      const month = transaction.createdAt.toISOString().substr(0, 7); // YYYY-MM
-      
-      if (!trends[month]) {
-        trends[month] = { count: 0, amount: 0 };
-      }
-      
+      const created = (transaction as any).created_at || (transaction as any).createdAt;
+      if (!created) return;
+      const d: Date = created instanceof Date ? created : new Date(created);
+      if (isNaN(d.getTime())) return;
+      const month = d.toISOString().substring(0, 7); // YYYY-MM
+
+      if (!trends[month]) trends[month] = { count: 0, amount: 0 };
       trends[month].count++;
-      trends[month].amount += transaction.amount;
+      trends[month].amount += Number(transaction.amount) || 0;
     });
 
     return Object.entries(trends)

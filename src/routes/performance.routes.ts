@@ -61,6 +61,32 @@ router.get('/metrics', requireAuth, requireAdmin, noCacheMiddleware,
 
 /**
  * @swagger
+ * /performance/metrics/history:
+ *   get:
+ *     summary: Get performance metrics history (last N hours)
+ *     tags: [Performance]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: hours
+ *         schema:
+ *           type: integer
+ *           default: 24
+ *     responses:
+ *       200:
+ *         description: Performance metrics history retrieved successfully
+ */
+router.get('/metrics/history', requireAuth, requireAdmin, noCacheMiddleware,
+  wrapAuthHandler(async (req: Request, res: Response) => {
+    const hours = parseInt((req.query.hours as string) || '24', 10);
+    const history = performanceMonitor.getMetricsHistory(isNaN(hours) ? 24 : hours);
+    res.json({ success: true, data: history });
+  })
+);
+
+/**
+ * @swagger
  * /performance/database:
  *   get:
  *     summary: Get database performance metrics

@@ -811,6 +811,8 @@ router.get('/moderation/stats', ModerationController.getModerationStats);
 
 // Products routes
 router.get('/products', adminController.getProducts);
+// Place analytics route BEFORE dynamic :id route to avoid capture
+router.get('/products/analytics', adminController.getProductAnalytics);
 router.get('/products/:id', adminController.getProductDetails);
 router.post('/products/:id/moderate', adminController.moderateProduct);
 

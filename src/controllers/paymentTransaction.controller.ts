@@ -358,9 +358,11 @@ export class PaymentTransactionController {
         return;
       }
 
+      const isAdmin = authReq.user?.role === 'admin' || authReq.user?.role === 'super_admin';
+
       // Build filters from query parameters
-      const filters = {
-        user_id: req.query.user_id as string || userId, // Default to authenticated user if not specified
+      const filters: any = {
+        user_id: req.query.user_id as string,
         booking_id: req.query.booking_id as string,
         transaction_type: req.query.transaction_type as any,
         status: req.query.status as any,
@@ -370,8 +372,17 @@ export class PaymentTransactionController {
         created_before: req.query.created_before ? new Date(req.query.created_before as string) : undefined
       };
 
-      // Non-admin users can only see their own stats
-      if (authReq.user?.role !== 'admin' && filters.user_id !== userId) {
+      // If not admin, force user_id to authenticated user
+      if (!isAdmin) {
+        if (filters.user_id && filters.user_id !== userId) {
+          res.status(403).json({ success: false, message: 'Access denied' });
+          return;
+        }
+        filters.user_id = userId;
+      }
+
+      // Non-admin users can only see their own stats (redundant but explicit)
+      if (!isAdmin && filters.user_id !== userId) {
         res.status(403).json({
           success: false,
           message: 'Access denied'
@@ -386,7 +397,13 @@ export class PaymentTransactionController {
         }
       });
 
-      const stats = await this.service.getTransactionStats(Object.keys(filters).length > 0 ? filters : undefined);
+      const cleanedFilters = Object.keys(filters).reduce((acc: any, k: string) => {
+        const v = (filters as any)[k];
+        if (v !== undefined && v !== null && v !== '') acc[k] = v;
+        return acc;
+      }, {});
+
+      const stats = await this.service.getTransactionStats(Object.keys(cleanedFilters).length > 0 ? cleanedFilters : undefined);
 
       res.json({
         success: true,

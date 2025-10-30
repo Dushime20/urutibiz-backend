@@ -58,6 +58,34 @@ export class AdminController extends BaseController {
 
   /**
    * @swagger
+   * /admin/products/analytics:
+   *   get:
+   *     summary: Get products analytics for reports
+   *     tags: [Admin]
+   *     parameters:
+   *       - in: query
+   *         name: period
+   *         schema:
+   *           type: string
+   *           enum: [7d, 30d, 90d, 1y]
+   *           default: 30d
+   *     responses:
+   *       200:
+   *         description: Products analytics data
+   */
+  public async getProductAnalytics(req: Request, res: Response) {
+    try {
+      const { period = '30d' } = req.query as any;
+      const analytics = await AnalyticsService.getProductAnalytics({ period: period as string });
+      return ResponseHelper.success(res, 'Product analytics retrieved successfully', analytics);
+    } catch (error: any) {
+      logger.error(`Error in getProductAnalytics: ${error.message}`);
+      return ResponseHelper.error(res, 'Failed to retrieve product analytics', error);
+    }
+  }
+
+  /**
+   * @swagger
    * /admin/metrics/realtime:
    *   get:
    *     summary: Get live metrics

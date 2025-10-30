@@ -273,8 +273,92 @@ export class AdminService {
       throw error;
     }
   }
-  static async getProductsWithStats(_page: number, _limit: number, _filters: any): Promise<any> { return { items: [], pagination: { page: _page, limit: _limit, total: 0, totalPages: 0 } }; }
-  static async getProductDetails(_id: string): Promise<any> { return null; }
+  static async getProductsWithStats(page: number = 1, limit: number = 20, filters: any = {}): Promise<any> {
+    try {
+      const offset = (page - 1) * limit;
+
+      // Base queries
+      let dataQuery = this.db('products')
+        .leftJoin('categories', 'products.category_id', 'categories.id')
+        .select(
+          'products.*',
+          'categories.name as category_name'
+        );
+      let countQuery = this.db('products');
+
+      // Filters
+      if (filters.status) {
+        dataQuery = dataQuery.where('products.status', filters.status);
+        countQuery = countQuery.where('status', filters.status);
+      }
+      if (filters.category_id) {
+        dataQuery = dataQuery.where('products.category_id', filters.category_id);
+        countQuery = countQuery.where('category_id', filters.category_id);
+      }
+      if (filters.owner_id) {
+        dataQuery = dataQuery.where('products.owner_id', filters.owner_id);
+        countQuery = countQuery.where('owner_id', filters.owner_id);
+      }
+      if (filters.search) {
+        const term = `%${filters.search}%`;
+        dataQuery = dataQuery.where(function() {
+          this.where('products.title', 'ILIKE', term)
+              .orWhere('products.description', 'ILIKE', term);
+        });
+        countQuery = countQuery.where(function() {
+          this.where('title', 'ILIKE', term)
+              .orWhere('description', 'ILIKE', term);
+        });
+      }
+      if (filters.created_after) {
+        dataQuery = dataQuery.where('products.created_at', '>=', filters.created_after);
+        countQuery = countQuery.where('created_at', '>=', filters.created_after);
+      }
+      if (filters.created_before) {
+        dataQuery = dataQuery.where('products.created_at', '<=', filters.created_before);
+        countQuery = countQuery.where('created_at', '<=', filters.created_before);
+      }
+
+      // Count and items
+      const [{ count }] = await countQuery.count('* as count');
+      const total = parseInt(count as string) || 0;
+      const totalPages = Math.ceil(total / limit);
+
+      const items = await dataQuery
+        .orderBy('products.created_at', 'desc')
+        .offset(offset)
+        .limit(limit);
+
+      return {
+        items,
+        pagination: { page, limit, total, totalPages }
+      };
+    } catch (error) {
+      logger.error('Error fetching products with stats:', error);
+      return { items: [], pagination: { page, limit, total: 0, totalPages: 0 } };
+    }
+  }
+
+  static async getProductDetails(id: string): Promise<any> {
+    try {
+      const product = await this.db('products')
+        .leftJoin('categories', 'products.category_id', 'categories.id')
+        .leftJoin('users as owners', 'products.owner_id', 'owners.id')
+        .select(
+          'products.*',
+          'categories.name as category_name',
+          'owners.email as owner_email',
+          'owners.first_name as owner_first_name',
+          'owners.last_name as owner_last_name'
+        )
+        .where('products.id', id)
+        .first();
+      return product || null;
+    } catch (error) {
+      logger.error('Error fetching product details:', error);
+      throw error;
+    }
+  }
   static async getBookingsWithDetails(page: number = 1, limit: number = 20, filters: any = {}): Promise<any> {
     try {
       const offset = (page - 1) * limit;

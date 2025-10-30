@@ -37,6 +37,10 @@ router.post('/',requireAuth, controller.createTransaction);
  */
 router.get('/',requireAuth, controller.getTransactions);
 
+// Move analytics and health BEFORE dynamic :id to avoid UUID cast on 'stats'/'health'
+router.get('/stats',requireAuth, controller.getTransactionStats);
+router.get('/health',requireAuth, controller.healthCheck);
+
 /**
  * @route   GET /api/payment-transactions/:id
  * @desc    Get a specific payment transaction by ID
@@ -124,24 +128,13 @@ router.patch('/:id/status', controller.updateTransactionStatus);
 // ANALYTICS AND REPORTING ROUTES
 // =====================================================
 
-/**
- * @route   GET /api/payment-transactions/stats
- * @desc    Get payment transaction statistics
- * @access  Private (requires authentication in production)
- * @query   Optional filters: userId, bookingId, transactionType, status, provider, currency, createdAfter, createdBefore
- */
-router.get('/stats',requireAuth, controller.getTransactionStats);
+// (moved /stats above)
 
 // =====================================================
 // UTILITY ROUTES
 // =====================================================
 
-/**
- * @route   GET /api/payment-transactions/health
- * @desc    Health check endpoint
- * @access  Public
- */
-router.get('/health',requireAuth, controller.healthCheck);
+// (moved /health above)
 
 // Export the router
 export default router;

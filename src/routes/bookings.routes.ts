@@ -336,7 +336,7 @@ router.post('/', requireAuth, controller.createBooking);
  *       500:
  *         description: Server error
  */
-// router.get('/analytics', controller.getBookingAnalytics); // Not implemented
+router.get('/analytics', requireAuth, controller.getBookingAnalytics);
 router.get('/:id', requireAuth, controller.getBooking);
 
 /**

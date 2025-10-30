@@ -129,11 +129,13 @@ export class PaymentTransactionRepository {
       if (filters.transaction_type) {
         query = query.where('transaction_type', filters.transaction_type);
       }
-      if (filters.date_from) {
-        query = query.where('created_at', '>=', filters.date_from);
+      const createdAfter = (filters as any).created_after || (filters as any).date_from;
+      const createdBefore = (filters as any).created_before || (filters as any).date_to;
+      if (createdAfter) {
+        query = query.where('created_at', '>=', createdAfter as any);
       }
-      if (filters.date_to) {
-        query = query.where('created_at', '<=', filters.date_to);
+      if (createdBefore) {
+        query = query.where('created_at', '<=', createdBefore as any);
       }
     }
 

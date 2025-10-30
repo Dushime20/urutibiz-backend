@@ -62,6 +62,95 @@ export class AnalyticsService {
   }
 
   /**
+   * Get product analytics for admin/product reports
+   */
+  static async getProductAnalytics(params: { period?: string; filters?: any }): Promise<any> {
+    const period = params.period || '30d';
+    const { startDate, endDate } = this.parseDateParams({ period } as any);
+
+    // Totals
+    const [totalRow, activeRow, rentedRow] = await Promise.all([
+      db('products').count('* as c').first(),
+      db('products').where('status', 'active').count('* as c').first(),
+      db('bookings')
+        .whereBetween('created_at', [startDate, endDate])
+        .countDistinct('product_id as c')
+        .first()
+    ]);
+
+    const totalProducts = parseInt((totalRow as any)?.c || (totalRow as any)?.count || 0);
+    const activeProducts = parseInt((activeRow as any)?.c || (activeRow as any)?.count || 0);
+    const rentedProducts = parseInt((rentedRow as any)?.c || (rentedRow as any)?.count || 0);
+
+    // Top products by revenue/bookings in period
+    const topProducts = await db('bookings')
+      .join('products', 'bookings.product_id', 'products.id')
+      .leftJoin('categories', 'products.category_id', 'categories.id')
+      .whereBetween('bookings.created_at', [startDate, endDate])
+      .groupBy('products.id', 'products.title', 'categories.name')
+      .select([
+        'products.id as productId',
+        'products.title as title',
+        db.raw("COALESCE(categories.name, 'General') as category"),
+        db.raw('COUNT(*) as bookings'),
+        db.raw('SUM(bookings.total_amount) as revenue')
+      ])
+      .orderByRaw('SUM(bookings.total_amount) DESC NULLS LAST')
+      .limit(10);
+
+    // Category breakdown (products + revenue in period)
+    const byCategory = await db('products')
+      .leftJoin('categories', 'products.category_id', 'categories.id')
+      .groupBy('categories.id', 'categories.name')
+      .select([
+        'categories.id as categoryId',
+        'categories.name as categoryName',
+        db.raw('COUNT(*) as products'),
+        db.raw("COUNT(CASE WHEN products.status = 'active' THEN 1 END) as activeProducts")
+      ]);
+
+    const categoryRevenue = await db('bookings')
+      .join('products', 'bookings.product_id', 'products.id')
+      .leftJoin('categories', 'products.category_id', 'categories.id')
+      .whereBetween('bookings.created_at', [startDate, endDate])
+      .groupBy('categories.id')
+      .select([
+        'categories.id as categoryId',
+        db.raw('COUNT(*) as bookings'),
+        db.raw('SUM(bookings.total_amount) as revenue'),
+        db.raw('AVG(bookings.total_amount) as avg_value')
+      ]);
+
+    const revenueMap = new Map<string, any>(categoryRevenue.map((r: any) => [String(r.categoryId), r]));
+    const categories = (byCategory as any[]).map(c => {
+      const r = revenueMap.get(String(c.categoryId)) || { bookings: 0, revenue: 0, avg_value: 0 };
+      return {
+        categoryId: c.categoryId,
+        categoryName: c.categoryName || 'Uncategorized',
+        products: parseInt(c.products),
+        activeProducts: parseInt(c.activeproducts || c.activeProducts || 0),
+        bookings: parseInt(r.bookings || 0),
+        revenue: parseFloat(r.revenue || 0),
+        averageValue: parseFloat(r.avg_value || 0)
+      };
+    });
+
+    return {
+      period,
+      generatedAt: new Date(),
+      totals: { totalProducts, activeProducts, rentedProducts },
+      topProducts: topProducts.map((p: any) => ({
+        productId: p.productid || p.productId,
+        title: p.title,
+        category: p.category,
+        bookings: parseInt(p.bookings || 0),
+        revenue: parseFloat(p.revenue || 0)
+      })),
+      categories
+    };
+  }
+
+  /**
    * Get comprehensive booking analytics
    */
   static async getBookingAnalytics(params: BookingAnalyticsParams): Promise<BookingAnalyticsResponse> {
@@ -268,8 +357,9 @@ export class AnalyticsService {
           db.raw('COUNT(*) as total_bookings'),
           db.raw('SUM(CASE WHEN bookings.status != \'cancelled\' THEN bookings.total_amount ELSE 0 END) as total_revenue'),
           db.raw('AVG(CASE WHEN bookings.status != \'cancelled\' THEN bookings.total_amount ELSE NULL END) as avg_booking_value'),
-          db.raw('COUNT(CASE WHEN bookings.status = \'cancelled\' THEN 1 END) * 100.0 / COUNT(*) as cancellation_rate'),
-          db.raw('COUNT(CASE WHEN bookings.status = \'completed\' THEN 1 END) * 100.0 / COUNT(CASE WHEN bookings.status IN (\'confirmed\', \'active\', \'completed\') THEN 1 END) as completion_rate')
+          db.raw('COALESCE( (COUNT(CASE WHEN bookings.status = \'cancelled\' THEN 1 END) * 100.0) / NULLIF(COUNT(*), 0), 0) as cancellation_rate'),
+          db.raw('COUNT(CASE WHEN bookings.status = \'pending\' THEN 1 END) as pending_count'),
+          db.raw('COALESCE( (COUNT(CASE WHEN bookings.status = \'completed\' THEN 1 END) * 100.0) / NULLIF(COUNT(CASE WHEN bookings.status IN (\'confirmed\', \'in_progress\', \'completed\') THEN 1 END), 0), 0) as completion_rate')
         ])
         .first(),
       db('product_views')
@@ -432,9 +522,9 @@ export class AnalyticsService {
         .orderBy('revenue', 'desc'),
       baseQuery.clone()
         .whereBetween('bookings.created_at', [startDate, endDate])
-        .groupBy('products.city', 'countries.name')
+        .groupBy('countries.name')
         .select([
-          'products.city',
+          db.raw('NULL::text as city'),
           'countries.name as country',
           db.raw('COUNT(*) as bookings'),
           db.raw('SUM(bookings.total_amount) as revenue'),
@@ -444,15 +534,14 @@ export class AnalyticsService {
         .limit(20),
       baseQuery.clone()
         .whereBetween('bookings.created_at', [startDate, endDate])
-        .whereNotNull('products.latitude')
-        .whereNotNull('products.longitude')
-        .groupBy('products.latitude', 'products.longitude')
+        .whereNotNull('products.location')
         .select([
-          'products.latitude as lat',
-          'products.longitude as lng',
+          db.raw('ST_Y(products.location)::double precision as lat'),
+          db.raw('ST_X(products.location)::double precision as lng'),
           db.raw('COUNT(*) as bookings'),
           db.raw('SUM(bookings.total_amount) as revenue')
         ])
+        .groupByRaw('ST_Y(products.location), ST_X(products.location)')
     ]);
     const countryData = (byCountry as StatRow[]).map((country: any) => ({
       country: country.country,
@@ -722,24 +811,24 @@ export class AnalyticsService {
           db.raw('SUM(bookings.platform_fee) as platform_fees'),
           db.raw('SUM(bookings.total_amount - bookings.platform_fee) as payouts'),
           db.raw('SUM(bookings.tax_amount) as taxes'),
-          db.raw('SUM(CASE WHEN bookings.status = \'cancelled\' THEN bookings.refund_amount ELSE 0 END) as refunds')
+          db.raw('0::numeric as refunds')
         ])
         .first(),
-      db('payments')
-        .join('bookings', 'payments.booking_id', 'bookings.id')
-        .whereBetween('payments.created_at', [startDate, endDate])
-        .where('payments.status', 'completed')
-        .groupBy('payments.payment_method')
+      db('payment_transactions')
+        .join('bookings', 'payment_transactions.booking_id', 'bookings.id')
+        .whereBetween('payment_transactions.created_at', [startDate, endDate])
+        .where('payment_transactions.status', 'completed')
+        .groupBy('payment_transactions.provider')
         .select([
-          'payments.payment_method as method',
-          db.raw('SUM(payments.amount) as amount'),
+          'payment_transactions.provider as method',
+          db.raw('SUM(payment_transactions.amount) as amount'),
           db.raw('COUNT(*) as transaction_count')
         ]),
       baseQuery.clone()
         .whereBetween('bookings.created_at', [startDate, endDate])
         .select([
           db.raw('SUM(bookings.platform_fee) as booking_fees'),
-          db.raw('SUM(bookings.service_fee) as service_fees'),
+          db.raw('0 as service_fees'),
           db.raw('0 as premium_features'),
           db.raw('0 as advertisements')
         ])
@@ -882,7 +971,7 @@ export class AnalyticsService {
           'products.title',
           db.raw('COUNT(*) as bookings'),
           db.raw('SUM(bookings.total_amount) as revenue'),
-          db.raw('AVG(products.rating) as rating')
+          db.raw('0 as rating')
         ])
         .orderBy('revenue', 'desc')
         .limit(10),
@@ -895,7 +984,7 @@ export class AnalyticsService {
           db.raw("CONCAT(users.first_name, ' ', users.last_name) as name"),
           db.raw('COUNT(*) as bookings'),
           db.raw('SUM(bookings.total_amount) as revenue'),
-          db.raw('AVG(users.rating) as rating')
+          db.raw('0 as rating')
         ])
         .orderBy('revenue', 'desc')
         .limit(10),
@@ -903,9 +992,9 @@ export class AnalyticsService {
         .join('products', 'bookings.product_id', 'products.id')
         .join('countries', 'products.country_id', 'countries.id')
         .whereBetween('bookings.created_at', [startDate, endDate])
-        .groupBy('products.city', 'countries.name')
+        .groupBy('countries.name')
         .select([
-          'products.city',
+          db.raw('NULL::text as city'),
           'countries.name as country',
           db.raw('COUNT(*) as bookings'),
           db.raw('SUM(bookings.total_amount) as revenue')

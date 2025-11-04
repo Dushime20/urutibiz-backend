@@ -110,8 +110,36 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
       const entities = results.map(result => {
         // Remove total_count before creating entity
         const { total_count, ...entityData } = result;
+        
+        // Console log raw database data before model instantiation (for bookings debugging)
+        if (this.tableName === 'bookings') {
+          console.log('🔍 [BaseRepository.findPaginated] Raw booking data from database:', {
+            id: entityData.id,
+            booking_number: entityData.booking_number,
+            status: entityData.status,
+            payment_status: entityData.payment_status,
+            renter_id: entityData.renter_id,
+            owner_id: entityData.owner_id,
+            fullRawData: entityData
+          });
+        }
+        
         return (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(entityData) : new this.modelClass(entityData);
       });
+      
+      // Console log entities after model instantiation (for bookings debugging)
+      if (this.tableName === 'bookings' && entities.length > 0) {
+        console.log('🔍 [BaseRepository.findPaginated] Booking entities after model instantiation:', {
+          entities: entities.map((e: any) => ({
+            id: e.id,
+            booking_number: e.booking_number,
+            status: e.status,
+            payment_status: e.payment_status,
+            renter_id: e.renter_id,
+            owner_id: e.owner_id
+          }))
+        });
+      }
 
       const paginationResult: PaginationResult<T> = {
         data: entities,

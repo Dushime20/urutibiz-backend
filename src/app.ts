@@ -32,6 +32,9 @@ import { initializeSocket } from './socket';
 // Import utilities
 import logger from './utils/logger';
 
+// Import services
+import BookingSchedulerService from './services/BookingSchedulerService';
+
 // Import types
 import { AppConfig } from './types/database.types';
 
@@ -268,12 +271,34 @@ class App {
       };
     }
 
+    // Initialize booking scheduler (only in production/staging, skip in demo/dev)
+    if (!isDemoMode && this.config.nodeEnv !== 'test') {
+      try {
+        await BookingSchedulerService.start();
+        logger.info('✅ Booking scheduler started');
+      } catch (schedulerError) {
+        const errorMessage = `Booking scheduler failed to start: ${schedulerError instanceof Error ? schedulerError.message : 'Unknown error'}`;
+        logger.warn(`⚠️ ${errorMessage}`);
+        errors.push({ service: 'booking_scheduler', error: errorMessage });
+      }
+    } else {
+      logger.info('⏭️ Skipping booking scheduler (demo/dev/test mode)');
+    }
+
     logger.info('✅ Application initialized successfully');
     return { success: true, message: 'Application initialized successfully' };
   }
 
   public async shutdown(): Promise<void> {
     logger.info('Shutting down application...');
+    
+    // Stop booking scheduler
+    try {
+      BookingSchedulerService.stop();
+      logger.info('✅ Booking scheduler stopped');
+    } catch (error) {
+      logger.warn('⚠️ Error stopping booking scheduler:', error);
+    }
     
     // Close socket connections
     this.io.close();

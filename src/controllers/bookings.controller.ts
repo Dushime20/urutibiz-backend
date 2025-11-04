@@ -16,6 +16,7 @@ import BookingService from '@/services/BookingService';
 import ProductService from '@/services/ProductService';
 import UserVerificationService from '@/services/userVerification.service';
 import Booking from '@/models/Booking.model';
+import { PaymentTransactionService } from '@/services/PaymentTransactionService';
 import BookingStatusHistoryService from '@/services/BookingStatusHistoryService';
 import paymentMethodService from '@/services/PaymentMethodService';
 import { 
@@ -232,6 +233,22 @@ export class BookingsController extends BaseController {
     
     const result = await BookingService.getPaginated(query, page, limit, sortBy, sortOrder);
 
+    // Console log to debug status issue
+    if (result.success && result.data?.data) {
+      console.log('🔍 [getUserBookings] Bookings from database:', {
+        total: result.data.total,
+        bookings: result.data.data.map((b: any) => ({
+          id: b.id,
+          booking_number: b.booking_number,
+          status: b.status,
+          payment_status: b.payment_status,
+          renter_id: b.renter_id,
+          owner_id: b.owner_id,
+          rawData: b // Full booking object to inspect
+        }))
+      });
+    }
+
     this.logAction('GET_USER_BOOKINGS', user_id, undefined, { role, filters });
 
     if (!result.success || !result.data) {
@@ -418,8 +435,10 @@ export class BookingsController extends BaseController {
   });
 
   /**
-   * High-performance booking cancellation
+   * Automatic time-based booking cancellation
    * POST /api/v1/bookings/:id/cancel
+   * ONLY applies to CONFIRMED bookings (where payment has been made and availability is blocked)
+   * Pending bookings don't need cancellation logic (other users can still book)
    */
   public cancelBooking = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
@@ -435,43 +454,123 @@ export class BookingsController extends BaseController {
       return ResponseHelper.badRequest(res, 'Cancellation reason must be at least 10 characters');
     }
 
-    // Performance: Use optimized model method
-    const booking = await Booking.findById(id);
-    if (!booking) {
+    // Use BookingService to query database instead of in-memory array
+    const bookingResult = await BookingService.getById(id);
+    if (!bookingResult.success || !bookingResult.data) {
       return this.handleNotFound(res, 'Booking');
     }
+    const bookingData = bookingResult.data;
 
     // Authorization check
-    if (!this.checkBookingAccess(booking, user_id)) {
+    if (!this.checkBookingAccess(bookingData, user_id)) {
       return this.handleUnauthorized(res, 'Not authorized to cancel this booking');
     }
 
-    // Status validation
-    if (!['pending', 'confirmed'].includes(booking.status)) {
-      return this.handleBadRequest(res, 'Booking cannot be cancelled at this stage');
+    // ONLY allow cancellation for CONFIRMED bookings
+    // Pending bookings don't need cancellation logic (other users can still book)
+    if (bookingData.status !== 'confirmed') {
+      return ResponseHelper.badRequest(res, 'Only confirmed bookings can be cancelled. Pending bookings do not block availability.');
     }
 
-    const cancelledBooking = await booking.cancel(user_id, reason);
+    // Calculate cancellation refund based on time until booking start
+    // ONLY for confirmed bookings (payment completed)
+    const cancellationDetails = this.calculateCancellationRefund(bookingData);
 
-    // Clear product availability for cancelled booking dates
-    await this.clearAvailabilityForBookingRange(cancelledBooking);
+    const db = getDatabase();
+    const now = new Date();
+
+    // Update booking status to cancelled
+    await db('bookings')
+      .where('id', id)
+      .update({
+        status: 'cancelled',
+        cancellation_reason: reason,
+        cancellation_requested_at: now,
+        cancellation_fee: cancellationDetails.cancellationFee,
+        refund_amount: cancellationDetails.refundAmount,
+        payment_status: cancellationDetails.refundAmount > 0 ? 'refund_pending' : 'cancelled',
+        last_modified_by: user_id,
+        updated_at: now
+      });
+
+    // Process refund if applicable (only for confirmed bookings with refund)
+    if (cancellationDetails.refundAmount > 0) {
+      try {
+        // Find the original payment transaction
+        const paymentTransaction = await db('payment_transactions')
+          .where('booking_id', id)
+          .where('status', 'completed')
+          .where('transaction_type', 'payment')
+          .orderBy('created_at', 'desc')
+          .first();
+
+        if (paymentTransaction) {
+          // Create refund transaction
+          const paymentService = new PaymentTransactionService();
+          const refundResult = await paymentService.processRefund({
+            transaction_id: paymentTransaction.id,
+            amount: cancellationDetails.refundAmount,
+            reason: `Booking cancellation: ${reason}`,
+            metadata: {
+              booking_id: id,
+              cancellation_fee: cancellationDetails.cancellationFee,
+              platform_fee: cancellationDetails.platformFee,
+              cancellation_policy: cancellationDetails.reason
+            }
+          });
+
+          if (refundResult.success) {
+            // Update booking payment status to refunded
+            await db('bookings')
+              .where('id', id)
+              .update({
+                payment_status: 'refunded',
+                refund_processed_at: now
+              });
+          }
+        }
+      } catch (refundError) {
+        console.error('Error processing refund:', refundError);
+        // Don't fail the cancellation if refund fails - log and continue
+        // The refund can be processed manually later
+      }
+    }
+
+    // Clear product availability for cancelled booking (only confirmed bookings block availability)
+    await this.clearAvailabilityForBookingRange(bookingData);
 
     // Record status change in audit trail
     await this.recordStatusChange(
       id,
-      booking.status,
+      bookingData.status,
       'cancelled',
       user_id,
       reason,
-      'Booking cancelled by user'
+      cancellationDetails.reason
     );
 
     // Performance: Invalidate related caches
-    this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
+    this.invalidateBookingCaches(bookingData.renter_id, bookingData.owner_id, id);
 
-    this.logAction('CANCEL_BOOKING', user_id, id, { reason });
+    this.logAction('CANCEL_BOOKING', user_id, id, { 
+      reason, 
+      refundAmount: cancellationDetails.refundAmount,
+      cancellationFee: cancellationDetails.cancellationFee,
+      platformFee: cancellationDetails.platformFee
+    });
 
-    return ResponseHelper.success(res, 'Booking cancelled successfully', cancelledBooking.toJSON());
+    // Return cancellation details
+    return ResponseHelper.success(res, 'Booking cancelled successfully', {
+      booking_id: id,
+      status: 'cancelled',
+      refund_amount: cancellationDetails.refundAmount,
+      cancellation_fee: cancellationDetails.cancellationFee,
+      platform_fee: cancellationDetails.platformFee,
+      reason: cancellationDetails.reason,
+      message: cancellationDetails.refundAmount > 0 
+        ? `Refund of ${cancellationDetails.refundAmount} will be processed automatically.`
+        : 'No refund applicable based on cancellation policy.'
+    });
   });
 
   /**
@@ -818,10 +917,13 @@ export class BookingsController extends BaseController {
     const { id } = req.params;
     const user_id = req.user.id;
 
-    const booking = await Booking.findById(id);
-    if (!booking) {
+    // Use BookingService to query database instead of in-memory array
+    const bookingResult = await BookingService.getById(id);
+    if (!bookingResult.success || !bookingResult.data) {
       return this.handleNotFound(res, 'Booking');
     }
+    // Create Booking instance from data to access instance methods (checkIn, checkOut)
+    const booking = new Booking(bookingResult.data as any);
 
     if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to check-in this booking');
@@ -832,6 +934,9 @@ export class BookingsController extends BaseController {
     }
 
     const updatedBooking = await booking.checkIn(user_id);
+    
+    // Persist status change to database
+    await BookingService.update(id, { status: 'in_progress' } as any);
 
     // Ensure product availability is still blocked for in_progress booking
     await this.blockAvailabilityForBookingRange(updatedBooking);
@@ -862,10 +967,13 @@ export class BookingsController extends BaseController {
     const { id } = req.params;
     const user_id = req.user.id;
 
-    const booking = await Booking.findById(id);
-    if (!booking) {
+    // Use BookingService to query database instead of in-memory array
+    const bookingResult = await BookingService.getById(id);
+    if (!bookingResult.success || !bookingResult.data) {
       return this.handleNotFound(res, 'Booking');
     }
+    // Create Booking instance from data to access instance methods (checkIn, checkOut)
+    const booking = new Booking(bookingResult.data as any);
 
     if (!this.checkBookingAccess(booking, user_id) && req.user.role !== 'admin') {
       return this.handleUnauthorized(res, 'Not authorized to check-out this booking');
@@ -876,6 +984,9 @@ export class BookingsController extends BaseController {
     }
 
     const updatedBooking = await booking.checkOut(user_id);
+    
+    // Persist status change to database
+    await BookingService.update(id, { status: 'completed' } as any);
 
     // Clear product availability for completed booking dates
     await this.clearAvailabilityForBookingRange(updatedBooking);
@@ -1064,7 +1175,9 @@ export class BookingsController extends BaseController {
       product.data, 
       booking.start_date.toISOString(), 
       booking.end_date.toISOString(), 
-      insuranceType
+      insuranceType,
+      (booking as any).pickup_time,  // Use pickup time from existing booking
+      (booking as any).return_time   // Use return time from existing booking
     );
 
     const updateData = {
@@ -1226,7 +1339,14 @@ export class BookingsController extends BaseController {
     }
 
     // Performance: Optimized pricing calculation
-    const pricing = await this.calculateBookingPricing(product, start_date, end_date, insurance_type);
+    const pricing = await this.calculateBookingPricing(
+      product, 
+      start_date, 
+      end_date, 
+      insurance_type,
+      pickup_time,  // Pass pickup time for accurate hour calculation
+      return_time   // Pass return time for accurate hour calculation
+    );
     const total_amount = pricing.totalAmount;
     const base_amount = pricing.subtotal;
 
@@ -1239,13 +1359,47 @@ export class BookingsController extends BaseController {
     // Determine if this is a repeat booking
     const isRepeatBooking = !!parent_booking_id;
 
+    // Helper function to combine date and time into UTC timestamp
+    // Input: date string (YYYY-MM-DD) and time string (HH:MM)
+    // Output: ISO string (YYYY-MM-DDTHH:MM:00.000Z) in UTC
+    const combineDateTime = (dateStr: string, timeStr?: string): string => {
+      if (!dateStr) {
+        throw new Error('Date string is required');
+      }
+      
+      // If no time provided, use midnight UTC
+      const time = timeStr || '00:00';
+      
+      // Ensure time format is HH:MM (add seconds if needed)
+      const timeParts = time.split(':');
+      const hours = timeParts[0] || '00';
+      const minutes = timeParts[1] || '00';
+      const seconds = timeParts[2] || '00';
+      
+      // Combine date and time as UTC timestamp
+      // This ensures consistent storage regardless of server timezone
+      const combinedDateTime = `${dateStr}T${hours}:${minutes}:${seconds}.000Z`;
+      
+      // Validate the date
+      const date = new Date(combinedDateTime);
+      if (isNaN(date.getTime())) {
+        throw new Error(`Invalid date/time combination: ${dateStr} ${time}`);
+      }
+      
+      return date.toISOString();
+    };
+
+    // Combine dates with times to create proper UTC timestamps
+    const startDateTime = combineDateTime(start_date, pickup_time);
+    const endDateTime = combineDateTime(end_date, return_time);
+
     const finalBookingData = {
       renter_id,
       owner_id: product.owner_id, // Get owner_id from product, not from request
       product_id,
       booking_number: bookingNumber,
-      start_date: new Date(start_date).toISOString(),
-      end_date: new Date(end_date).toISOString(),
+      start_date: startDateTime,
+      end_date: endDateTime,
       check_in_time: check_in_time ? new Date(check_in_time).toISOString() : undefined,
       check_out_time: check_out_time ? new Date(check_out_time).toISOString() : undefined,
       pickup_time,
@@ -1257,19 +1411,21 @@ export class BookingsController extends BaseController {
       delivery_coordinates,
       special_instructions,
       renter_notes,
-      insurance_type: insurance_type || 'none',
+      // Only include insurance_type if provided, no hardcoded default
+      ...(insurance_type && { insurance_type }),
       security_deposit,
       ai_risk_score: aiRiskScore,
       pricing: {
         // Product-level base price/currency were removed; pricing now comes from product_prices
-        total_days: Math.ceil((new Date(end_date).getTime() - new Date(start_date).getTime()) / (1000 * 60 * 60 * 24)),
+        total_days: Math.ceil((new Date(endDateTime).getTime() - new Date(startDateTime).getTime()) / (1000 * 60 * 60 * 24)),
         subtotal: base_amount,
         platform_fee: pricing.platformFee,
         tax_amount: pricing.taxAmount,
         insurance_fee: pricing.insuranceFee,
         total_amount: total_amount,
-        security_deposit: 0,
-        discount_amount: 0
+        // Only include security_deposit and discount_amount if they have values (no hardcoded defaults)
+        ...(security_deposit && security_deposit > 0 && { security_deposit: security_deposit }),
+        ...(pricing.discountAmount && pricing.discountAmount > 0 && { discount_amount: pricing.discountAmount })
       },
       total_amount, // ensure not null
       base_amount,  // ensure not null
@@ -1295,6 +1451,19 @@ export class BookingsController extends BaseController {
       
       if (!created.success || !created.data) {
         console.error('Booking creation failed:', created.error);
+        
+        // If there are specific validation errors, use them instead of generic message
+        if (created.errors && Array.isArray(created.errors) && created.errors.length > 0) {
+          // Use the first error message as the main message for better UX
+          const firstError = created.errors[0];
+          return ResponseHelper.validationError(
+            res, 
+            firstError.message || 'Validation failed', 
+            created.errors
+          );
+        }
+        
+        // Fallback to generic error if no specific errors provided
         return ResponseHelper.badRequest(res, created.error || 'Failed to create booking');
       }
       // Add this null check before sending success response
@@ -1410,12 +1579,53 @@ export class BookingsController extends BaseController {
 
   /**
    * Calculate booking pricing with insurance considerations
+   * Now supports hourly pricing when price_per_hour is available
+   * 
+   * @param product - Product object
+   * @param startDate - Start date string (YYYY-MM-DD)
+   * @param endDate - End date string (YYYY-MM-DD)
+   * @param insuranceType - Optional insurance type
+   * @param pickupTime - Optional pickup time string (HH:MM)
+   * @param returnTime - Optional return time string (HH:MM)
    */
-  private async calculateBookingPricing(product: any, startDate: string, endDate: string, insuranceType?: InsuranceType) {
-    const startDateObj = new Date(startDate);
-    const endDateObj = new Date(endDate);
-    const totalDays = Math.max(1, Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)));
-    const rentalDurationHours = totalDays * 24;
+  private async calculateBookingPricing(
+    product: any, 
+    startDate: string, 
+    endDate: string, 
+    insuranceType?: InsuranceType,
+    pickupTime?: string,
+    returnTime?: string
+  ) {
+    // Helper function to combine date and time into Date object for accurate hour calculation
+    const combineDateTime = (dateStr: string, timeStr?: string): Date => {
+      if (!dateStr) {
+        throw new Error('Date string is required');
+      }
+      const time = timeStr || '00:00';
+      const timeParts = time.split(':');
+      const hours = timeParts[0] || '00';
+      const minutes = timeParts[1] || '00';
+      const seconds = timeParts[2] || '00';
+      const combinedDateTime = `${dateStr}T${hours}:${minutes}:${seconds}.000Z`;
+      const date = new Date(combinedDateTime);
+      if (isNaN(date.getTime())) {
+        throw new Error(`Invalid date/time combination: ${dateStr} ${time}`);
+      }
+      return date;
+    };
+
+    // Calculate exact timestamps if times are provided, otherwise use dates only
+    const startDateTime = pickupTime ? combineDateTime(startDate, pickupTime) : new Date(startDate);
+    const endDateTime = returnTime ? combineDateTime(endDate, returnTime) : new Date(endDate);
+    
+    // Calculate exact duration in milliseconds, then convert to hours
+    const durationMs = endDateTime.getTime() - startDateTime.getTime();
+    const totalHours = durationMs / (1000 * 60 * 60); // Convert milliseconds to hours
+    const totalDays = Math.floor(totalHours / 24); // Full days
+    const remainingHours = totalHours % 24; // Remaining hours after full days
+    
+    // For tier selection (weekly/monthly), use ceiling of days
+    const totalDaysForTier = Math.ceil(totalHours / 24);
     
     try {
       // Use Knex directly to get pricing (avoid Sequelize service issues)
@@ -1427,10 +1637,10 @@ export class BookingsController extends BaseController {
           country_id: product.country_id || '1',
           is_active: true
         })
-        .where('effective_from', '<=', startDateObj)
+        .where('effective_from', '<=', startDateTime)
         .where(function() {
           this.whereNull('effective_until')
-              .orWhere('effective_until', '>=', startDateObj);
+              .orWhere('effective_until', '>=', startDateTime);
         })
         .orderBy('created_at', 'desc')
         .first();
@@ -1440,37 +1650,79 @@ export class BookingsController extends BaseController {
         throw new Error('No active pricing found');
       }
       
+      const hasHourlyPricing = priceRecord.price_per_hour && parseFloat(priceRecord.price_per_hour) > 0;
+      const pricePerDay = parseFloat(priceRecord.price_per_day);
+      const pricePerHour = hasHourlyPricing ? parseFloat(priceRecord.price_per_hour) : null;
+      
       console.log('[BookingsController] Found pricing record:', {
-        price_per_day: priceRecord.price_per_day,
-        price_per_hour: priceRecord.price_per_hour,
-        currency: priceRecord.currency
+        price_per_day: pricePerDay,
+        price_per_hour: pricePerHour,
+        currency: priceRecord.currency,
+        totalHours: totalHours.toFixed(2),
+        totalDays: totalDays,
+        remainingHours: remainingHours.toFixed(2),
+        hasHourlyPricing
       });
       
-      // Calculate base amount using the pricing tier
-      const rentalDays = totalDays;
+      let baseAmount = 0;
       let baseRate: number;
       let unitsUsed: number;
+      let pricingType: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'mixed';
       
-      // Choose the most economical pricing tier
-      if (rentalDays >= 30 && priceRecord.price_per_month) {
-        baseRate = parseFloat(priceRecord.price_per_month);
-        unitsUsed = Math.ceil(rentalDays / 30);
-      } else if (rentalDays >= 7 && priceRecord.price_per_week) {
-        baseRate = parseFloat(priceRecord.price_per_week);
-        unitsUsed = Math.ceil(rentalDays / 7);
-      } else if (rentalDays >= 1) {
-        baseRate = parseFloat(priceRecord.price_per_day);
-        unitsUsed = Math.ceil(rentalDays);
-      } else if (priceRecord.price_per_hour) {
-        baseRate = parseFloat(priceRecord.price_per_hour);
-        unitsUsed = rentalDurationHours;
+      // Check if hourly pricing is available
+      if (hasHourlyPricing) {
+        if (totalHours < 24) {
+          // Less than 24 hours: charge hourly only
+          baseRate = pricePerHour!;
+          unitsUsed = totalHours;
+          baseAmount = baseRate * unitsUsed;
+          pricingType = 'hourly';
+          console.log('[BookingsController] Using hourly pricing:', { hours: totalHours.toFixed(2), rate: baseRate });
+        } else {
+          // 24 hours or more: charge daily for full days + hourly for remaining hours
+          baseRate = pricePerDay;
+          unitsUsed = totalDays;
+          const dailyAmount = baseRate * unitsUsed;
+          
+          // Add hourly charge for remaining hours (if any)
+          const hourlyAmount = remainingHours > 0 ? pricePerHour! * remainingHours : 0;
+          baseAmount = dailyAmount + hourlyAmount;
+          pricingType = 'mixed';
+          console.log('[BookingsController] Using mixed pricing:', { 
+            days: totalDays, 
+            remainingHours: remainingHours.toFixed(2),
+            dailyAmount,
+            hourlyAmount
+          });
+        }
       } else {
-        // Fallback to daily rate
-        baseRate = parseFloat(priceRecord.price_per_day);
-        unitsUsed = Math.ceil(rentalDays);
+        // No hourly pricing available: use daily/weekly/monthly pricing tiers only
+        const rentalDays = totalDaysForTier;
+        
+        // Choose the most economical pricing tier
+        if (rentalDays >= 30 && priceRecord.price_per_month) {
+          baseRate = parseFloat(priceRecord.price_per_month);
+          unitsUsed = Math.ceil(rentalDays / 30);
+          pricingType = 'monthly';
+        } else if (rentalDays >= 7 && priceRecord.price_per_week) {
+          baseRate = parseFloat(priceRecord.price_per_week);
+          unitsUsed = Math.ceil(rentalDays / 7);
+          pricingType = 'weekly';
+        } else {
+          // Always use daily rate as minimum (minimum 1 day)
+          baseRate = pricePerDay;
+          unitsUsed = Math.max(1, Math.ceil(rentalDays));
+          pricingType = 'daily';
+        }
+        
+        baseAmount = baseRate * unitsUsed;
+        console.log('[BookingsController] Using daily-only pricing:', { 
+          type: pricingType,
+          days: rentalDays,
+          units: unitsUsed,
+          rate: baseRate
+        });
       }
-      
-      let baseAmount = baseRate * unitsUsed;
       
       // Apply market adjustment
       const marketAdjustment = parseFloat(priceRecord.market_adjustment_factor || 1);
@@ -1496,7 +1748,9 @@ export class BookingsController extends BaseController {
       return {
         basePrice: baseRate,
         currency: priceRecord.currency || 'RWF',
-        totalDays,
+        totalDays: Math.ceil(totalHours / 24), // Keep for backward compatibility
+        totalHours: totalHours, // Add hours for transparency
+        pricingType: pricingType, // Add pricing type for transparency
         subtotal,
         platformFee,
         taxAmount,
@@ -1511,7 +1765,7 @@ export class BookingsController extends BaseController {
       
       // Fallback to simple calculation if pricing service fails
       const basePrice = product.price || 0; // Use product.price as fallback
-      const subtotal = basePrice * totalDays;
+      const subtotal = basePrice * Math.max(1, Math.ceil(totalHours / 24)); // At least 1 day
       const platformFee = subtotal * 0.1; // 10% platform fee
       const taxAmount = subtotal * 0.08; // 8% tax
       
@@ -1530,7 +1784,9 @@ export class BookingsController extends BaseController {
       return {
         basePrice: basePrice,
         currency: 'RWF',
-        totalDays,
+        totalDays: Math.max(1, Math.ceil(totalHours / 24)),
+        totalHours: totalHours,
+        pricingType: 'daily',
         subtotal,
         platformFee,
         taxAmount,
@@ -1575,11 +1831,24 @@ export class BookingsController extends BaseController {
       }
 
       // Recalculate pricing
+      // Extract dates from timestamps (they're already combined with times)
+      const startDate = booking.start_date instanceof Date 
+        ? booking.start_date 
+        : new Date(booking.start_date);
+      const endDate = booking.end_date instanceof Date 
+        ? booking.end_date 
+        : new Date(booking.end_date);
+      
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
       const pricing = await this.calculateBookingPricing(
         product, 
-        booking.start_date, 
-        booking.end_date, 
-        booking.insurance_type
+        startDateStr, 
+        endDateStr, 
+        (booking as any).insurance_type,
+        (booking as any).pickup_time,  // Use pickup time from existing booking
+        (booking as any).return_time   // Use return time from existing booking
       );
 
       // Update the booking with new pricing
@@ -1757,6 +2026,78 @@ export class BookingsController extends BaseController {
       console.error('Failed to record status change:', error);
       // Don't throw error as this is audit logging and shouldn't break the main flow
     }
+  }
+
+  /**
+   * Calculate cancellation refund based on time until booking start
+   * ONLY applies to CONFIRMED bookings (where payment has been made)
+   */
+  private calculateCancellationRefund(booking: BookingData): {
+    refundAmount: number;
+    cancellationFee: number;
+    platformFee: number;
+    reason: string;
+  } {
+    // Calculate days until booking start
+    const now = new Date();
+    const startDate = new Date(booking.start_date);
+    const hoursUntilStart = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+    const daysUntilStart = hoursUntilStart / 24;
+
+    const totalAmount = booking.total_amount || 0;
+    const platformFee = totalAmount * 0.10; // 10% platform fee (always non-refundable)
+
+    // Scenario 5: <24 hours before start - No refund, full cancellation fee
+    if (hoursUntilStart < 24) {
+      return {
+        refundAmount: 0,
+        cancellationFee: totalAmount, // 100% cancellation fee
+        platformFee: platformFee,
+        reason: 'Cancellation within 24 hours - full amount charged'
+      };
+    }
+
+    // Scenario 4: 1-3 days before start - No refund, 20% cancellation fee
+    if (daysUntilStart >= 1 && daysUntilStart < 3) {
+      const cancellationFee = totalAmount * 0.20; // 20% cancellation fee
+      return {
+        refundAmount: 0,
+        cancellationFee: cancellationFee,
+        platformFee: platformFee,
+        reason: 'Cancellation 1-3 days before start - 20% cancellation fee'
+      };
+    }
+
+    // Scenario 3: 3-7 days before start - 50% refund minus platform fee
+    if (daysUntilStart >= 3 && daysUntilStart < 7) {
+      const refundPercentage = 0.50;
+      const refundAmount = (totalAmount * refundPercentage) - platformFee;
+      return {
+        refundAmount: Math.max(0, refundAmount), // Ensure non-negative
+        cancellationFee: 0,
+        platformFee: platformFee,
+        reason: 'Cancellation 3-7 days before start - 50% refund minus platform fee'
+      };
+    }
+
+    // Scenario 2: 7+ days before start - Full refund minus platform fee
+    if (daysUntilStart >= 7) {
+      const refundAmount = totalAmount - platformFee;
+      return {
+        refundAmount: Math.max(0, refundAmount), // Ensure non-negative
+        cancellationFee: 0,
+        platformFee: platformFee,
+        reason: 'Cancellation 7+ days before start - full refund minus platform fee'
+      };
+    }
+
+    // Default: No refund (shouldn't reach here, but safety fallback)
+    return {
+      refundAmount: 0,
+      cancellationFee: 0,
+      platformFee: platformFee,
+      reason: 'No refund applicable'
+    };
   }
 }
 

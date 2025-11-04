@@ -3,6 +3,7 @@
 // =====================================================
 
 import { PaymentTransactionRepository } from '../repositories/PaymentTransactionRepository.knex';
+import { getDatabase } from '../config/database';
 import { 
   PaymentTransactionData, 
   CreatePaymentTransactionData, 
@@ -120,6 +121,14 @@ export class PaymentTransactionService {
       throw new PaymentTransactionError('Transaction not found', 'TRANSACTION_NOT_FOUND');
     }
 
+    // Sync booking if status changed and booking_id exists
+    if (transaction.booking_id && updates.status) {
+      const updatedTransaction = await this.getTransactionById(id);
+      if (updatedTransaction) {
+        await this.syncBookingWithPaymentTransaction(updatedTransaction);
+      }
+    }
+
     // Log transaction update
     console.log(`Payment transaction updated: ${transaction.id} - Status: ${transaction.status}`);
 
@@ -143,6 +152,7 @@ export class PaymentTransactionService {
     // Validate status transition
     this.validateStatusTransition(transaction.status, status);
 
+    // updateTransaction will handle booking sync when status changes
     return await this.updateTransaction(id, { ...updates, status });
   }
 
@@ -171,12 +181,28 @@ export class PaymentTransactionService {
       const processingResult = await this.simulatePaymentProcessing(transaction);
 
       // Update transaction with result
-      await this.updateTransaction(transaction.id, {
+      const finalStatuses: PaymentStatus[] = ['completed', 'failed', 'refunded', 'partially_refunded', 'cancelled'];
+      const updateData: Partial<UpdatePaymentTransactionData> = {
         status: processingResult.status,
         provider_transaction_id: processingResult.providerTransactionId,
         provider_response: JSON.stringify(processingResult.providerResponse),
         failure_reason: processingResult.failureReason
-      });
+      };
+
+      // Set processed_at when status is final (required by database constraint)
+      if (finalStatuses.includes(processingResult.status)) {
+        updateData.processed_at = new Date();
+      }
+
+      await this.updateTransaction(transaction.id, updateData);
+
+      // Sync booking with payment transaction (update payment_status and auto-confirm if payment completed)
+      if (transaction.booking_id) {
+        const updatedTransaction = await this.getTransactionById(transaction.id);
+        if (updatedTransaction) {
+          await this.syncBookingWithPaymentTransaction(updatedTransaction);
+        }
+      }
 
       return {
         success: processingResult.status === 'completed',
@@ -240,12 +266,28 @@ export class PaymentTransactionService {
       const refundResult = await this.simulateRefundProcessing(refundTransaction);
 
       // Update refund transaction
-      await this.updateTransaction(refundTransaction.id, {
+      const finalStatuses: PaymentStatus[] = ['completed', 'failed', 'refunded', 'partially_refunded', 'cancelled'];
+      const updateData: Partial<UpdatePaymentTransactionData> = {
         status: refundResult.status,
         provider_transaction_id: refundResult.provider_transaction_id,
         provider_response: JSON.stringify(refundResult.provider_response),
         failure_reason: refundResult.failure_reason
-      });
+      };
+
+      // Set processed_at when status is final (required by database constraint)
+      if (finalStatuses.includes(refundResult.status)) {
+        updateData.processed_at = new Date();
+      }
+
+      await this.updateTransaction(refundTransaction.id, updateData);
+
+      // Sync booking with refund transaction
+      if (refundTransaction.booking_id) {
+        const updatedRefund = await this.getTransactionById(refundTransaction.id);
+        if (updatedRefund) {
+          await this.syncBookingWithPaymentTransaction(updatedRefund);
+        }
+      }
 
       return {
         success: refundResult.status === 'completed',
@@ -563,5 +605,75 @@ export class PaymentTransactionService {
       transactionTypeBreakdown: {} as Record<TransactionType, number>,
       monthlyTrends: []
     };
+  }
+
+  /**
+   * Sync booking payment status and booking status based on transaction status
+   * Automatically updates booking.payment_status and auto-confirms booking when payment completes
+   */
+  private async syncBookingWithPaymentTransaction(
+    transaction: PaymentTransactionData
+  ): Promise<void> {
+    if (!transaction.booking_id) {
+      return; // No booking to sync
+    }
+
+    const db = getDatabase();
+    const booking = await db('bookings')
+      .where({ id: transaction.booking_id })
+      .first();
+
+    if (!booking) {
+      console.warn(`[PaymentSync] Booking ${transaction.booking_id} not found`);
+      return;
+    }
+
+    // Map transaction status to booking payment status
+    const paymentStatusMap: Record<PaymentStatus, string> = {
+      'pending': 'pending',
+      'processing': 'processing',
+      'completed': 'completed',
+      'failed': 'failed',
+      'refunded': 'refunded',
+      'partially_refunded': 'partially_refunded',
+      'cancelled': 'failed'
+    };
+
+    const newPaymentStatus = paymentStatusMap[transaction.status] || 'pending';
+    const updateData: any = {
+      payment_status: newPaymentStatus,
+      updated_at: new Date()
+    };
+
+    // Auto-confirm booking when payment completes successfully
+    if (transaction.status === 'completed' && booking.status === 'pending') {
+      updateData.status = 'confirmed';
+      updateData.confirmed_at = new Date();
+      
+      // Note: Conflict checking is handled automatically by BookingService.isProductAvailable()
+      // which checks for overlapping confirmed/in_progress bookings. The bookings table itself
+      // serves as the source of truth for date conflicts - no need to update product_availability.
+      console.log(`[PaymentSync] Auto-confirmed booking ${booking.id} after payment completion`);
+    }
+
+    // Handle refunds - cancel booking if fully refunded (main payment transaction)
+    if (transaction.status === 'refunded' && booking.status !== 'cancelled') {
+      // Check if this is the main payment transaction
+      const isMainPayment = transaction.transaction_type === 'payment' || 
+                            transaction.transaction_type === 'deposit';
+      
+      if (isMainPayment) {
+        updateData.status = 'cancelled';
+        updateData.cancelled_at = new Date();
+        console.log(`[PaymentSync] Auto-cancelled booking ${booking.id} after full refund`);
+      }
+    }
+
+    // Update booking
+    await db('bookings')
+      .where({ id: transaction.booking_id })
+      .update(updateData);
+
+    console.log(`[PaymentSync] Updated booking ${transaction.booking_id}: payment_status=${newPaymentStatus}, status=${updateData.status || booking.status}`);
   }
 }

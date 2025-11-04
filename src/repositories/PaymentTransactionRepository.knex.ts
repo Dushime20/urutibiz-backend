@@ -78,9 +78,18 @@ export class PaymentTransactionRepository {
 
     if (!transaction) return null;
 
-    // Parse metadata
+    // Parse metadata - check if it's already an object (JSONB returns objects)
     if (transaction.metadata) {
-      transaction.metadata = JSON.parse(transaction.metadata);
+      try {
+        // Check if metadata is already an object (JSONB returns objects)
+        if (typeof transaction.metadata === 'string') {
+          transaction.metadata = JSON.parse(transaction.metadata);
+        }
+        // If it's already an object, leave it as is
+      } catch (error) {
+        console.log('⚠️ Warning: Could not parse metadata JSON:', transaction.metadata);
+        transaction.metadata = null;
+      }
     }
 
     return transaction as PaymentTransactionData;
@@ -99,9 +108,18 @@ export class PaymentTransactionRepository {
 
     if (!transaction) return null;
 
-    // Parse metadata
+    // Parse metadata - check if it's already an object (JSONB returns objects)
     if (transaction.metadata) {
-      transaction.metadata = JSON.parse(transaction.metadata);
+      try {
+        // Check if metadata is already an object (JSONB returns objects)
+        if (typeof transaction.metadata === 'string') {
+          transaction.metadata = JSON.parse(transaction.metadata);
+        }
+        // If it's already an object, leave it as is
+      } catch (error) {
+        console.log('⚠️ Warning: Could not parse metadata JSON:', transaction.metadata);
+        transaction.metadata = null;
+      }
     }
 
     return transaction as PaymentTransactionData;

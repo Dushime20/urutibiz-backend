@@ -87,30 +87,33 @@ export class Booking {
   constructor(data: CreateBookingData & { pricing: BookingPricing }) {
     // Use the ID from database if provided, otherwise generate one
     this.id = (data as any).id ;
-    this.booking_number = this.generateBookingNumber();
+    this.booking_number = (data as any).booking_number || this.generateBookingNumber();
     this.renter_id = data.renter_id;
     this.owner_id = data.owner_id;
     this.product_id = data.product_id;
     this.start_date = new Date(data.start_date);
     this.end_date = new Date(data.end_date);
-    this.status = 'pending';
-    this.payment_status = 'pending';
+    // IMPORTANT: Use status from data if provided (from database), otherwise default to 'pending' (new booking)
+    // When loading from database, status will be in data; when creating new, it won't be
+    this.status = (data as any).status || 'pending';
+    this.payment_status = (data as any).payment_status || 'pending';
     this.pickup_method = data.pickup_method;
     this.pickup_address = data.pickup_address;
     this.delivery_address = data.delivery_address;
     this.special_instructions = data.special_instructions;
     this.renter_notes = data.renter_notes;
     this.insurance_type = data.insurance_type || 'none';
-    this.pricing = data.pricing;
-    this.total_amount = data.pricing.total_amount;
-    this.security_deposit = data.security_deposit;
+    // Handle pricing - might not exist when loading from database
+    this.pricing = data.pricing || (data as any).pricing || {};
+    this.total_amount = data.pricing?.total_amount || (data as any).total_amount || 0;
+    this.security_deposit = data.security_deposit || (data as any).security_deposit || 0;
     this.metadata = data.metadata;
     this.timeline = [];
     this.messages = [];
     this.status_history = [];
-    this.created_by = data.renter_id;
-    this.created_at = new Date();
-    this.updated_at = new Date();
+    this.created_by = (data as any).created_by || data.renter_id;
+    this.created_at = (data as any).created_at ? new Date((data as any).created_at) : new Date();
+    this.updated_at = (data as any).updated_at ? new Date((data as any).updated_at) : new Date();
     this.is_repeat_booking = data.is_repeat_booking;
     this.parent_booking_id = data.parent_booking_id;
 
@@ -511,7 +514,8 @@ export class Booking {
       in_progress: 0,
       completed: 0,
       cancelled: 0,
-      disputed: 0
+      disputed: 0,
+      cancellation_requested: 0
     };
     
     const insurance_stats: Record<InsuranceType, number> = {

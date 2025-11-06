@@ -82,6 +82,28 @@ export interface ProductInspection {
   disputeResolvedAt?: Date;
   resolvedBy?: string;
   
+  // New workflow fields - Owner Pre-Inspection
+  ownerPreInspectionData?: any; // JSONB: OwnerPreInspectionData (photos, condition, notes, GPS location)
+  ownerPreInspectionConfirmed?: boolean;
+  ownerPreInspectionConfirmedAt?: Date;
+  
+  // New workflow fields - Renter Pre-Review
+  renterPreReviewAccepted?: boolean;
+  renterPreReviewAcceptedAt?: Date;
+  renterDiscrepancyReported?: boolean;
+  renterDiscrepancyData?: any; // JSONB: DiscrepancyReport (issues, photos, notes)
+  
+  // New workflow fields - Renter Post-Inspection
+  renterPostInspectionData?: any; // JSONB: RenterPostInspectionData (return photos, condition, notes, GPS location)
+  renterPostInspectionConfirmed?: boolean;
+  renterPostInspectionConfirmedAt?: Date;
+  
+  // New workflow fields - Owner Post-Review
+  ownerPostReviewAccepted?: boolean;
+  ownerPostReviewAcceptedAt?: Date;
+  ownerDisputeRaised?: boolean;
+  ownerDisputeRaisedAt?: Date;
+  
   // Related data (populated)
   product?: any;
   booking?: any;
@@ -158,11 +180,13 @@ export interface InspectionDispute {
 export interface CreateInspectionRequest {
   productId: string;
   bookingId: string;
-  inspectorId: string;
+  inspectorId?: string; // Optional for owner-created inspections
   inspectionType: InspectionType;
   scheduledAt: Date;
   inspectionLocation?: string;
   generalNotes?: string;
+  // New workflow: Owner can provide pre-inspection data during creation
+  ownerPreInspectionData?: any; // JSONB: OwnerPreInspectionData
 }
 
 export interface UpdateInspectionRequest {

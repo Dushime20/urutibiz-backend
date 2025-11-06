@@ -47,18 +47,31 @@ export class AdminService {
     }
   }
 
-  static async getAnalytics(period: string = '30d', granularity: string = 'day'): Promise<any> {
+  static async getAnalytics(
+    period: string = '30d', 
+    granularity: string = 'day',
+    dateFilters?: { startDate: Date; endDate: Date }
+  ): Promise<any> {
     try {
-      const days = this.getTimeframeDays(period);
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
+      // Use provided date filters if available, otherwise calculate from period
+      let startDate: Date;
+      let endDate: Date = new Date();
+      
+      if (dateFilters && dateFilters.startDate && dateFilters.endDate) {
+        startDate = dateFilters.startDate;
+        endDate = dateFilters.endDate;
+      } else {
+        const days = this.getTimeframeDays(period);
+        startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
+      }
 
       // Get analytics data
       const [bookingTrends, userGrowth, revenueData, topProducts] = await Promise.all([
-        this.getBookingTrends(startDate, granularity),
-        this.getUserGrowth(startDate, granularity),
-        this.getRevenueAnalytics(startDate),
-        this.getTopProducts(startDate)
+        this.getBookingTrends(startDate, granularity, endDate),
+        this.getUserGrowth(startDate, granularity, endDate),
+        this.getRevenueAnalytics(startDate, endDate),
+        this.getTopProducts(startDate, endDate)
       ]);
 
       return {
@@ -488,36 +501,53 @@ export class AdminService {
     return timeframeMap[timeframe] || 30;
   }
 
-  private static async getBookingTrends(startDate: Date, granularity: string): Promise<any[]> {
+  private static async getBookingTrends(startDate: Date, granularity: string, endDate?: Date): Promise<any[]> {
     const dateFormat = granularity === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM';
-    return await this.db('bookings')
+    let query = this.db('bookings')
       .select(this.db.raw(`DATE_TRUNC('${granularity}', created_at) as date`))
       .count('* as count')
-      .where('created_at', '>=', startDate)
+      .where('created_at', '>=', startDate);
+    
+    if (endDate) {
+      query = query.where('created_at', '<=', endDate);
+    }
+    
+    return await query
       .groupBy('date')
       .orderBy('date');
   }
 
-  private static async getUserGrowth(startDate: Date, granularity: string): Promise<any[]> {
+  private static async getUserGrowth(startDate: Date, granularity: string, endDate?: Date): Promise<any[]> {
     const dateFormat = granularity === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM';
-    return await this.db('users')
+    let query = this.db('users')
       .select(this.db.raw(`DATE_TRUNC('${granularity}', created_at) as date`))
       .count('* as count')
-      .where('created_at', '>=', startDate)
+      .where('created_at', '>=', startDate);
+    
+    if (endDate) {
+      query = query.where('created_at', '<=', endDate);
+    }
+    
+    return await query
       .groupBy('date')
       .orderBy('date');
   }
 
-  private static async getRevenueAnalytics(startDate: Date): Promise<any> {
-    const revenue = await this.db('bookings')
+  private static async getRevenueAnalytics(startDate: Date, endDate?: Date): Promise<any> {
+    let query = this.db('bookings')
       .select(
         this.db.raw('SUM(total_amount) as total_revenue'),
         this.db.raw('AVG(total_amount) as avg_booking_value'),
         this.db.raw('COUNT(*) as total_bookings')
       )
       .where('created_at', '>=', startDate)
-      .where('status', '!=', 'cancelled')
-      .first();
+      .where('status', '!=', 'cancelled');
+    
+    if (endDate) {
+      query = query.where('created_at', '<=', endDate);
+    }
+    
+    const revenue = await query.first();
 
     return {
       totalRevenue: parseFloat((revenue as any).total_revenue) || 0,
@@ -526,15 +556,21 @@ export class AdminService {
     };
   }
 
-  private static async getTopProducts(startDate: Date): Promise<any[]> {
-    return await this.db('bookings')
+  private static async getTopProducts(startDate: Date, endDate?: Date): Promise<any[]> {
+    let query = this.db('bookings')
       .select(
         'products.title',
         this.db.raw('COUNT(bookings.id) as booking_count'),
         this.db.raw('SUM(bookings.total_amount) as total_revenue')
       )
       .leftJoin('products', 'bookings.product_id', 'products.id')
-      .where('bookings.created_at', '>=', startDate)
+      .where('bookings.created_at', '>=', startDate);
+    
+    if (endDate) {
+      query = query.where('bookings.created_at', '<=', endDate);
+    }
+    
+    return await query
       .groupBy('products.id', 'products.title')
       .orderBy('booking_count', 'desc')
       .limit(10);

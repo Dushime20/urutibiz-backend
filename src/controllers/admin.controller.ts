@@ -47,8 +47,18 @@ export class AdminController extends BaseController {
    */
   public async getAnalytics(req: Request, res: Response) {
     try {
-      const { period = '30d', granularity = 'day' } = req.query;
-      const analytics = await AdminService.getAnalytics(period as string, granularity as string);
+      const { period = '30d', granularity = 'day', startDate, endDate } = req.query;
+      
+      // If startDate and endDate are provided, use them; otherwise use period
+      const dateFilters = startDate && endDate 
+        ? { startDate: new Date(startDate as string), endDate: new Date(endDate as string) }
+        : undefined;
+      
+      const analytics = await AdminService.getAnalytics(
+        period as string, 
+        granularity as string,
+        dateFilters
+      );
       return ResponseHelper.success(res, 'Analytics retrieved successfully', analytics);
     } catch (error: any) {
       logger.error(`Error in getAnalytics: ${error.message}`);

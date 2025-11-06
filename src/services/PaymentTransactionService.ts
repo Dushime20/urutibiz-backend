@@ -324,15 +324,68 @@ export class PaymentTransactionService {
    * Get transaction statistics
    */
   async getTransactionStats(filters?: PaymentTransactionFilters): Promise<PaymentTransactionStats> {
+    // Log filters for debugging
+    console.log('[PaymentTransactionService] getTransactionStats filters:', JSON.stringify(filters, null, 2));
+    
     const transactions = await this.repository.findAll(filters);
+    
+    // Log transaction count and amounts for debugging
+    console.log('[PaymentTransactionService] Found transactions:', transactions.length);
+    console.log('[PaymentTransactionService] Transaction amounts:', transactions.map(t => ({
+      id: t.id,
+      amount: t.amount,
+      status: t.status,
+      created_at: t.created_at
+    })));
 
     if (transactions.length === 0) {
       return this.getEmptyStats();
     }
 
-    const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
+    // Calculate total amount - include both pending and completed transactions
+    // Also calculate separate amounts for each status
+    let totalAmount = 0; // Pending + Completed transactions (for reporting)
+    let completedAmount = 0; // Only completed transactions
+    let pendingAmount = 0; // Only pending transactions
+    let allStatusAmount = 0; // All transactions regardless of status
+    
+    transactions.forEach(t => {
+      // Handle null, undefined, or empty values
+      if (t.amount == null || t.amount === '') {
+        return;
+      }
+      
+      // Convert to number - handle both string and number types
+      let amount: number;
+      if (typeof t.amount === 'string') {
+        amount = parseFloat(t.amount);
+      } else {
+        amount = Number(t.amount);
+      }
+      
+      // Validate the number is not NaN or Infinity
+      if (isNaN(amount) || !isFinite(amount)) {
+        console.warn(`[PaymentTransactionService] Invalid amount found: ${t.amount} for transaction ${t.id}`);
+        return;
+      }
+      
+      // Add to all status amount
+      allStatusAmount += amount;
+      
+      // Add to status-specific amounts
+      if (t.status === 'completed') {
+        completedAmount += amount;
+        totalAmount += amount; // Include completed in total
+      } else if (t.status === 'pending') {
+        pendingAmount += amount;
+        totalAmount += amount; // Include pending in total
+      }
+    });
+    
     const totalCount = transactions.length;
-    const averageAmount = totalAmount / totalCount;
+    const completedCount = transactions.filter(t => t.status === 'completed').length;
+    const pendingCount = transactions.filter(t => t.status === 'pending').length;
+    const averageAmount = totalCount > 0 ? totalAmount / totalCount : 0;
 
     // Status breakdown
     const statusBreakdown: Record<PaymentStatus, number> = {
@@ -361,18 +414,31 @@ export class PaymentTransactionService {
       transactionTypeBreakdown[transaction.transaction_type] = (transactionTypeBreakdown[transaction.transaction_type] || 0) + 1;
     });
 
-    // Monthly trends (simplified - last 12 months)
-    const monthlyTrends = this.calculateMonthlyTrends(transactions);
+    // Calculate trends (daily or monthly based on date range)
+    const trends = this.calculateTrends(transactions, filters);
+    // Keep monthlyTrends for backward compatibility
+    const monthlyTrends = trends.map(t => ({
+      month: t.date,
+      count: t.count,
+      amount: t.amount
+    }));
 
     return {
-      totalAmount,
+      totalAmount, // Pending + Completed transactions (for reporting)
       totalCount,
       averageAmount,
+      // Additional amount breakdowns
+      completedAmount, // Only completed transactions
+      pendingAmount, // Only pending transactions
+      allStatusAmount, // All transactions regardless of status
+      completedCount, // Count of completed transactions
+      pendingCount, // Count of pending transactions
       statusBreakdown,
       providerBreakdown: providerBreakdown as Record<PaymentProvider, number>,
       currencyBreakdown: currencyBreakdown as any,
       transactionTypeBreakdown: transactionTypeBreakdown as Record<TransactionType, number>,
-      monthlyTrends
+      monthlyTrends, // For backward compatibility
+      trends // New enhanced trends with daily/monthly granularity and status breakdown
     };
   }
 
@@ -556,31 +622,112 @@ export class PaymentTransactionService {
   }
 
   /**
-   * Calculate monthly trends
+   * Calculate trends (daily or monthly based on date range)
    */
-  private calculateMonthlyTrends(transactions: PaymentTransactionData[]): Array<{
-    month: string;
+  private calculateTrends(transactions: PaymentTransactionData[], filters?: PaymentTransactionFilters): Array<{
+    date: string;
+    dateLabel: string;
     count: number;
     amount: number;
+    completedCount: number;
+    pendingCount: number;
+    completedAmount: number;
+    pendingAmount: number;
   }> {
-    const trends: Record<string, { count: number; amount: number }> = {};
+    const trends: Record<string, { 
+      count: number; 
+      amount: number;
+      completedCount: number;
+      pendingCount: number;
+      completedAmount: number;
+      pendingAmount: number;
+    }> = {};
+
+    // Determine if we should use daily or monthly granularity
+    let useDaily = false;
+    if (filters) {
+      const createdAfter = (filters as any).created_after || (filters as any).date_from;
+      const createdBefore = (filters as any).created_before || (filters as any).date_to;
+      
+      if (createdAfter && createdBefore) {
+        try {
+          const startDate = createdAfter instanceof Date ? createdAfter : new Date(createdAfter);
+          const endDate = createdBefore instanceof Date ? createdBefore : new Date(createdBefore);
+          
+          // Validate dates
+          if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+            const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            // Use daily if date range is 90 days or less
+            useDaily = daysDiff > 0 && daysDiff <= 90;
+          }
+        } catch (error) {
+          // If date parsing fails, default to monthly
+          console.warn('[PaymentTransactionService] Error parsing date filters, using monthly granularity:', error);
+        }
+      }
+    }
 
     transactions.forEach(transaction => {
       const created = (transaction as any).created_at || (transaction as any).createdAt;
       if (!created) return;
       const d: Date = created instanceof Date ? created : new Date(created);
       if (isNaN(d.getTime())) return;
-      const month = d.toISOString().substring(0, 7); // YYYY-MM
+      
+      // Use daily or monthly granularity
+      const dateKey = useDaily 
+        ? d.toISOString().substring(0, 10) // YYYY-MM-DD
+        : d.toISOString().substring(0, 7); // YYYY-MM
 
-      if (!trends[month]) trends[month] = { count: 0, amount: 0 };
-      trends[month].count++;
-      trends[month].amount += Number(transaction.amount) || 0;
+      if (!trends[dateKey]) {
+        trends[dateKey] = { 
+          count: 0, 
+          amount: 0,
+          completedCount: 0,
+          pendingCount: 0,
+          completedAmount: 0,
+          pendingAmount: 0
+        };
+      }
+      
+      trends[dateKey].count++;
+      
+      // Parse amount
+      const amount = typeof transaction.amount === 'string' 
+        ? parseFloat(transaction.amount) 
+        : Number(transaction.amount) || 0;
+      
+      if (!isNaN(amount) && isFinite(amount)) {
+        // Add to total amount for both pending and completed
+        if (transaction.status === 'completed' || transaction.status === 'pending') {
+          trends[dateKey].amount += amount;
+        }
+        
+        // Add to status-specific amounts
+        if (transaction.status === 'completed') {
+          trends[dateKey].completedCount++;
+          trends[dateKey].completedAmount += amount;
+        } else if (transaction.status === 'pending') {
+          trends[dateKey].pendingCount++;
+          trends[dateKey].pendingAmount += amount;
+        }
+      }
     });
 
     return Object.entries(trends)
-      .map(([month, data]) => ({ month, ...data }))
-      .sort((a, b) => a.month.localeCompare(b.month))
-      .slice(-12); // Last 12 months
+      .map(([dateKey, data]) => {
+        // Format date label for display
+        const date = new Date(dateKey + (useDaily ? '' : '-01'));
+        const dateLabel = useDaily
+          ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          : date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        
+        return { 
+          date: dateKey,
+          dateLabel,
+          ...data 
+        };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
   }
 
   /**
@@ -588,9 +735,14 @@ export class PaymentTransactionService {
    */
   private getEmptyStats(): PaymentTransactionStats {
     return {
-      totalAmount: 0,
+      totalAmount: 0, // Pending + Completed transactions
       totalCount: 0,
       averageAmount: 0,
+      completedAmount: 0, // Only completed transactions
+      pendingAmount: 0, // Only pending transactions
+      allStatusAmount: 0, // All transactions regardless of status
+      completedCount: 0, // Count of completed transactions
+      pendingCount: 0, // Count of pending transactions
       statusBreakdown: {
         pending: 0,
         processing: 0,

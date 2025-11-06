@@ -1,4 +1,4 @@
-import { Model, DataTypes, Sequelize, Op } from 'sequelize';
+import { Model, DataTypes, Sequelize} from 'sequelize';
 import {
   CategoryRegulationData,
   CreateCategoryRegulationData,

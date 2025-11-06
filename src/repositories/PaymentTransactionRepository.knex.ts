@@ -131,6 +131,9 @@ export class PaymentTransactionRepository {
   async findAll(filters?: PaymentTransactionFilters): Promise<PaymentTransactionData[]> {
     let query = this.db('payment_transactions');
 
+    // Log filters for debugging
+    console.log('[PaymentTransactionRepository] findAll filters:', JSON.stringify(filters, null, 2));
+
     if (filters) {
       if (filters.user_id) {
         query = query.where('user_id', filters.user_id);
@@ -149,15 +152,43 @@ export class PaymentTransactionRepository {
       }
       const createdAfter = (filters as any).created_after || (filters as any).date_from;
       const createdBefore = (filters as any).created_before || (filters as any).date_to;
+      
+      // Log date filters
+      console.log('[PaymentTransactionRepository] Date filters:', {
+        created_after: createdAfter,
+        created_before: createdBefore
+      });
+      
       if (createdAfter) {
-        query = query.where('created_at', '>=', createdAfter as any);
+        const dateAfter = createdAfter instanceof Date ? createdAfter : new Date(createdAfter);
+        console.log('[PaymentTransactionRepository] Applying created_after filter:', dateAfter.toISOString());
+        query = query.where('created_at', '>=', dateAfter);
       }
       if (createdBefore) {
-        query = query.where('created_at', '<=', createdBefore as any);
+        const dateBefore = createdBefore instanceof Date ? createdBefore : new Date(createdBefore);
+        // Add one day to include the entire end date
+        dateBefore.setHours(23, 59, 59, 999);
+        console.log('[PaymentTransactionRepository] Applying created_before filter:', dateBefore.toISOString());
+        query = query.where('created_at', '<=', dateBefore);
       }
     }
 
+    // Log the SQL query for debugging
+    const sqlQuery = query.toSQL();
+    console.log('[PaymentTransactionRepository] SQL Query:', sqlQuery.sql);
+    console.log('[PaymentTransactionRepository] SQL Bindings:', sqlQuery.bindings);
+
     const transactions = await query.orderBy('created_at', 'desc');
+    
+    // Log results
+    console.log('[PaymentTransactionRepository] Found transactions:', transactions.length);
+    if (transactions.length > 0) {
+      const totalAmount = transactions.reduce((sum, t) => {
+        const amount = typeof t.amount === 'string' ? parseFloat(t.amount) : Number(t.amount) || 0;
+        return sum + amount;
+      }, 0);
+      console.log('[PaymentTransactionRepository] Total amount from DB:', totalAmount);
+    }
 
     // Parse metadata for all transactions
     return transactions.map(t => {

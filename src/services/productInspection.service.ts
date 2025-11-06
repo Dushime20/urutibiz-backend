@@ -4,7 +4,8 @@ import { InspectionPhotoRepository } from '@/repositories/InspectionPhotoReposit
 import { InspectionDisputeRepository } from '@/repositories/InspectionDisputeRepository';
 import UserRepository from '@/repositories/UserRepository';
 import BookingServiceInstance from '@/services/BookingService';
-import { NotificationService } from '@/services/notification.service';
+import { NotificationEngine } from '@/services/notification/NotificationEngine';
+import { NotificationType } from '@/services/notification/types';
 import { 
   ProductInspection, 
   InspectionItem, 
@@ -33,7 +34,7 @@ export class ProductInspectionService {
   private disputeRepo: InspectionDisputeRepository;
   private userRepo: any;
   private bookingService: any;
-  private notificationService: NotificationService;
+  private notificationEngine: NotificationEngine;
 
   constructor() {
     this.inspectionRepo = new ProductInspectionRepository();
@@ -42,7 +43,7 @@ export class ProductInspectionService {
     this.disputeRepo = new InspectionDisputeRepository();
     this.userRepo = UserRepository;
     this.bookingService = BookingServiceInstance;
-    this.notificationService = new NotificationService();
+    this.notificationEngine = new NotificationEngine();
   }
 
   // =====================================================
@@ -339,22 +340,36 @@ export class ProductInspectionService {
         return { success: false, error: 'Booking not found' };
       }
 
-      // Validate inspection timing
-      const validation = this.validateInspectionTiming(data, booking.data);
-      if (!validation.isValid) {
-        console.debug('[CreateInspection] Timing validation failed:', validation.errors);
-      }
-      if (!validation.isValid) {
-        return { success: false, error: validation.errors.join(', ') };
+      // Validate inspection timing (only if scheduledAt is provided)
+      if (data.scheduledAt) {
+        const validation = this.validateInspectionTiming(data, booking.data);
+        if (!validation.isValid) {
+          console.debug('[CreateInspection] Timing validation failed:', validation.errors);
+          return { success: false, error: validation.errors.join(', ') };
+        }
       }
 
-      // Create inspection (map renter/owner from booking snake_case fields)
-      const inspection = await this.inspectionRepo.create({
+      // Extract owner pre-inspection data if provided (from combined form)
+      const ownerPreInspectionData = (data as any).ownerPreInspectionData;
+      
+      // Prepare inspection data
+      const inspectionData: any = {
         ...data,
         renterId: (booking.data as any).renter_id,
         ownerId: (booking.data as any).owner_id,
-        status: InspectionStatus.PENDING
-      });
+        status: InspectionStatus.PENDING,
+      };
+
+      // Only include workflow fields if owner pre-inspection data is provided
+      // This avoids errors if the migration hasn't been run yet
+      if (ownerPreInspectionData) {
+        inspectionData.ownerPreInspectionData = ownerPreInspectionData;
+        inspectionData.ownerPreInspectionConfirmed = true;
+        inspectionData.ownerPreInspectionConfirmedAt = new Date();
+      }
+      
+      // Create inspection (map renter/owner from booking snake_case fields)
+      const inspection = await this.inspectionRepo.create(inspectionData);
 
       if (!inspection.success) {
         console.error('[CreateInspection] Repo create failed:', inspection.error);
@@ -580,8 +595,11 @@ export class ProductInspectionService {
     updates: Partial<InspectionItem>
   ): Promise<ServiceResponse<InspectionItem>> {
     try {
-      const item = await this.itemRepo.update(itemId, updates);
-      return item;
+      const item = await this.itemRepo.updateById(itemId, updates);
+      if (!item.success || !item.data) {
+        return { success: false, error: item.error || 'Failed to update inspection item' };
+      }
+      return { success: true, data: item.data };
     } catch (error) {
       console.error('[ProductInspectionService] Update item error:', error);
       return { success: false, error: 'Internal server error' };
@@ -791,16 +809,73 @@ export class ProductInspectionService {
   private validateInspectionTiming(data: CreateInspectionRequest, booking: any): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
     const now = new Date();
+    
+    // Ensure scheduledAt is a Date object
+    let scheduledAt: Date;
+    try {
+      scheduledAt = data.scheduledAt instanceof Date 
+        ? data.scheduledAt 
+        : new Date(data.scheduledAt);
+      
+      // Validate that scheduledAt is a valid date
+      if (isNaN(scheduledAt.getTime())) {
+        errors.push('Invalid scheduled date format');
+        return { isValid: false, errors };
+      }
+    } catch (error) {
+      errors.push('Invalid scheduled date format');
+      return { isValid: false, errors };
+    }
+    
+    // Handle both camelCase and snake_case booking fields
+    const bookingStartDateRaw = booking.startDate || booking.start_date;
+    const bookingEndDateRaw = booking.endDate || booking.end_date;
+    
+    // Convert booking dates to Date objects if they exist
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
+    
+    if (bookingStartDateRaw) {
+      try {
+        startDate = bookingStartDateRaw instanceof Date 
+          ? bookingStartDateRaw 
+          : new Date(bookingStartDateRaw);
+        
+        // Validate that startDate is a valid date
+        if (isNaN(startDate.getTime())) {
+          startDate = null; // Invalid date, ignore it
+        }
+      } catch (error) {
+        // Invalid date format, ignore it
+        startDate = null;
+      }
+    }
+    
+    if (bookingEndDateRaw) {
+      try {
+        endDate = bookingEndDateRaw instanceof Date 
+          ? bookingEndDateRaw 
+          : new Date(bookingEndDateRaw);
+        
+        // Validate that endDate is a valid date
+        if (isNaN(endDate.getTime())) {
+          endDate = null; // Invalid date, ignore it
+        }
+      } catch (error) {
+        // Invalid date format, ignore it
+        endDate = null;
+      }
+    }
 
     if (data.inspectionType === InspectionType.PRE_RENTAL) {
-      if (data.scheduledAt < now) {
+      if (scheduledAt < now) {
         errors.push('Pre-rental inspection cannot be scheduled in the past');
       }
-      if (data.scheduledAt > booking.startDate) {
+      if (startDate && scheduledAt > startDate) {
         errors.push('Pre-rental inspection must be before rental start date');
       }
     } else if (data.inspectionType === InspectionType.POST_RETURN) {
-      if (data.scheduledAt < booking.endDate) {
+      if (endDate && scheduledAt < endDate) {
         errors.push('Post-return inspection cannot be scheduled before rental end date');
       }
     }
@@ -828,21 +903,71 @@ export class ProductInspectionService {
     inspection: ProductInspection
   ) {
     try {
-      const recipients = [inspection.renterId, inspection.ownerId, inspection.inspectorId];
-      
+      // Map inspection notification type to NotificationType enum
+      const notificationTypeMap: Record<string, NotificationType> = {
+        'scheduled': NotificationType.INSPECTION_SCHEDULED,
+        'started': NotificationType.INSPECTION_STARTED,
+        'completed': NotificationType.INSPECTION_COMPLETED,
+        'disputed': NotificationType.DISPUTE_RAISED,
+        'resolved': NotificationType.DISPUTE_RESOLVED
+      };
+
+      const notificationType = notificationTypeMap[type] || NotificationType.INSPECTION_SCHEDULED;
       const message = this.getNotificationMessage(type, inspection);
+      const title = this.getNotificationTitle(type, inspection);
       
-      await this.notificationService.sendNotification({
-        type,
-        inspectionId: inspection.id,
-        productId: inspection.productId,
-        bookingId: inspection.bookingId,
-        recipients,
-        message,
-        data: { inspection }
+      // Get recipients (filter out null/undefined values)
+      const recipients = [
+        inspection.renterId,
+        inspection.ownerId,
+        inspection.inspectorId
+      ].filter((id): id is string => id !== null && id !== undefined);
+      
+      // Send notification to each recipient individually
+      const notificationPromises = recipients.map(async (recipientId) => {
+        try {
+          await this.notificationEngine.sendNotification({
+            type: notificationType,
+            recipientId,
+            title,
+            message,
+            data: {
+              inspectionId: inspection.id,
+              productId: inspection.productId,
+              bookingId: inspection.bookingId,
+              inspection
+            }
+          });
+        } catch (error) {
+          console.error(`[ProductInspectionService] Failed to send notification to ${recipientId}:`, error);
+        }
       });
+
+      await Promise.allSettled(notificationPromises);
     } catch (error) {
       console.error('[ProductInspectionService] Send notification error:', error);
+    }
+  }
+
+  /**
+   * Get notification title based on type
+   */
+  private getNotificationTitle(type: string, inspection: ProductInspection): string {
+    const typeText = inspection.inspectionType === InspectionType.PRE_RENTAL ? 'Pre-rental' : 'Post-return';
+    
+    switch (type) {
+      case 'scheduled':
+        return `${typeText} Inspection Scheduled`;
+      case 'started':
+        return `${typeText} Inspection Started`;
+      case 'completed':
+        return `${typeText} Inspection Completed`;
+      case 'disputed':
+        return `Dispute Raised for ${typeText} Inspection`;
+      case 'resolved':
+        return `Dispute Resolved for ${typeText} Inspection`;
+      default:
+        return `Inspection Update`;
     }
   }
 
@@ -874,7 +999,7 @@ export class ProductInspectionService {
   async getInspectionSummary(filters?: InspectionFilters): Promise<ServiceResponse<InspectionSummary>> {
     try {
       const inspections = await this.inspectionRepo.getAll(filters);
-      if (!inspections.success) {
+      if (!inspections.success || !inspections.data) {
         return { success: false, error: 'Failed to fetch inspections' };
       }
 
@@ -918,6 +1043,329 @@ export class ProductInspectionService {
       };
     } catch (error) {
       console.error('[ProductInspectionService] Get summary error:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  // =====================================================
+  // NEW WORKFLOW METHODS - OWNER PRE-INSPECTION
+  // =====================================================
+
+  /**
+   * Owner submits pre-inspection data
+   * POST /api/v1/inspections/:id/owner-pre-inspection
+   */
+  async submitOwnerPreInspection(inspectionId: string, data: {
+    photos?: string[];
+    condition?: any;
+    notes?: string;
+    location?: any;
+    timestamp?: string;
+  }): Promise<ServiceResponse<ProductInspection>> {
+    try {
+      const inspection = await this.inspectionRepo.getById(inspectionId);
+      if (!inspection.success || !inspection.data) {
+        return { success: false, error: 'Inspection not found' };
+      }
+
+      // Prepare owner pre-inspection data
+      const ownerPreInspectionData = {
+        photos: data.photos || [],
+        condition: data.condition,
+        notes: data.notes || '',
+        location: data.location,
+        timestamp: data.timestamp || new Date().toISOString(),
+        confirmed: false
+      };
+
+      // Update inspection with owner pre-inspection data
+      const updated = await this.inspectionRepo.update(inspectionId, {
+        ownerPreInspectionData,
+        ownerPreInspectionConfirmed: false
+      });
+
+      if (!updated.success) {
+        return { success: false, error: updated.error || 'Failed to submit pre-inspection' };
+      }
+
+      // Send notifications
+      if (updated.data) {
+        await this.sendInspectionNotifications('scheduled', updated.data);
+      }
+
+      return { success: true, data: updated.data };
+    } catch (error) {
+      console.error('[ProductInspectionService] Submit owner pre-inspection error:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Owner confirms pre-inspection
+   * POST /api/v1/inspections/:id/owner-pre-inspection/confirm
+   */
+  async confirmOwnerPreInspection(inspectionId: string): Promise<ServiceResponse<ProductInspection>> {
+    try {
+      const inspection = await this.inspectionRepo.getById(inspectionId);
+      if (!inspection.success || !inspection.data) {
+        return { success: false, error: 'Inspection not found' };
+      }
+
+      if (!inspection.data.ownerPreInspectionData) {
+        return { success: false, error: 'Pre-inspection data not found' };
+      }
+
+      // Update inspection to confirm pre-inspection
+      const updated = await this.inspectionRepo.update(inspectionId, {
+        ownerPreInspectionConfirmed: true,
+        ownerPreInspectionConfirmedAt: new Date()
+      });
+
+      if (!updated.success) {
+        return { success: false, error: updated.error || 'Failed to confirm pre-inspection' };
+      }
+
+      // Send notifications to renter
+      if (updated.data) {
+        await this.sendInspectionNotifications('scheduled', updated.data);
+      }
+
+      return { success: true, data: updated.data };
+    } catch (error) {
+      console.error('[ProductInspectionService] Confirm owner pre-inspection error:', error);
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  // =====================================================
+  // NEW WORKFLOW METHODS - RENTER PRE-REVIEW
+  // =====================================================
+
+  /**
+   * Renter reviews and accepts/rejects owner pre-inspection
+   * POST /api/v1/inspections/:id/renter-pre-review
+   */
+  async submitRenterPreReview(inspectionId: string, data: {
+    accepted: boolean;
+    concerns?: string[];
+    additionalRequests?: string[];
+    timestamp?: string;
+  }): Promise<ServiceResponse<ProductInspection>> {
+    try {
+      const inspection = await this.inspectionRepo.getById(inspectionId);
+      if (!inspection.success || !inspection.data) {
+        return { success: false, error: 'Inspection not found' };
+      }
+
+      // Check if owner has provided pre-inspection data (either confirmed or data exists)
+      const hasOwnerPreInspection = inspection.data.ownerPreInspectionConfirmed || 
+                                    inspection.data.ownerPreInspectionData;
+      
+      if (!hasOwnerPreInspection) {
+        return { success: false, error: 'Owner pre-inspection not provided yet' };
+      }
+
+      // Update inspection with renter review
+      const updateData: any = {
+        renterPreReviewAccepted: data.accepted,
+        renterPreReviewAcceptedAt: new Date()
+      };
+
+      const updated = await this.inspectionRepo.update(inspectionId, updateData);
+
+      if (!updated.success) {
+        console.error('[ProductInspectionService] Update failed:', updated.error);
+        return { success: false, error: updated.error || 'Failed to submit review' };
+      }
+
+      // Send notifications (don't fail if notification fails)
+      if (updated.data) {
+        try {
+          await this.sendInspectionNotifications('scheduled', updated.data);
+        } catch (notifError) {
+          console.warn('[ProductInspectionService] Notification failed (non-critical):', notifError);
+          // Continue even if notification fails
+        }
+      }
+
+      return { success: true, data: updated.data };
+    } catch (error) {
+      console.error('[ProductInspectionService] Submit renter pre-review error:', error);
+      console.error('[ProductInspectionService] Error details:', {
+        message: (error as Error).message,
+        stack: (error as Error).stack,
+        inspectionId
+      });
+      return { success: false, error: (error as Error).message || 'Internal server error' };
+    }
+  }
+
+  /**
+   * Renter reports discrepancy with owner pre-inspection
+   * POST /api/v1/inspections/:id/renter-discrepancy
+   */
+  async reportRenterDiscrepancy(inspectionId: string, data: {
+    issues: string[];
+    notes: string;
+    photos?: string[];
+    timestamp?: string;
+  }): Promise<ServiceResponse<ProductInspection>> {
+    try {
+      const inspection = await this.inspectionRepo.getById(inspectionId);
+      if (!inspection.success || !inspection.data) {
+        return { success: false, error: 'Inspection not found' };
+      }
+
+      // Prepare discrepancy data
+      const discrepancyData = {
+        inspectionId,
+        issues: data.issues,
+        photos: data.photos || [],
+        notes: data.notes,
+        timestamp: data.timestamp || new Date().toISOString()
+      };
+
+      // Update inspection with discrepancy report
+      const updateData: any = {
+        renterDiscrepancyReported: true,
+        renterDiscrepancyData: discrepancyData
+      };
+
+      const updated = await this.inspectionRepo.update(inspectionId, updateData);
+
+      if (!updated.success) {
+        console.error('[ProductInspectionService] Update failed:', updated.error);
+        return { success: false, error: updated.error || 'Failed to report discrepancy' };
+      }
+
+      // Send notifications (don't fail if notification fails)
+      if (updated.data) {
+        try {
+          await this.sendInspectionNotifications('disputed', updated.data);
+        } catch (notifError) {
+          console.warn('[ProductInspectionService] Notification failed (non-critical):', notifError);
+          // Continue even if notification fails
+        }
+      }
+
+      return { success: true, data: updated.data };
+    } catch (error) {
+      console.error('[ProductInspectionService] Report renter discrepancy error:', error);
+      console.error('[ProductInspectionService] Error details:', {
+        message: (error as Error).message,
+        stack: (error as Error).stack,
+        inspectionId
+      });
+      return { success: false, error: (error as Error).message || 'Internal server error' };
+    }
+  }
+
+  // =====================================================
+  // NEW WORKFLOW METHODS - RENTER POST-INSPECTION
+  // =====================================================
+
+  /**
+   * Renter submits post-inspection data (after returning the product)
+   * POST /api/v1/inspections/:id/renter-post-inspection
+   */
+  async submitRenterPostInspection(inspectionId: string, data: {
+    returnPhotos: string[];
+    condition: any;
+    notes: string;
+    returnLocation: any;
+    timestamp?: string;
+    confirmed?: boolean;
+  }): Promise<ServiceResponse<ProductInspection>> {
+    try {
+      const inspection = await this.inspectionRepo.getById(inspectionId);
+      if (!inspection.success || !inspection.data) {
+        return { success: false, error: 'Inspection not found' };
+      }
+
+      // Prepare post-inspection data
+      const postInspectionData = {
+        inspectionId,
+        returnPhotos: data.returnPhotos || [],
+        condition: data.condition,
+        notes: data.notes,
+        returnLocation: data.returnLocation,
+        timestamp: data.timestamp || new Date().toISOString(),
+        confirmed: data.confirmed ?? false
+      };
+
+      // Update inspection with post-inspection data
+      const updateData: any = {
+        renterPostInspectionData: postInspectionData,
+        renterPostInspectionConfirmed: data.confirmed ?? false,
+        renterPostInspectionConfirmedAt: new Date()
+      };
+
+      const updated = await this.inspectionRepo.update(inspectionId, updateData);
+
+      if (!updated.success) {
+        console.error('[ProductInspectionService] Update failed:', updated.error);
+        return { success: false, error: updated.error || 'Failed to submit post-inspection' };
+      }
+
+      // Send notifications (don't fail if notification fails)
+      if (updated.data) {
+        try {
+          await this.sendInspectionNotifications('completed', updated.data);
+        } catch (notifError) {
+          console.warn('[ProductInspectionService] Notification failed (non-critical):', notifError);
+          // Continue even if notification fails
+        }
+      }
+
+      return { success: true, data: updated.data };
+    } catch (error) {
+      console.error('[ProductInspectionService] Submit renter post-inspection error:', error);
+      console.error('[ProductInspectionService] Error details:', {
+        message: (error as Error).message,
+        stack: (error as Error).stack,
+        inspectionId
+      });
+      return { success: false, error: (error as Error).message || 'Internal server error' };
+    }
+  }
+
+  /**
+   * Renter confirms post-inspection
+   * POST /api/v1/inspections/:id/renter-post-inspection/confirm
+   */
+  async confirmRenterPostInspection(inspectionId: string): Promise<ServiceResponse<ProductInspection>> {
+    try {
+      const inspection = await this.inspectionRepo.getById(inspectionId);
+      if (!inspection.success || !inspection.data) {
+        return { success: false, error: 'Inspection not found' };
+      }
+
+      if (!inspection.data.renterPostInspectionData) {
+        return { success: false, error: 'Post-inspection data not submitted yet' };
+      }
+
+      // Update inspection with confirmation
+      const updated = await this.inspectionRepo.update(inspectionId, {
+        renterPostInspectionConfirmed: true,
+        renterPostInspectionConfirmedAt: new Date()
+      });
+
+      if (!updated.success) {
+        return { success: false, error: updated.error || 'Failed to confirm post-inspection' };
+      }
+
+      // Send notifications
+      if (updated.data) {
+        try {
+          await this.sendInspectionNotifications('completed', updated.data);
+        } catch (notifError) {
+          console.warn('[ProductInspectionService] Notification failed (non-critical):', notifError);
+        }
+      }
+
+      return { success: true, data: updated.data };
+    } catch (error) {
+      console.error('[ProductInspectionService] Confirm renter post-inspection error:', error);
       return { success: false, error: 'Internal server error' };
     }
   }

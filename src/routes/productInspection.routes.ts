@@ -533,7 +533,8 @@ router.get('/disputes', requireAuth, controller.getMyDisputes);
  *       500:
  *         description: Server error
  */
-router.post('/', requireAuth, controller.createInspection);
+// Create inspection route - supports both JSON and multipart/form-data (for pre-inspection with photos)
+router.post('/', requireAuth, uploadMultiple, controller.createInspection);
 
 /**
  * @swagger
@@ -1158,5 +1159,301 @@ router.post('/:id/disputes', requireAuth, controller.raiseDispute);
  *         description: Server error
  */
 router.put('/:id/disputes/:disputeId/resolve', requireAuth, controller.resolveDispute);
+
+// =====================================================
+// NEW WORKFLOW ROUTES - OWNER PRE-INSPECTION
+// =====================================================
+
+/**
+ * @swagger
+ * /inspections/{id}/owner-pre-inspection:
+ *   post:
+ *     summary: Owner submits pre-inspection data with photos
+ *     description: Submit pre-inspection data including photos, condition assessment, notes, and GPS location
+ *     tags: [Product Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Inspection ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [condition, notes]
+ *             properties:
+ *               photos:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Pre-inspection photos (10-20 photos)
+ *               condition:
+ *                 type: string
+ *                 description: JSON string of condition assessment
+ *               notes:
+ *                 type: string
+ *                 description: Additional notes
+ *               location:
+ *                 type: string
+ *                 description: JSON string of GPS location
+ *               timestamp:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Timestamp of inspection
+ *     responses:
+ *       200:
+ *         description: Pre-inspection submitted successfully
+ *       400:
+ *         description: Invalid request data
+ *       403:
+ *         description: Not authorized (only owner can submit)
+ *       404:
+ *         description: Inspection not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/:id/owner-pre-inspection', requireAuth, uploadMultiple, controller.submitOwnerPreInspection);
+
+/**
+ * @swagger
+ * /inspections/{id}/owner-pre-inspection/confirm:
+ *   post:
+ *     summary: Owner confirms pre-inspection
+ *     description: Confirm the submitted pre-inspection data
+ *     tags: [Product Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Inspection ID
+ *     responses:
+ *       200:
+ *         description: Pre-inspection confirmed successfully
+ *       400:
+ *         description: Invalid request data
+ *       403:
+ *         description: Not authorized (only owner can confirm)
+ *       404:
+ *         description: Inspection not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/:id/owner-pre-inspection/confirm', requireAuth, controller.confirmOwnerPreInspection);
+
+// =====================================================
+// NEW WORKFLOW ROUTES - RENTER PRE-REVIEW
+// =====================================================
+
+/**
+ * @swagger
+ * /inspections/{id}/renter-pre-review:
+ *   post:
+ *     summary: Renter reviews and accepts/rejects owner pre-inspection
+ *     description: Submit review of owner's pre-inspection data
+ *     tags: [Product Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Inspection ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [accepted]
+ *             properties:
+ *               accepted:
+ *                 type: boolean
+ *                 description: Whether renter accepts the pre-inspection
+ *               concerns:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: List of concerns
+ *               additionalRequests:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Additional requests
+ *               timestamp:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Timestamp of review
+ *     responses:
+ *       200:
+ *         description: Review submitted successfully
+ *       400:
+ *         description: Invalid request data
+ *       403:
+ *         description: Not authorized (only renter can review)
+ *       404:
+ *         description: Inspection not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/:id/renter-pre-review', requireAuth, controller.submitRenterPreReview);
+
+/**
+ * @swagger
+ * /inspections/{id}/renter-discrepancy:
+ *   post:
+ *     summary: Renter reports discrepancy with owner pre-inspection
+ *     description: Report discrepancies found when receiving the product
+ *     tags: [Product Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Inspection ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [issues, notes]
+ *             properties:
+ *               issues:
+ *                 type: string
+ *                 description: JSON array of issue strings
+ *               notes:
+ *                 type: string
+ *                 description: Detailed notes about discrepancies
+ *               photos:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Photos of discrepancies
+ *               timestamp:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Timestamp of discrepancy report
+ *     responses:
+ *       200:
+ *         description: Discrepancy reported successfully
+ *       400:
+ *         description: Invalid request data
+ *       403:
+ *         description: Not authorized (only renter can report)
+ *       404:
+ *         description: Inspection not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/:id/renter-discrepancy', requireAuth, uploadMultiple, controller.reportRenterDiscrepancy);
+
+/**
+ * @swagger
+ * /inspections/{id}/renter-post-inspection:
+ *   post:
+ *     summary: Renter submits post-inspection data (after returning product)
+ *     tags: [Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Inspection ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - condition
+ *               - returnLocation
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Return photos (minimum 2, maximum 20)
+ *               condition:
+ *                 type: string
+ *                 description: JSON string of condition assessment
+ *               notes:
+ *                 type: string
+ *                 description: Return notes
+ *               returnLocation:
+ *                 type: string
+ *                 description: JSON string of GPS location
+ *               timestamp:
+ *                 type: string
+ *                 format: date-time
+ *               confirmed:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Post-inspection submitted successfully
+ *       400:
+ *         description: Invalid request data
+ *       403:
+ *         description: Not authorized (only renter can submit)
+ *       404:
+ *         description: Inspection not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/:id/renter-post-inspection', requireAuth, uploadMultiple, controller.submitRenterPostInspection);
+
+/**
+ * @swagger
+ * /inspections/{id}/renter-post-inspection/confirm:
+ *   post:
+ *     summary: Renter confirms post-inspection
+ *     tags: [Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Inspection ID
+ *     responses:
+ *       200:
+ *         description: Post-inspection confirmed successfully
+ *       400:
+ *         description: Invalid request data
+ *       403:
+ *         description: Not authorized (only renter can confirm)
+ *       404:
+ *         description: Inspection not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/:id/renter-post-inspection/confirm', requireAuth, controller.confirmRenterPostInspection);
 
 export default router;

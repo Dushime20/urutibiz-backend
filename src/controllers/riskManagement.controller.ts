@@ -61,6 +61,24 @@ export class RiskManagementController extends BaseController {
   });
 
   /**
+   * Get risk profile by ID
+   * GET /api/v1/risk-management/profiles/:id
+   */
+  public getRiskProfile = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+
+    const result = await RiskManagementService.getRiskProfile(id);
+    
+    if (!result.success) {
+      return this.handleNotFound(res, 'Risk profile');
+    }
+
+    this.logAction('GET_RISK_PROFILE_BY_ID', req.user.id, id);
+
+    return ResponseHelper.success(res, 'Risk profile retrieved successfully', result.data);
+  });
+
+  /**
    * Get all risk profiles with pagination and filtering
    * GET /api/v1/risk-management/profiles
    */
@@ -82,6 +100,45 @@ export class RiskManagementController extends BaseController {
     this.logAction('GET_RISK_PROFILES', req.user.id, null, filters);
 
     return ResponseHelper.success(res, 'Risk profiles retrieved successfully', result.data);
+  });
+
+  /**
+   * Update a risk profile
+   * PUT /api/v1/risk-management/profiles/:id
+   */
+  public updateRiskProfile = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (this.handleValidationErrors(req as any, res)) return;
+
+    const { id } = req.params;
+    const updateData: UpdateRiskProfileRequest = req.body;
+
+    const result = await RiskManagementService.updateRiskProfile(id, updateData);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to update risk profile', 400);
+    }
+
+    this.logAction('UPDATE_RISK_PROFILE', req.user.id, id, updateData);
+
+    return ResponseHelper.success(res, 'Risk profile updated successfully', result.data);
+  });
+
+  /**
+   * Soft delete a risk profile (mark as inactive)
+   * DELETE /api/v1/risk-management/profiles/:id
+   */
+  public deleteRiskProfile = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+
+    const result = await RiskManagementService.deleteRiskProfile(id);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to delete risk profile', 400);
+    }
+
+    this.logAction('DELETE_RISK_PROFILE', req.user.id, id);
+
+    return ResponseHelper.success(res, 'Risk profile deleted successfully', result.data);
   });
 
   // =====================================================
@@ -111,6 +168,50 @@ export class RiskManagementController extends BaseController {
     this.logAction('ASSESS_RISK', req.user.id, assessmentData.productId, assessmentData);
 
     return ResponseHelper.success(res, 'Risk assessment completed successfully', result.data);
+  });
+
+  /**
+   * Get risk assessments with pagination and filtering
+   * GET /api/v1/risk-management/assessments
+   */
+  public getRiskAssessments = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const filters = {
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 20,
+      productId: req.query.productId as string,
+      renterId: req.query.renterId as string,
+      bookingId: req.query.bookingId as string,
+      riskLevel: req.query.riskLevel as string,
+      complianceStatus: req.query.complianceStatus as string
+    };
+
+    const result = await RiskManagementService.getRiskAssessments(filters);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to get assessments', 400);
+    }
+
+    this.logAction('GET_RISK_ASSESSMENTS', req.user.id, null, filters);
+
+    return ResponseHelper.success(res, 'Assessments retrieved successfully', result.data);
+  });
+
+  /**
+   * Get risk assessment by ID
+   * GET /api/v1/risk-management/assessments/:id
+   */
+  public getRiskAssessment = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+
+    const result = await RiskManagementService.getRiskAssessment(id);
+    
+    if (!result.success) {
+      return this.handleNotFound(res, 'Risk assessment');
+    }
+
+    this.logAction('GET_RISK_ASSESSMENT', req.user.id, id);
+
+    return ResponseHelper.success(res, 'Assessment retrieved successfully', result.data);
   });
 
   // =====================================================
@@ -149,22 +250,7 @@ export class RiskManagementController extends BaseController {
   public getComplianceStatus = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { bookingId } = req.params;
 
-    // Get booking details to extract product and renter IDs
-    const db = require('@/config/database').getDatabase();
-    const booking = await db('bookings').where('id', bookingId).first();
-    
-    if (!booking) {
-      return this.handleNotFound(res, 'Booking');
-    }
-
-    const complianceData: ComplianceCheckRequest = {
-      bookingId,
-      productId: booking.product_id,
-      renterId: booking.renter_id,
-      forceCheck: true
-    };
-
-    const result = await RiskManagementService.checkCompliance(complianceData);
+    const result = await RiskManagementService.getComplianceStatus(bookingId);
     
     if (!result.success) {
       return ResponseHelper.error(res, result.error || 'Failed to get compliance status', 400);
@@ -173,6 +259,31 @@ export class RiskManagementController extends BaseController {
     this.logAction('GET_COMPLIANCE_STATUS', req.user.id, bookingId);
 
     return ResponseHelper.success(res, 'Compliance status retrieved successfully', result.data);
+  });
+
+  /**
+   * Get compliance checks with pagination and filtering
+   * GET /api/v1/risk-management/compliance/checks
+   */
+  public getComplianceChecks = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const filters = {
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 20,
+      bookingId: req.query.bookingId as string,
+      productId: req.query.productId as string,
+      renterId: req.query.renterId as string,
+      complianceStatus: req.query.complianceStatus as string
+    };
+
+    const result = await RiskManagementService.getComplianceChecks(filters);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to get compliance checks', 400);
+    }
+
+    this.logAction('GET_COMPLIANCE_CHECKS', req.user.id, null, filters);
+
+    return ResponseHelper.success(res, 'Compliance checks retrieved successfully', result.data);
   });
 
   // =====================================================
@@ -230,6 +341,114 @@ export class RiskManagementController extends BaseController {
     return ResponseHelper.success(res, 'Violations retrieved successfully', result.data);
   });
 
+  /**
+   * Get violation by ID
+   * GET /api/v1/risk-management/violations/:id
+   */
+  public getViolation = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+
+    const result = await RiskManagementService.getViolation(id);
+    
+    if (!result.success) {
+      return this.handleNotFound(res, 'Violation');
+    }
+
+    this.logAction('GET_VIOLATION', req.user.id, id);
+
+    return ResponseHelper.success(res, 'Violation retrieved successfully', result.data);
+  });
+
+  /**
+   * Update a policy violation
+   * PUT /api/v1/risk-management/violations/:id
+   */
+  public updateViolation = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (this.handleValidationErrors(req as any, res)) return;
+
+    const { id } = req.params;
+    const updateData = req.body;
+
+    const result = await RiskManagementService.updateViolation(id, updateData);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to update violation', 400);
+    }
+
+    this.logAction('UPDATE_VIOLATION', req.user.id, id, updateData);
+
+    return ResponseHelper.success(res, 'Violation updated successfully', result.data);
+  });
+
+  /**
+   * Assign violation to inspector
+   * PATCH /api/v1/risk-management/violations/:id/assign
+   */
+  public assignViolation = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (this.handleValidationErrors(req as any, res)) return;
+
+    const { id } = req.params;
+    const { inspectorId } = req.body;
+
+    if (!inspectorId) {
+      return this.handleBadRequest(res, 'Missing required field: inspectorId');
+    }
+
+    const result = await RiskManagementService.assignViolation(id, inspectorId);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to assign violation', 400);
+    }
+
+    this.logAction('ASSIGN_VIOLATION', req.user.id, id, { inspectorId });
+
+    return ResponseHelper.success(res, 'Violation assigned successfully', result.data);
+  });
+
+  /**
+   * Resolve a policy violation
+   * POST /api/v1/risk-management/violations/:id/resolve
+   */
+  public resolveViolation = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (this.handleValidationErrors(req as any, res)) return;
+
+    const { id } = req.params;
+    const resolutionData = req.body;
+
+    // Validate required fields
+    if (!resolutionData.resolutionActions || !Array.isArray(resolutionData.resolutionActions)) {
+      return this.handleBadRequest(res, 'Missing required field: resolutionActions (array)');
+    }
+
+    const result = await RiskManagementService.resolveViolation(id, resolutionData);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to resolve violation', 400);
+    }
+
+    this.logAction('RESOLVE_VIOLATION', req.user.id, id, resolutionData);
+
+    return ResponseHelper.success(res, 'Violation resolved successfully', result.data);
+  });
+
+  /**
+   * Delete violation (soft delete)
+   * DELETE /api/v1/risk-management/violations/:id
+   */
+  public deleteViolation = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+
+    const result = await RiskManagementService.deleteViolation(id);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to delete violation', 400);
+    }
+
+    this.logAction('DELETE_VIOLATION', req.user.id, id);
+
+    return ResponseHelper.success(res, 'Violation deleted successfully');
+  });
+
   // =====================================================
   // STATISTICS AND ANALYTICS
   // =====================================================
@@ -248,6 +467,40 @@ export class RiskManagementController extends BaseController {
     this.logAction('GET_RISK_STATS', req.user.id);
 
     return ResponseHelper.success(res, 'Risk management statistics retrieved successfully', result.data);
+  });
+
+  /**
+   * Get risk management trends
+   * GET /api/v1/risk-management/trends
+   */
+  public getRiskManagementTrends = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const period = (req.query.period as string) || '30d';
+
+    const result = await RiskManagementService.getRiskManagementTrends(period);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to get trends', 400);
+    }
+
+    this.logAction('GET_RISK_MANAGEMENT_TRENDS', req.user.id, null, { period });
+
+    return ResponseHelper.success(res, 'Trends retrieved successfully', result.data);
+  });
+
+  /**
+   * Get dashboard widgets data
+   * GET /api/v1/risk-management/dashboard/widgets
+   */
+  public getDashboardWidgets = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const result = await RiskManagementService.getDashboardWidgets();
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to get dashboard widgets', 400);
+    }
+
+    this.logAction('GET_DASHBOARD_WIDGETS', req.user.id);
+
+    return ResponseHelper.success(res, 'Dashboard widgets retrieved successfully', result.data);
   });
 
   // =====================================================
@@ -289,8 +542,12 @@ export class RiskManagementController extends BaseController {
 
     const compliance = complianceResult.data!;
 
-    // If not compliant, record violations
+    // If not compliant, record violations and execute enforcement actions
+    let violationsRecorded = 0;
+    let actionsExecuted = 0;
+
     if (!compliance.isCompliant) {
+      // Record violations for missing requirements
       for (const requirement of compliance.missingRequirements) {
         const violationData: PolicyViolationRequest = {
           bookingId,
@@ -302,16 +559,211 @@ export class RiskManagementController extends BaseController {
           penaltyAmount: 100
         };
 
-        await RiskManagementService.recordViolation(violationData);
+        const violationResult = await RiskManagementService.recordViolation(violationData);
+        if (violationResult.success) {
+          violationsRecorded++;
+        }
+      }
+
+      // Execute enforcement actions if auto-enforcement is enabled
+      const riskProfile = await RiskManagementService.getRiskProfileByProduct(booking.product_id);
+      if (riskProfile.success && riskProfile.data?.autoEnforcement) {
+        for (const action of compliance.enforcementActions) {
+          if (action.status === 'PENDING') {
+            const executeResult = await RiskManagementService.executeEnforcementAction(action.id);
+            if (executeResult.success && executeResult.data?.status === 'executed') {
+              actionsExecuted++;
+            }
+          }
+        }
       }
     }
 
-    this.logAction('TRIGGER_ENFORCEMENT', req.user.id, bookingId);
+    this.logAction('TRIGGER_ENFORCEMENT', req.user.id, bookingId, {
+      violationsRecorded,
+      actionsExecuted
+    });
 
     return ResponseHelper.success(res, 'Enforcement triggered successfully', {
       compliance: compliance,
-      violationsRecorded: compliance.missingRequirements.length
+      violationsRecorded,
+      actionsExecuted
     });
+  });
+
+  /**
+   * Execute a specific enforcement action
+   * POST /api/v1/risk-management/enforce/:actionId
+   */
+  public executeEnforcementAction = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { actionId } = req.params;
+
+    const result = await RiskManagementService.executeEnforcementAction(actionId);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to execute enforcement action', 400);
+    }
+
+    this.logAction('EXECUTE_ENFORCEMENT_ACTION', req.user.id, actionId);
+
+    return ResponseHelper.success(res, 'Enforcement action executed successfully', result.data);
+  });
+
+  /**
+   * Approve enforcement action
+   * PATCH /api/v1/risk-management/enforce/:id/approve
+   */
+  public approveEnforcementAction = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const approverId = req.user.id;
+
+    const result = await RiskManagementService.approveEnforcementAction(id, approverId);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to approve enforcement action', 400);
+    }
+
+    this.logAction('APPROVE_ENFORCEMENT_ACTION', req.user.id, id);
+
+    return ResponseHelper.success(res, 'Enforcement action approved successfully', result.data);
+  });
+
+  /**
+   * Get enforcement actions for a booking
+   * GET /api/v1/risk-management/enforce/booking/:bookingId
+   */
+  public getEnforcementActions = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { bookingId } = req.params;
+
+    const result = await RiskManagementService.getEnforcementActions(bookingId);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to get enforcement actions', 400);
+    }
+
+    this.logAction('GET_ENFORCEMENT_ACTIONS', req.user.id, bookingId);
+
+    return ResponseHelper.success(res, 'Enforcement actions retrieved successfully', result.data);
+  });
+
+  /**
+   * Get all enforcement actions with filters and pagination
+   * GET /api/v1/risk-management/enforce
+   */
+  public getAllEnforcementActions = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { page, limit } = this.getPaginationParams(req as any);
+    const filters = {
+      status: req.query.status ? (Array.isArray(req.query.status) ? req.query.status : [req.query.status]) as string[] : undefined,
+      actionType: req.query.actionType ? (Array.isArray(req.query.actionType) ? req.query.actionType : [req.query.actionType]) as string[] : undefined,
+      bookingId: req.query.bookingId as string | undefined,
+      productId: req.query.productId as string | undefined,
+      renterId: req.query.renterId as string | undefined,
+      search: req.query.search as string | undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined
+    };
+
+    const result = await RiskManagementService.getAllEnforcementActions(filters, page, limit);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to get enforcement actions', 400);
+    }
+
+    this.logAction('GET_ALL_ENFORCEMENT_ACTIONS', req.user.id, null, { filters, pagination: { page, limit } });
+
+    return this.formatPaginatedResponse(res, 'Enforcement actions retrieved successfully', result.data);
+  });
+
+  // =====================================================
+  // RISK MANAGEMENT CONFIGURATION
+  // =====================================================
+
+  /**
+   * Create risk management configuration
+   * POST /api/v1/risk-management/configs
+   */
+  public createRiskManagementConfig = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (this.handleValidationErrors(req as any, res)) return;
+
+    const configData = req.body;
+
+    // Validate required fields
+    if (!configData.categoryId || !configData.countryId) {
+      return this.handleBadRequest(res, 'Missing required fields: categoryId, countryId');
+    }
+
+    const result = await RiskManagementService.createRiskManagementConfig(configData);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to create risk management config', 400);
+    }
+
+    this.logAction('CREATE_RISK_CONFIG', req.user.id, result.data.id, configData);
+
+    return ResponseHelper.success(res, 'Risk management config created successfully', result.data);
+  });
+
+  /**
+   * Get risk management configuration
+   * GET /api/v1/risk-management/configs/:categoryId/:countryId
+   */
+  public getRiskManagementConfig = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { categoryId, countryId } = req.params;
+
+    const result = await RiskManagementService.getRiskManagementConfig(categoryId, countryId);
+    
+    if (!result.success) {
+      return this.handleNotFound(res, 'Risk management config');
+    }
+
+    this.logAction('GET_RISK_CONFIG', req.user.id, `${categoryId}/${countryId}`);
+
+    return ResponseHelper.success(res, 'Risk management config retrieved successfully', result.data);
+  });
+
+  /**
+   * Update risk management configuration
+   * PUT /api/v1/risk-management/configs/:id
+   */
+  public updateRiskManagementConfig = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (this.handleValidationErrors(req as any, res)) return;
+
+    const { id } = req.params;
+    const updateData = req.body;
+
+    const result = await RiskManagementService.updateRiskManagementConfig(id, updateData);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to update risk management config', 400);
+    }
+
+    this.logAction('UPDATE_RISK_CONFIG', req.user.id, id, updateData);
+
+    return ResponseHelper.success(res, 'Risk management config updated successfully', result.data);
+  });
+
+  /**
+   * Get all risk management configurations
+   * GET /api/v1/risk-management/configs
+   */
+  public getRiskManagementConfigs = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const filters = {
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 20,
+      categoryId: req.query.categoryId as string,
+      countryId: req.query.countryId as string,
+      isActive: req.query.isActive === 'true' ? true : req.query.isActive === 'false' ? false : undefined
+    };
+
+    const result = await RiskManagementService.getRiskManagementConfigs(filters);
+    
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to get risk management configs', 400);
+    }
+
+    this.logAction('GET_RISK_CONFIGS', req.user.id, null, filters);
+
+    return ResponseHelper.success(res, 'Risk management configs retrieved successfully', result.data);
   });
 
   // =====================================================

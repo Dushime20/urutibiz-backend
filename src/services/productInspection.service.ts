@@ -525,7 +525,50 @@ export class ProductInspectionService {
   async getInspections(filters: InspectionFilters, page = 1, limit = 20): Promise<ServiceResponse<any>> {
     try {
       const inspections = await this.inspectionRepo.getPaginated(filters, page, limit);
-      return inspections;
+      
+      if (!inspections.success || !inspections.data) {
+        return inspections;
+      }
+
+      // Fetch booking data for each inspection and include it in the response
+      const inspectionsWithBookings = await Promise.all(
+        inspections.data.data.map(async (inspection: any) => {
+          const bookingId = inspection.bookingId || inspection.booking_id;
+          if (bookingId) {
+            try {
+              const booking = await this.bookingService.getById(bookingId);
+              if (booking.success && booking.data) {
+                return {
+                  ...inspection,
+                  booking: {
+                    id: booking.data.id,
+                    booking_number: (booking.data as any).booking_number,
+                    status: (booking.data as any).status,
+                    start_date: (booking.data as any).start_date,
+                    end_date: (booking.data as any).end_date,
+                    rental_start_date: (booking.data as any).rental_start_date,
+                    rental_end_date: (booking.data as any).rental_end_date,
+                    renter_id: (booking.data as any).renter_id,
+                    owner_id: (booking.data as any).owner_id,
+                    product_id: (booking.data as any).product_id
+                  }
+                };
+              }
+            } catch (error) {
+              console.error(`[ProductInspectionService] Error fetching booking ${bookingId} for inspection ${inspection.id}:`, error);
+            }
+          }
+          return inspection;
+        })
+      );
+
+      return {
+        success: true,
+        data: {
+          ...inspections.data,
+          data: inspectionsWithBookings
+        }
+      };
     } catch (error) {
       console.error('[ProductInspectionService] Get inspections error:', error);
       return { success: false, error: 'Internal server error' };
@@ -1171,6 +1214,22 @@ export class ProductInspectionService {
         renterPreReviewAcceptedAt: new Date()
       };
 
+      // For pre-rental inspections, update status based on renter's response:
+      // - If renter accepts: status becomes IN_PROGRESS (pre-inspection workflow complete, rental can proceed)
+      // - If renter rejects: status remains PENDING (owner needs to address concerns)
+      if (inspection.data.inspectionType === InspectionType.PRE_RENTAL) {
+        if (data.accepted) {
+          // Renter accepted - pre-inspection workflow is complete, rental can proceed
+          // Only update status if it's still PENDING (don't override if already in progress or completed)
+          if (inspection.data.status === InspectionStatus.PENDING) {
+            updateData.status = InspectionStatus.IN_PROGRESS;
+          }
+        } else {
+          // Renter rejected - status remains PENDING so owner can address concerns
+          // Status stays PENDING until owner resolves the issues
+        }
+      }
+
       const updated = await this.inspectionRepo.update(inspectionId, updateData);
 
       if (!updated.success) {
@@ -1367,6 +1426,84 @@ export class ProductInspectionService {
     } catch (error) {
       console.error('[ProductInspectionService] Confirm renter post-inspection error:', error);
       return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  // =====================================================
+  // NEW WORKFLOW METHODS - OWNER POST-REVIEW
+  // =====================================================
+
+  /**
+   * Owner reviews post-inspection (accept or dispute)
+   * POST /api/v1/inspections/:id/owner-post-review
+   */
+  async submitOwnerPostReview(inspectionId: string, data: {
+    accepted: boolean;
+    disputeRaised?: boolean;
+    disputeReason?: string;
+    disputeEvidence?: string[];
+    confirmedAt?: Date;
+  }): Promise<ServiceResponse<ProductInspection>> {
+    try {
+      const inspection = await this.inspectionRepo.getById(inspectionId);
+      if (!inspection.success || !inspection.data) {
+        return { success: false, error: 'Inspection not found' };
+      }
+
+      // Validate that renter has submitted post-inspection
+      if (!inspection.data.renterPostInspectionData) {
+        return { success: false, error: 'Renter has not submitted post-inspection yet' };
+      }
+
+      if (!inspection.data.renterPostInspectionConfirmed) {
+        return { success: false, error: 'Renter has not confirmed post-inspection yet' };
+      }
+
+      // Prepare update data
+      const updateData: any = {
+        ownerPostReviewAccepted: data.accepted && !data.disputeRaised,
+        ownerPostReviewAcceptedAt: data.accepted && !data.disputeRaised ? (data.confirmedAt || new Date()) : undefined,
+        ownerDisputeRaised: data.disputeRaised ?? false,
+        ownerDisputeRaisedAt: data.disputeRaised ? new Date() : undefined
+      };
+
+      // If dispute is raised, we might want to create a dispute record
+      if (data.disputeRaised) {
+        // Optionally create a dispute record in the disputes table
+        // For now, we'll just update the inspection fields
+        // The dispute can be handled through the existing dispute system if needed
+      }
+
+      const updated = await this.inspectionRepo.update(inspectionId, updateData);
+
+      if (!updated.success) {
+        console.error('[ProductInspectionService] Update failed:', updated.error);
+        return { success: false, error: updated.error || 'Failed to submit owner post-review' };
+      }
+
+      // Send notifications (don't fail if notification fails)
+      if (updated.data) {
+        try {
+          if (data.accepted && !data.disputeRaised) {
+            await this.sendInspectionNotifications('completed', updated.data);
+          } else if (data.disputeRaised) {
+            await this.sendInspectionNotifications('disputed', updated.data);
+          }
+        } catch (notifError) {
+          console.warn('[ProductInspectionService] Notification failed (non-critical):', notifError);
+          // Continue even if notification fails
+        }
+      }
+
+      return { success: true, data: updated.data };
+    } catch (error) {
+      console.error('[ProductInspectionService] Submit owner post-review error:', error);
+      console.error('[ProductInspectionService] Error details:', {
+        message: (error as Error).message,
+        stack: (error as Error).stack,
+        inspectionId
+      });
+      return { success: false, error: (error as Error).message || 'Internal server error' };
     }
   }
 }

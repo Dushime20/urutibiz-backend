@@ -1456,4 +1456,63 @@ router.post('/:id/renter-post-inspection', requireAuth, uploadMultiple, controll
  */
 router.post('/:id/renter-post-inspection/confirm', requireAuth, controller.confirmRenterPostInspection);
 
+/**
+ * @swagger
+ * /inspections/{id}/owner-post-review:
+ *   post:
+ *     summary: Owner reviews post-inspection (accept or dispute)
+ *     description: Owner reviews the renter's post-inspection and can either accept it or raise a dispute
+ *     tags: [Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Inspection ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - accepted
+ *               - disputeRaised
+ *             properties:
+ *               accepted:
+ *                 type: boolean
+ *                 description: Whether owner accepts the post-inspection
+ *               disputeRaised:
+ *                 type: boolean
+ *                 description: Whether owner is raising a dispute
+ *               disputeReason:
+ *                 type: string
+ *                 description: Reason for dispute (required if disputeRaised is true)
+ *               confirmedAt:
+ *                 type: string
+ *                 format: date-time
+ *                 description: When owner confirmed the review
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Dispute evidence photos (optional, only if disputeRaised is true)
+ *     responses:
+ *       200:
+ *         description: Owner post-review submitted successfully
+ *       400:
+ *         description: Invalid request data
+ *       403:
+ *         description: Not authorized (only owner can review)
+ *       404:
+ *         description: Inspection not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/:id/owner-post-review', requireAuth, uploadMultiple, controller.submitOwnerPostReview);
+
 export default router;

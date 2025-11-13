@@ -1282,6 +1282,120 @@ export class ProductInspectionController extends BaseController {
 
     return ResponseHelper.success(res, 'Post-inspection confirmed successfully', result.data);
   });
+
+  /**
+   * Owner reviews post-inspection (accept or dispute)
+   * POST /api/v1/inspections/:id/owner-post-review
+   */
+  public submitOwnerPostReview = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (this.handleValidationErrors(req as any, res)) return;
+
+    const { id } = req.params;
+    const userId = req.user.id;
+    const files = (req as any).files as Express.Multer.File[];
+
+    // Check if user is the owner of this inspection
+    const inspectionResult = await ProductInspectionService.getInspectionById(id);
+    if (!inspectionResult.success || !inspectionResult.data) {
+      return ResponseHelper.error(res, 'Inspection not found', 404);
+    }
+
+    // getInspectionById returns InspectionReport which has inspection nested in data.inspection
+    const inspectionData = inspectionResult.data.inspection || inspectionResult.data;
+    
+    // Handle both camelCase and snake_case, and ensure string comparison
+    const inspectionOwnerId = String(inspectionData.ownerId || inspectionData.owner_id || '');
+    const currentUserId = String(userId || '');
+    
+    console.log('[ProductInspectionController] Submit owner post-review authorization check:', {
+      inspectionId: id,
+      inspectionOwnerId,
+      currentUserId,
+      match: inspectionOwnerId === currentUserId
+    });
+
+    if (inspectionOwnerId !== currentUserId) {
+      return ResponseHelper.error(res, 'Not authorized. Only the owner can review post-inspection.', 403);
+    }
+
+    // Upload dispute evidence photos to Cloudinary if files are provided
+    let disputeEvidenceUrls: string[] = [];
+    if (files && files.length > 0) {
+      try {
+        const cloudinary = (await import('@/config/cloudinary')).default;
+        const uploadPromises = files.map(async (file) => {
+          const result = await cloudinary.uploader.upload(file.path, {
+            folder: 'inspection-owner-dispute',
+            resource_type: 'auto',
+            transformation: [
+              { width: 1200, height: 1200, crop: 'limit' },
+              { quality: 'auto:good' }
+            ]
+          });
+          return result.secure_url;
+        });
+
+        disputeEvidenceUrls = await Promise.all(uploadPromises);
+      } catch (error) {
+        console.error('Cloudinary upload error:', error);
+        return ResponseHelper.error(res, 'Failed to upload dispute evidence photos', 500);
+      }
+    }
+
+    // Parse request body
+    const accepted = req.body.accepted === 'true' || req.body.accepted === true;
+    const disputeRaised = req.body.disputeRaised === 'true' || req.body.disputeRaised === true;
+    const disputeReason = req.body.disputeReason || '';
+    const confirmedAt = req.body.confirmedAt ? new Date(req.body.confirmedAt) : new Date();
+
+    // Validate that either accepted or disputeRaised is true
+    if (!accepted && !disputeRaised) {
+      return ResponseHelper.error(res, 'Either accepted or disputeRaised must be true', 400);
+    }
+
+    // If dispute is raised, require dispute reason
+    if (disputeRaised && !disputeReason.trim()) {
+      return ResponseHelper.error(res, 'Dispute reason is required when raising a dispute', 400);
+    }
+
+    const reviewData = {
+      accepted,
+      disputeRaised,
+      disputeReason: disputeRaised ? disputeReason : undefined,
+      disputeEvidence: disputeRaised && disputeEvidenceUrls.length > 0 ? disputeEvidenceUrls : undefined,
+      confirmedAt
+    };
+
+    console.log('[ProductInspectionController] Submit owner post-review payload:', {
+      inspectionId: id,
+      accepted,
+      disputeRaised,
+      hasDisputeReason: !!disputeReason,
+      disputeEvidenceCount: disputeEvidenceUrls.length
+    });
+
+    const result = await ProductInspectionService.submitOwnerPostReview(id, reviewData);
+
+    if (!result.success) {
+      // Check if it's a migration error (should be 500) or validation error (400)
+      const isMigrationError = result.error?.includes('Database migration required');
+      const statusCode = isMigrationError ? 500 : 400;
+      console.error('[ProductInspectionController] Submit owner post-review failed:', {
+        inspectionId: id,
+        error: result.error,
+        statusCode
+      });
+      return ResponseHelper.error(res, result.error || 'Failed to submit owner post-review', statusCode);
+    }
+
+    this.logAction('SUBMIT_OWNER_POST_REVIEW', userId, id, { 
+      accepted, 
+      disputeRaised,
+      disputeEvidenceCount: disputeEvidenceUrls.length 
+    });
+
+    return ResponseHelper.success(res, 'Owner post-review submitted successfully', result.data);
+  });
 }
 
 export default new ProductInspectionController();

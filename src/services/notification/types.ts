@@ -34,7 +34,13 @@ export enum NotificationType {
   // General
   REMINDER = 'reminder',
   SYSTEM = 'system',
-  SECURITY = 'security'
+  SECURITY = 'security',
+  
+  // Risk Management related
+  RISK_COMPLIANCE_REQUIRED = 'risk_compliance_required',
+  RISK_ESCALATION = 'risk_escalation',
+  RISK_VIOLATION_DETECTED = 'risk_violation_detected',
+  RISK_VIOLATION_RESOLVED = 'risk_violation_resolved'
 }
 
 export enum NotificationChannel {

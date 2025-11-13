@@ -377,6 +377,35 @@ router.get('/profiles/product/:productId', requireAuth, controller.getRiskProfil
 
 /**
  * @swagger
+ * /risk-management/profiles/{id}:
+ *   get:
+ *     summary: Get risk profile by ID
+ *     description: Retrieve a risk profile by its ID
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Risk profile ID
+ *     responses:
+ *       200:
+ *         description: Risk profile retrieved successfully
+ *       404:
+ *         description: Risk profile not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/profiles/:id', requireAuth, controller.getRiskProfile);
+
+/**
+ * @swagger
  * /risk-management/profiles:
  *   get:
  *     summary: Get all risk profiles
@@ -459,6 +488,93 @@ router.get('/profiles/product/:productId', requireAuth, controller.getRiskProfil
  *         description: Server error
  */
 router.get('/profiles', requireAuth, controller.getRiskProfiles);
+
+/**
+ * @swagger
+ * /risk-management/profiles/{id}:
+ *   put:
+ *     summary: Update a risk profile
+ *     description: Update an existing risk profile
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Risk profile ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               riskLevel:
+ *                 type: string
+ *                 enum: [low, medium, high, critical]
+ *               mandatoryRequirements:
+ *                 type: object
+ *               riskFactors:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               mitigationStrategies:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               enforcementLevel:
+ *                 type: string
+ *                 enum: [lenient, moderate, strict, very_strict]
+ *               autoEnforcement:
+ *                 type: boolean
+ *               gracePeriodHours:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Risk profile updated successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Risk profile not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.put('/profiles/:id', requireAuth, requireRole(['admin', 'super_admin']), controller.updateRiskProfile);
+
+/**
+ * @swagger
+ * /risk-management/profiles/{id}:
+ *   delete:
+ *     summary: Soft delete a risk profile
+ *     description: Mark a risk profile as inactive (soft delete)
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Risk profile ID
+ *     responses:
+ *       200:
+ *         description: Risk profile deleted successfully
+ *       404:
+ *         description: Risk profile not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.delete('/profiles/:id', requireAuth, requireRole(['admin', 'super_admin']), controller.deleteRiskProfile);
 
 /**
  * @swagger
@@ -707,6 +823,93 @@ router.post('/assess', requireAuth, controller.assessRisk);
  */
 router.post('/assess/bulk', requireAuth, controller.bulkAssessRisk);
 
+/**
+ * @swagger
+ * /risk-management/assessments:
+ *   get:
+ *     summary: Get risk assessments
+ *     description: Retrieve a paginated list of risk assessments with filtering options
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *       - in: query
+ *         name: productId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: renterId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: bookingId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: riskLevel
+ *         schema:
+ *           type: string
+ *           enum: [low, medium, high, critical]
+ *       - in: query
+ *         name: complianceStatus
+ *         schema:
+ *           type: string
+ *           enum: [compliant, non_compliant, pending, grace_period, exempt]
+ *     responses:
+ *       200:
+ *         description: Assessments retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/assessments', requireAuth, controller.getRiskAssessments);
+
+/**
+ * @swagger
+ * /risk-management/assessments/{id}:
+ *   get:
+ *     summary: Get risk assessment by ID
+ *     description: Retrieve a risk assessment by its ID
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Assessment ID
+ *     responses:
+ *       200:
+ *         description: Assessment retrieved successfully
+ *       404:
+ *         description: Assessment not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/assessments/:id', requireAuth, controller.getRiskAssessment);
+
 // =====================================================
 // COMPLIANCE CHECKING
 // =====================================================
@@ -810,6 +1013,59 @@ router.post('/compliance/check', requireAuth, controller.checkCompliance);
  *         description: Server error
  */
 router.get('/compliance/booking/:bookingId', requireAuth, controller.getComplianceStatus);
+
+/**
+ * @swagger
+ * /risk-management/compliance/checks:
+ *   get:
+ *     summary: Get compliance checks
+ *     description: Retrieve a paginated list of compliance checks with filtering options
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *       - in: query
+ *         name: bookingId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: productId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: renterId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: complianceStatus
+ *         schema:
+ *           type: string
+ *           enum: [compliant, non_compliant, pending, grace_period, exempt]
+ *     responses:
+ *       200:
+ *         description: Compliance checks retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/compliance/checks', requireAuth, controller.getComplianceChecks);
 
 // =====================================================
 // POLICY VIOLATION MANAGEMENT
@@ -1024,6 +1280,203 @@ router.post('/violations', requireAuth, requireRole(['admin', 'super_admin', 'in
  */
 router.get('/violations', requireAuth, controller.getViolations);
 
+/**
+ * @swagger
+ * /risk-management/violations/{id}:
+ *   get:
+ *     summary: Get violation by ID
+ *     description: Retrieve a policy violation by its ID
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Violation ID
+ *     responses:
+ *       200:
+ *         description: Violation retrieved successfully
+ *       404:
+ *         description: Violation not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/violations/:id', requireAuth, controller.getViolation);
+
+/**
+ * @swagger
+ * /risk-management/violations/{id}:
+ *   put:
+ *     summary: Update a policy violation
+ *     description: Update violation details (severity, description, penalty, status)
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Violation ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               severity:
+ *                 type: string
+ *                 enum: [low, medium, high, critical]
+ *               description:
+ *                 type: string
+ *               penaltyAmount:
+ *                 type: number
+ *               status:
+ *                 type: string
+ *                 enum: [active, resolved, escalated]
+ *     responses:
+ *       200:
+ *         description: Violation updated successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Violation not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.put('/violations/:id', requireAuth, requireRole(['admin', 'super_admin', 'inspector']), controller.updateViolation);
+
+/**
+ * @swagger
+ * /risk-management/violations/{id}/assign:
+ *   patch:
+ *     summary: Assign violation to inspector
+ *     description: Assign a policy violation to an inspector for investigation
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Violation ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [inspectorId]
+ *             properties:
+ *               inspectorId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID of the inspector to assign the violation to
+ *     responses:
+ *       200:
+ *         description: Violation assigned successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Violation not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.patch('/violations/:id/assign', requireAuth, requireRole(['admin', 'super_admin', 'inspector']), controller.assignViolation);
+
+/**
+ * @swagger
+ * /risk-management/violations/{id}/resolve:
+ *   post:
+ *     summary: Resolve a policy violation
+ *     description: Mark a violation as resolved with resolution actions
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Violation ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - resolutionActions
+ *             properties:
+ *               resolutionActions:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Actions taken to resolve the violation
+ *               resolutionNotes:
+ *                 type: string
+ *                 description: Notes about the resolution
+ *     responses:
+ *       200:
+ *         description: Violation resolved successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Violation not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.post('/violations/:id/resolve', requireAuth, requireRole(['admin', 'super_admin', 'inspector']), controller.resolveViolation);
+
+/**
+ * @swagger
+ * /risk-management/violations/{id}:
+ *   delete:
+ *     summary: Delete a policy violation
+ *     description: Soft delete a policy violation (mark as deleted)
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Violation ID
+ *     responses:
+ *       200:
+ *         description: Violation deleted successfully
+ *       404:
+ *         description: Violation not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.delete('/violations/:id', requireAuth, requireRole(['admin', 'super_admin', 'inspector']), controller.deleteViolation);
+
 // =====================================================
 // AUTOMATED ENFORCEMENT
 // =====================================================
@@ -1079,6 +1532,404 @@ router.get('/violations', requireAuth, controller.getViolations);
  *         description: Server error
  */
 router.post('/enforce', requireAuth, requireRole(['admin', 'super_admin']), controller.triggerEnforcement);
+
+/**
+ * @swagger
+ * /risk-management/enforce/{actionId}:
+ *   post:
+ *     summary: Execute a specific enforcement action
+ *     description: Manually execute a pending enforcement action
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: actionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Enforcement action ID
+ *     responses:
+ *       200:
+ *         description: Enforcement action executed successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Enforcement action not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.post('/enforce/:actionId', requireAuth, requireRole(['admin', 'super_admin']), controller.executeEnforcementAction);
+
+/**
+ * @swagger
+ * /risk-management/enforce/{id}/approve:
+ *   patch:
+ *     summary: Approve enforcement action
+ *     description: Approve a pending enforcement action
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Enforcement action ID
+ *     responses:
+ *       200:
+ *         description: Enforcement action approved successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Enforcement action not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.patch('/enforce/:id/approve', requireAuth, requireRole(['admin', 'super_admin']), controller.approveEnforcementAction);
+
+/**
+ * @swagger
+ * /risk-management/enforce:
+ *   get:
+ *     summary: Get all enforcement actions with filters and pagination
+ *     description: Retrieve all enforcement actions with optional filters and pagination
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Items per page
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *             enum: [pending, executed, failed, cancelled]
+ *         description: Filter by status
+ *       - in: query
+ *         name: actionType
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *         description: Filter by action type
+ *       - in: query
+ *         name: bookingId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Filter by booking ID
+ *       - in: query
+ *         name: productId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Filter by product ID
+ *       - in: query
+ *         name: renterId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Filter by renter ID
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search in message and required action
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter by start date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter by end date
+ *     responses:
+ *       200:
+ *         description: Enforcement actions retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/enforce', requireAuth, requireRole(['admin', 'super_admin']), controller.getAllEnforcementActions);
+
+/**
+ * @swagger
+ * /risk-management/enforce/booking/{bookingId}:
+ *   get:
+ *     summary: Get enforcement actions for a booking
+ *     description: Retrieve all enforcement actions for a specific booking
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: bookingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Booking ID
+ *     responses:
+ *       200:
+ *         description: Enforcement actions retrieved successfully
+ *       404:
+ *         description: Booking not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/enforce/booking/:bookingId', requireAuth, controller.getEnforcementActions);
+
+// =====================================================
+// RISK MANAGEMENT CONFIGURATION
+// =====================================================
+
+/**
+ * @swagger
+ * /risk-management/configs:
+ *   post:
+ *     summary: Create risk management configuration
+ *     description: Create a new risk management configuration for a category/country combination
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [categoryId, countryId]
+ *             properties:
+ *               categoryId:
+ *                 type: string
+ *                 format: uuid
+ *               countryId:
+ *                 type: string
+ *                 format: uuid
+ *               lowRiskThreshold:
+ *                 type: integer
+ *                 default: 30
+ *               mediumRiskThreshold:
+ *                 type: integer
+ *                 default: 60
+ *               highRiskThreshold:
+ *                 type: integer
+ *                 default: 85
+ *               criticalRiskThreshold:
+ *                 type: integer
+ *                 default: 95
+ *               enforcementLevel:
+ *                 type: string
+ *                 enum: [lenient, moderate, strict, very_strict]
+ *               autoEnforcement:
+ *                 type: boolean
+ *                 default: true
+ *               gracePeriodHours:
+ *                 type: integer
+ *                 default: 24
+ *               mandatoryInsurance:
+ *                 type: boolean
+ *                 default: false
+ *               minCoverageAmount:
+ *                 type: number
+ *               mandatoryInspection:
+ *                 type: boolean
+ *                 default: false
+ *               inspectionTypes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               inspectionDeadlineHours:
+ *                 type: integer
+ *                 default: 24
+ *     responses:
+ *       201:
+ *         description: Risk management config created successfully
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.post('/configs', requireAuth, requireRole(['admin', 'super_admin']), controller.createRiskManagementConfig);
+
+/**
+ * @swagger
+ * /risk-management/configs/{categoryId}/{countryId}:
+ *   get:
+ *     summary: Get risk management configuration
+ *     description: Retrieve risk management configuration for a category/country combination
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: categoryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Category ID
+ *       - in: path
+ *         name: countryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Country ID
+ *     responses:
+ *       200:
+ *         description: Risk management config retrieved successfully
+ *       404:
+ *         description: Config not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/configs/:categoryId/:countryId', requireAuth, controller.getRiskManagementConfig);
+
+/**
+ * @swagger
+ * /risk-management/configs:
+ *   get:
+ *     summary: Get all risk management configurations
+ *     description: Retrieve paginated list of risk management configurations
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *       - in: query
+ *         name: categoryId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: countryId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: Risk management configs retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/configs', requireAuth, requireRole(['admin', 'super_admin']), controller.getRiskManagementConfigs);
+
+/**
+ * @swagger
+ * /risk-management/configs/{id}:
+ *   put:
+ *     summary: Update risk management configuration
+ *     description: Update an existing risk management configuration
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Config ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               lowRiskThreshold:
+ *                 type: integer
+ *               mediumRiskThreshold:
+ *                 type: integer
+ *               highRiskThreshold:
+ *                 type: integer
+ *               criticalRiskThreshold:
+ *                 type: integer
+ *               enforcementLevel:
+ *                 type: string
+ *                 enum: [lenient, moderate, strict, very_strict]
+ *               autoEnforcement:
+ *                 type: boolean
+ *               gracePeriodHours:
+ *                 type: integer
+ *               mandatoryInsurance:
+ *                 type: boolean
+ *               minCoverageAmount:
+ *                 type: number
+ *               mandatoryInspection:
+ *                 type: boolean
+ *               inspectionTypes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               inspectionDeadlineHours:
+ *                 type: integer
+ *               isActive:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Risk management config updated successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Config not found
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.put('/configs/:id', requireAuth, requireRole(['admin', 'super_admin']), controller.updateRiskManagementConfig);
 
 // =====================================================
 // STATISTICS AND ANALYTICS
@@ -1150,5 +2001,51 @@ router.post('/enforce', requireAuth, requireRole(['admin', 'super_admin']), cont
  *         description: Server error
  */
 router.get('/stats', requireAuth, requireRole(['admin', 'super_admin']), controller.getRiskManagementStats);
+
+/**
+ * @swagger
+ * /risk-management/trends:
+ *   get:
+ *     summary: Get risk management trends
+ *     description: Retrieve trend data for violations, compliance, and assessments
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [7d, 30d, 90d, 1y]
+ *           default: 30d
+ *         description: Time period for trends
+ *     responses:
+ *       200:
+ *         description: Trends retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/trends', requireAuth, requireRole(['admin', 'super_admin']), controller.getRiskManagementTrends);
+
+/**
+ * @swagger
+ * /risk-management/dashboard/widgets:
+ *   get:
+ *     summary: Get dashboard widgets data
+ *     description: Retrieve data for dashboard widgets including quick stats and recent items
+ *     tags: [Risk Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard widgets retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/dashboard/widgets', requireAuth, requireRole(['admin', 'super_admin']), controller.getDashboardWidgets);
 
 export default router;

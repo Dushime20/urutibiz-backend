@@ -83,13 +83,18 @@ export interface ComplianceCheck {
 
 export interface EnforcementAction {
   id: string;
+  bookingId?: string;
+  productId?: string;
+  renterId?: string;
   type: 'BLOCK_BOOKING' | 'REQUIRE_INSURANCE' | 'REQUIRE_INSPECTION' | 'SEND_NOTIFICATION' | 'ESCALATE';
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   message: string;
   requiredAction: string;
   deadline?: Date;
   executedAt?: Date;
+  executedBy?: string;
   status: 'PENDING' | 'EXECUTED' | 'FAILED' | 'CANCELLED';
+  createdAt?: Date;
 }
 
 export interface PolicyViolation {

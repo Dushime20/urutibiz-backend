@@ -44,6 +44,13 @@ export class ProductInspectionRepository extends OptimizedBaseRepository<Product
         owner_post_review_accepted_at: 'ownerPostReviewAcceptedAt',
         owner_dispute_raised: 'ownerDisputeRaised',
         owner_dispute_raised_at: 'ownerDisputeRaisedAt',
+        // Third-party inspection fields
+        is_third_party_inspection: 'isThirdPartyInspection',
+        inspection_score: 'inspectionScore',
+        overall_rating: 'overallRating',
+        public_report_id: 'publicReportId',
+        certification_level: 'certificationLevel',
+        category_criteria: 'categoryCriteria',
         created_at: 'createdAt',
         updated_at: 'updatedAt',
       };
@@ -55,7 +62,7 @@ export class ProductInspectionRepository extends OptimizedBaseRepository<Product
       });
       
       // Parse JSONB fields if they are strings (PostgreSQL JSONB should auto-parse, but handle edge cases)
-      const jsonbFields = ['ownerPreInspectionData', 'renterDiscrepancyData', 'renterPostInspectionData'];
+      const jsonbFields = ['ownerPreInspectionData', 'renterDiscrepancyData', 'renterPostInspectionData', 'categoryCriteria'];
       jsonbFields.forEach(field => {
         if (mapped[field] && typeof mapped[field] === 'string') {
           try {

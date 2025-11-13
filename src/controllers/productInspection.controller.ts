@@ -1345,7 +1345,9 @@ export class ProductInspectionController extends BaseController {
     // Parse request body
     const accepted = req.body.accepted === 'true' || req.body.accepted === true;
     const disputeRaised = req.body.disputeRaised === 'true' || req.body.disputeRaised === true;
+    const disputeType = req.body.disputeType || 'other';
     const disputeReason = req.body.disputeReason || '';
+    const disputeEvidence = req.body.disputeEvidence || ''; // Additional evidence/notes
     const confirmedAt = req.body.confirmedAt ? new Date(req.body.confirmedAt) : new Date();
 
     // Validate that either accepted or disputeRaised is true
@@ -1353,16 +1355,23 @@ export class ProductInspectionController extends BaseController {
       return ResponseHelper.error(res, 'Either accepted or disputeRaised must be true', 400);
     }
 
-    // If dispute is raised, require dispute reason
-    if (disputeRaised && !disputeReason.trim()) {
-      return ResponseHelper.error(res, 'Dispute reason is required when raising a dispute', 400);
+    // If dispute is raised, require dispute reason and type
+    if (disputeRaised) {
+      if (!disputeReason.trim()) {
+        return ResponseHelper.error(res, 'Dispute reason is required when raising a dispute', 400);
+      }
+      if (!disputeType) {
+        return ResponseHelper.error(res, 'Dispute type is required when raising a dispute', 400);
+      }
     }
 
     const reviewData = {
       accepted,
       disputeRaised,
+      disputeType: disputeRaised ? disputeType : undefined,
       disputeReason: disputeRaised ? disputeReason : undefined,
       disputeEvidence: disputeRaised && disputeEvidenceUrls.length > 0 ? disputeEvidenceUrls : undefined,
+      disputeEvidenceNotes: disputeRaised ? disputeEvidence : undefined, // Additional notes
       confirmedAt
     };
 

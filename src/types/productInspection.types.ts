@@ -7,7 +7,8 @@ export enum InspectionType {
   POST_RETURN = 'post_return',
   DAMAGE_ASSESSMENT = 'damage_assessment',
   POST_RENTAL_MAINTENANCE_CHECK = 'post_rental_maintenance_check',
-  QUALITY_VERIFICATION = 'quality_verification'
+  QUALITY_VERIFICATION = 'quality_verification',
+  THIRD_PARTY_PROFESSIONAL = 'third_party_professional' // Professional third-party inspection (like Dubizzle)
 }
 
 export enum InspectionStatus {
@@ -103,6 +104,14 @@ export interface ProductInspection {
   ownerPostReviewAcceptedAt?: Date;
   ownerDisputeRaised?: boolean;
   ownerDisputeRaisedAt?: Date;
+  
+  // Third-party professional inspection fields
+  isThirdPartyInspection?: boolean;
+  inspectionScore?: number; // 0-100 overall score
+  overallRating?: 'excellent' | 'good' | 'fair' | 'poor' | 'very_poor';
+  publicReportId?: string; // ID for public-facing report
+  certificationLevel?: string; // Inspector certification level
+  categoryCriteria?: any; // JSONB: Category-specific criteria scores
   
   // Related data (populated)
   product?: any;

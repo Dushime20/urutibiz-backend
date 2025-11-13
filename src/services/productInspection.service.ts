@@ -1442,7 +1442,8 @@ export class ProductInspectionService {
     disputeRaised?: boolean;
     disputeType?: string;
     disputeReason?: string;
-    disputeEvidence?: string[];
+    disputeEvidence?: string[]; // Photo URLs
+    disputeEvidenceNotes?: string; // Additional notes
     confirmedAt?: Date;
   }): Promise<ServiceResponse<ProductInspection>> {
     try {
@@ -1478,7 +1479,8 @@ export class ProductInspectionService {
             reason: data.disputeReason || '',
             evidence: JSON.stringify({
               photos: data.disputeEvidence || [],
-              notes: data.disputeReason || ''
+              reason: data.disputeReason || '',
+              additionalNotes: data.disputeEvidenceNotes || '' // Additional evidence/notes field
             }),
             raisedBy: ownerId,
             status: 'open' as any
@@ -1502,6 +1504,26 @@ export class ProductInspectionService {
       if (!updated.success) {
         console.error('[ProductInspectionService] Update failed:', updated.error);
         return { success: false, error: updated.error || 'Failed to submit owner post-review' };
+      }
+
+      // If owner accepts (no issue), close the rental/booking
+      if (data.accepted && !data.disputeRaised && updated.data) {
+        try {
+          const bookingId = updated.data.bookingId || updated.data.booking_id;
+          if (bookingId) {
+            const db = getDatabase();
+            await db('bookings')
+              .where({ id: bookingId })
+              .update({
+                status: 'completed',
+                updated_at: new Date()
+              });
+            console.log(`[ProductInspectionService] Booking ${bookingId} closed after owner accepted post-inspection`);
+          }
+        } catch (bookingError) {
+          console.error('[ProductInspectionService] Error closing booking:', bookingError);
+          // Continue even if booking update fails - inspection is already updated
+        }
       }
 
       // Send notifications (don't fail if notification fails)

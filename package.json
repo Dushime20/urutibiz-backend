@@ -19,6 +19,7 @@
     "db:migrate": "knex migrate:latest",
     "db:rollback": "knex migrate:rollback",
     "db:seed": "knex seed:run",
+    "seed:inspector": "ts-node -r tsconfig-paths/register seed-inspector.ts",
     "db:reset": "npm run db:rollback && npm run db:migrate && npm run db:seed",
     "db:setup": "ts-node -r tsconfig-paths/register scripts/setup-database.ts",
     "db:test": "ts-node -r tsconfig-paths/register scripts/test-db-connection.ts",

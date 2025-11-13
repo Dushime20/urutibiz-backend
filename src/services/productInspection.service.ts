@@ -1440,6 +1440,7 @@ export class ProductInspectionService {
   async submitOwnerPostReview(inspectionId: string, data: {
     accepted: boolean;
     disputeRaised?: boolean;
+    disputeType?: string;
     disputeReason?: string;
     disputeEvidence?: string[];
     confirmedAt?: Date;
@@ -1467,11 +1468,33 @@ export class ProductInspectionService {
         ownerDisputeRaisedAt: data.disputeRaised ? new Date() : undefined
       };
 
-      // If dispute is raised, we might want to create a dispute record
+      // If dispute is raised, create a dispute record for inspector access
       if (data.disputeRaised) {
-        // Optionally create a dispute record in the disputes table
-        // For now, we'll just update the inspection fields
-        // The dispute can be handled through the existing dispute system if needed
+        try {
+          const ownerId = inspection.data.ownerId || inspection.data.owner_id;
+          const disputeData = {
+            inspectionId,
+            disputeType: data.disputeType || 'other',
+            reason: data.disputeReason || '',
+            evidence: JSON.stringify({
+              photos: data.disputeEvidence || [],
+              notes: data.disputeReason || ''
+            }),
+            raisedBy: ownerId,
+            status: 'open' as any
+          };
+
+          const disputeResult = await this.disputeRepo.create(disputeData);
+          if (disputeResult.success) {
+            console.log('[ProductInspectionService] Dispute record created:', disputeResult.data?.id);
+          } else {
+            console.warn('[ProductInspectionService] Failed to create dispute record:', disputeResult.error);
+            // Continue even if dispute record creation fails
+          }
+        } catch (disputeError) {
+          console.error('[ProductInspectionService] Error creating dispute record:', disputeError);
+          // Continue even if dispute record creation fails
+        }
       }
 
       const updated = await this.inspectionRepo.update(inspectionId, updateData);

@@ -27,7 +27,7 @@ const controller = ThirdPartyInspectionController;
  *         application/json:
  *           schema:
  *             type: object
- *             required: [productId, categoryId, scheduledAt]
+ *             required: [productId, categoryId, bookingId, scheduledAt]
  *             properties:
  *               productId:
  *                 type: string
@@ -35,6 +35,10 @@ const controller = ThirdPartyInspectionController;
  *               categoryId:
  *                 type: string
  *                 format: uuid
+ *               bookingId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Required - third-party inspections must be linked to a booking
  *               inspectorId:
  *                 type: string
  *                 format: uuid
@@ -185,6 +189,122 @@ router.get('/public-reports/:productId', controller.getPublicReport);
  *         description: Public reports retrieved successfully
  */
 router.get('/public-reports/:productId/all', controller.getPublicReports);
+
+/**
+ * @swagger
+ * /third-party-inspections/{id}/pay:
+ *   post:
+ *     summary: Process payment for inspection
+ *     description: Pay the required fees for a third-party inspection
+ *     tags: [Third-Party Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [paymentMethodId, amount, currency]
+ *             properties:
+ *               paymentMethodId:
+ *                 type: string
+ *                 format: uuid
+ *               amount:
+ *                 type: number
+ *               currency:
+ *                 type: string
+ *               provider:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Payment processed successfully
+ *       400:
+ *         description: Invalid request data or payment failed
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/:id/pay', requireAuth, controller.processInspectionPayment);
+
+/**
+ * @swagger
+ * /third-party-inspections/bookings/{productId}:
+ *   get:
+ *     summary: Get bookings for product owner
+ *     description: Retrieve bookings for a product to select one for inspection
+ *     tags: [Third-Party Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Bookings retrieved successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/bookings/:productId', requireAuth, controller.getOwnerBookings);
+
+/**
+ * @swagger
+ * /third-party-inspections/available-inspectors:
+ *   get:
+ *     summary: Get available inspectors for a category and location
+ *     description: Retrieve list of available inspectors that can perform inspection for a given category and location
+ *     tags: [Third-Party Inspections]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: categoryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: countryId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: region
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: latitude
+ *         schema:
+ *           type: number
+ *       - in: query
+ *         name: longitude
+ *         schema:
+ *           type: number
+ *       - in: query
+ *         name: preferredLanguage
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Available inspectors retrieved successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/available-inspectors', requireAuth, controller.getAvailableInspectors);
 
 export default router;
 

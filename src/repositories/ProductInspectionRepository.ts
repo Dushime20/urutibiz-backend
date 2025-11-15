@@ -137,6 +137,53 @@ export class ProductInspectionRepository extends OptimizedBaseRepository<Product
         updated_at: db.fn.now(),
       };
 
+      // Add third-party inspection fields
+      if ((data as any).isThirdPartyInspection !== undefined) {
+        payload.is_third_party_inspection = (data as any).isThirdPartyInspection;
+      }
+      if ((data as any).inspectionTier !== undefined) {
+        payload.inspection_tier = (data as any).inspectionTier;
+      }
+      if ((data as any).inspectionScore !== undefined) {
+        payload.inspection_score = (data as any).inspectionScore;
+      }
+      if ((data as any).totalPoints !== undefined) {
+        payload.total_points = (data as any).totalPoints;
+      }
+      if ((data as any).overallRating !== undefined) {
+        payload.overall_rating = (data as any).overallRating;
+      }
+      if ((data as any).publicReportId !== undefined) {
+        payload.public_report_id = (data as any).publicReportId;
+      }
+      if ((data as any).certificationLevel !== undefined) {
+        payload.certification_level = (data as any).certificationLevel;
+      }
+      if ((data as any).categoryCriteria !== undefined) {
+        payload.category_criteria = (data as any).categoryCriteria ? JSON.stringify((data as any).categoryCriteria) : null;
+      }
+      if ((data as any).inspectionCost !== undefined) {
+        payload.inspection_cost = (data as any).inspectionCost;
+      }
+      if ((data as any).currency !== undefined) {
+        payload.currency = (data as any).currency;
+      }
+      if ((data as any).countryId !== undefined) {
+        payload.country_id = (data as any).countryId;
+      }
+      if ((data as any).region !== undefined) {
+        payload.region = (data as any).region;
+      }
+      if ((data as any).timezone !== undefined) {
+        payload.timezone = (data as any).timezone;
+      }
+      if ((data as any).latitude !== undefined) {
+        payload.latitude = (data as any).latitude;
+      }
+      if ((data as any).longitude !== undefined) {
+        payload.longitude = (data as any).longitude;
+      }
+
       // Add new workflow fields only if they are provided (to avoid errors if migration hasn't run)
       // These fields will be added by the migration: 20250130_add_workflow_fields_to_product_inspections
       if ((data as any).ownerPreInspectionData !== undefined) {

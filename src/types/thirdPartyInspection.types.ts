@@ -240,6 +240,7 @@ export interface CreatePublicReportRequest {
 export interface ThirdPartyInspectionRequest {
   productId: string;
   categoryId: string;
+  bookingId: string; // Required - third-party inspections must be linked to a booking
   inspectorId?: string; // Optional - can be auto-assigned
   scheduledAt: Date;
   location?: string;

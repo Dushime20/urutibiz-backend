@@ -19,7 +19,8 @@ export type TransactionType =
   | 'partial_refund' 
   | 'platform_fee' 
   | 'insurance_payment' 
-  | 'delivery_fee';
+  | 'delivery_fee'
+  | 'inspection_fee'; // Payment for third-party inspection services
 
 export type PaymentProvider = 
   | 'stripe' 

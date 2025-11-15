@@ -17,7 +17,9 @@ import {
   OverallRating,
   InspectorAssignment,
   CreatePublicReportRequest,
-  InspectionTier
+  InspectionTier,
+  CertificationLevel,
+  CertificationType
 } from '@/types/thirdPartyInspection.types';
 import { InspectionType } from '@/types/productInspection.types';
 import { v4 as uuidv4 } from 'uuid';
@@ -57,6 +59,38 @@ export class ThirdPartyInspectionService {
         return { success: false, error: 'Product not found' };
       }
 
+      // Validate product ownership
+      if (product.owner_id !== ownerId) {
+        return { success: false, error: 'You can only request inspection for your own products' };
+      }
+
+      // Validate booking - REQUIRED for third-party inspections
+      if (!request.bookingId) {
+        return { success: false, error: 'Booking ID is required for third-party inspections' };
+      }
+
+      const booking = await db('bookings')
+        .where({ id: request.bookingId, product_id: request.productId })
+        .first();
+
+      if (!booking) {
+        return { success: false, error: 'Booking not found for this product' };
+      }
+
+      if (booking.owner_id !== ownerId) {
+        return { success: false, error: 'You can only request inspection for your own bookings' };
+      }
+
+      const renterId = booking.renter_id;
+      if (!renterId) {
+        return { success: false, error: 'Booking does not have a valid renter' };
+      }
+
+      // Calculate inspection cost based on tier
+      const inspectionTier = request.inspectionTier || InspectionTier.STANDARD;
+      const currency = request.currency || 'USD';
+      const inspectionCost = this.calculateInspectionCost(inspectionTier, currency);
+
       // Get or assign inspector with location-based matching
       let inspectorId = request.inspectorId;
       if (!inspectorId) {
@@ -72,39 +106,47 @@ export class ThirdPartyInspectionService {
           }
         );
         if (!assignment) {
-          return { success: false, error: 'No available inspector found for this category and location' };
+          return { success: false, error: 'No available inspector found for this category and location. Please select an inspector manually or try a different category/location.' };
         }
         inspectorId = assignment.inspectorId;
+      } else {
+        // Validate that the selected inspector is valid for this category
+        const db = getDatabase();
+        const inspector = await db('users')
+          .where({ id: inspectorId, role: 'inspector' })
+          .first();
+        
+        if (!inspector) {
+          return { success: false, error: 'Selected inspector not found or is not a valid inspector' };
+        }
+
+        // Check if inspector has certification for this category (optional validation)
+        // This is a soft check - we allow the inspection to proceed even if certification doesn't match exactly
+        // The inspector can still perform the inspection
       }
 
       // Create inspection with international fields
       const inspectionData: any = {
         id: uuidv4(),
         productId: request.productId,
-        bookingId: null, // Third-party inspections don't require booking
+        bookingId: request.bookingId, // Required for third-party inspections
         inspectorId: inspectorId,
         ownerId: ownerId,
-        renterId: null,
+        renterId: renterId, // Required - comes from booking
         inspectionType: InspectionType.THIRD_PARTY_PROFESSIONAL,
-        status: 'pending',
+        status: 'pending_payment', // Initial status requires payment
         scheduledAt: request.scheduledAt,
         inspectionLocation: request.location,
         generalNotes: request.notes,
         isThirdPartyInspection: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        inspectionCost: inspectionCost.amount,
+        currency: inspectionCost.currency
+        // Note: createdAt and updatedAt are handled by the repository
       };
 
       // Add Dubizzle inspection tier (standard 120-point or advanced 240-point)
-      if (request.inspectionTier) {
-        inspectionData.inspectionTier = request.inspectionTier;
-        // Set total points based on tier (Dubizzle model)
-        inspectionData.totalPoints = request.inspectionTier === InspectionTier.ADVANCED ? 240 : 120;
-      } else {
-        // Default to standard if not specified
-        inspectionData.inspectionTier = InspectionTier.STANDARD;
-        inspectionData.totalPoints = 120;
-      }
+      inspectionData.inspectionTier = inspectionTier;
+      inspectionData.totalPoints = inspectionTier === InspectionTier.ADVANCED ? 240 : 120;
 
       // Add international/global fields
       if (request.countryId) inspectionData.countryId = request.countryId;
@@ -112,18 +154,35 @@ export class ThirdPartyInspectionService {
       if (request.timezone) inspectionData.timezone = request.timezone;
       if (request.latitude !== undefined) inspectionData.latitude = request.latitude;
       if (request.longitude !== undefined) inspectionData.longitude = request.longitude;
-      if (request.currency) inspectionData.currency = request.currency;
-      if (request.inspectionCost !== undefined) inspectionData.inspectionCost = request.inspectionCost;
+
+      console.log('[ThirdPartyInspectionService] Creating inspection with data:', {
+        productId: inspectionData.productId,
+        bookingId: inspectionData.bookingId,
+        inspectorId: inspectionData.inspectorId,
+        inspectionType: inspectionData.inspectionType,
+        status: inspectionData.status,
+        isThirdPartyInspection: inspectionData.isThirdPartyInspection,
+        inspectionTier: inspectionData.inspectionTier,
+        totalPoints: inspectionData.totalPoints,
+        inspectionCost: inspectionData.inspectionCost,
+        currency: inspectionData.currency
+      });
 
       const result = await this.inspectionRepo.create(inspectionData);
 
       if (!result.success) {
+        console.error('[ThirdPartyInspectionService] Failed to create inspection:', result.error);
         return { success: false, error: result.error || 'Failed to create inspection' };
       }
 
       return {
         success: true,
-        data: result.data
+        data: {
+          ...result.data,
+          paymentRequired: true,
+          inspectionCost: inspectionCost.amount,
+          currency: inspectionCost.currency
+        }
       };
     } catch (error) {
       console.error('[ThirdPartyInspectionService] Create inspection error:', error);
@@ -132,6 +191,24 @@ export class ThirdPartyInspectionService {
         error: (error as Error).message || 'Internal server error'
       };
     }
+  }
+
+  /**
+   * Calculate inspection cost based on tier and currency
+   */
+  private calculateInspectionCost(tier: InspectionTier, currency: string): { amount: number; currency: string } {
+    // Base costs in USD (can be adjusted based on currency conversion)
+    const baseCosts = {
+      [InspectionTier.STANDARD]: 50,
+      [InspectionTier.ADVANCED]: 100
+    };
+
+    // TODO: Add currency conversion logic here if needed
+    // For now, return base cost in requested currency
+    return {
+      amount: baseCosts[tier] || 50,
+      currency: currency
+    };
   }
 
   /**
@@ -662,6 +739,377 @@ export class ThirdPartyInspectionService {
       return {
         success: false,
         error: (error as Error).message
+      };
+    }
+  }
+
+  /**
+   * Process payment for inspection and update status
+   */
+  async processInspectionPayment(
+    inspectionId: string,
+    paymentData: {
+      paymentMethodId: string;
+      amount: number;
+      currency: string;
+      provider?: string;
+    },
+    userId: string
+  ): Promise<ServiceResponse<any>> {
+    try {
+      const db = getDatabase();
+      
+      // Get inspection
+      const inspection = await db('product_inspections')
+        .where({ id: inspectionId, owner_id: userId })
+        .first();
+
+      if (!inspection) {
+        return { success: false, error: 'Inspection not found or you do not have permission' };
+      }
+
+      if (inspection.status !== 'pending_payment') {
+        return { success: false, error: 'Inspection payment already processed or not in pending payment status' };
+      }
+
+      // Verify payment amount matches inspection cost
+      const expectedAmount = inspection.inspection_cost || 0;
+      if (Math.abs(paymentData.amount - expectedAmount) > 0.01) {
+        return { success: false, error: `Payment amount mismatch. Expected ${expectedAmount}, got ${paymentData.amount}` };
+      }
+
+      // Import payment service
+      const { PaymentTransactionService } = await import('@/services/PaymentTransactionService');
+      const paymentService = new PaymentTransactionService();
+
+      // Create payment transaction
+      const paymentResult = await paymentService.processPayment({
+        user_id: userId,
+        payment_method_id: paymentData.paymentMethodId,
+        amount: paymentData.amount,
+        currency: paymentData.currency as any,
+        transaction_type: 'inspection_fee',
+        provider: paymentData.provider as any,
+        metadata: {
+          inspection_id: inspectionId,
+          product_id: inspection.product_id,
+          booking_id: inspection.booking_id,
+          inspection_tier: inspection.inspection_tier
+        }
+      });
+
+      if (!paymentResult.success) {
+        return { success: false, error: paymentResult.error || 'Payment processing failed' };
+      }
+
+      // Update inspection status to 'pending' after successful payment
+      await db('product_inspections')
+        .where({ id: inspectionId })
+        .update({
+          status: 'pending',
+          updated_at: new Date()
+        });
+
+      // Get updated inspection
+      const updatedInspection = await db('product_inspections')
+        .where({ id: inspectionId })
+        .first();
+
+      return {
+        success: true,
+        data: {
+          inspection: updatedInspection,
+          payment: {
+            transaction_id: paymentResult.transaction_id,
+            status: paymentResult.status,
+            provider_transaction_id: paymentResult.provider_transaction_id
+          }
+        }
+      };
+    } catch (error) {
+      console.error('[ThirdPartyInspectionService] Payment error:', error);
+      return {
+        success: false,
+        error: (error as Error).message || 'Payment processing failed'
+      };
+    }
+  }
+
+  /**
+   * Get available inspectors for a category and location
+   */
+  async getAvailableInspectors(
+    categoryId: string,
+    locationParams?: {
+      countryId?: string;
+      region?: string;
+      latitude?: number;
+      longitude?: number;
+      preferredLanguage?: string;
+    }
+  ): Promise<ServiceResponse<InspectorAssignment[]>> {
+    try {
+      const db = getDatabase();
+      const category = await db('categories')
+        .where('id', categoryId)
+        .first();
+
+      if (!category) {
+        return { success: false, error: 'Category not found' };
+      }
+
+      // Map category to certification type
+      const certificationType = this.mapCategoryToCertificationType(category.name || category.title);
+      console.log(`[ThirdPartyInspectionService] Looking for inspectors with certification type: ${certificationType} for category: ${category.name || category.title}`);
+
+      // Find certified inspectors for this type
+      let certsResult = await this.certificationRepo.getByCertificationType(
+        certificationType,
+        undefined,
+        true
+      );
+
+      // If no specific certification found, fallback to general
+      if (!certsResult.success || !certsResult.data || certsResult.data.length === 0) {
+        console.log(`[ThirdPartyInspectionService] No inspectors found for ${certificationType}, trying general...`);
+        const generalCerts = await this.certificationRepo.getByCertificationType('general', undefined, true);
+        if (!generalCerts.success || !generalCerts.data || generalCerts.data.length === 0) {
+          console.log(`[ThirdPartyInspectionService] No general certifications found, falling back to all inspectors...`);
+          // Final fallback: return all inspectors with 'inspector' role if no certifications found
+          const allInspectors = await db('users')
+            .where('role', 'inspector')
+            .where('is_active', true)
+            .select('id', 'first_name', 'last_name', 'email')
+            .limit(50);
+          
+          console.log(`[ThirdPartyInspectionService] Found ${allInspectors.length} inspectors (fallback)`);
+          
+          if (allInspectors.length === 0) {
+            return { success: true, data: [] };
+          }
+
+          // Convert to InspectorAssignment format
+          const fallbackAssignments: InspectorAssignment[] = allInspectors.map((inspector: any) => ({
+            inspectorId: inspector.id,
+            inspectorName: `${inspector.first_name || ''} ${inspector.last_name || ''}`.trim() || inspector.email,
+            certificationLevel: CertificationLevel.CERTIFIED, // Default
+            certificationType: CertificationType.GENERAL, // Default
+            averageRating: 0,
+            totalInspections: 0,
+            internationallyRecognized: false
+          }));
+
+          return { success: true, data: fallbackAssignments };
+        }
+        certsResult = generalCerts;
+      }
+
+      if (!certsResult.data || certsResult.data.length === 0) {
+        console.log(`[ThirdPartyInspectionService] No certified inspectors found, falling back to all inspectors...`);
+        // Fallback: return all inspectors with 'inspector' role
+        const allInspectors = await db('users')
+          .where('role', 'inspector')
+          .where('is_active', true)
+          .select('id', 'first_name', 'last_name', 'email')
+          .limit(50);
+        
+        console.log(`[ThirdPartyInspectionService] Found ${allInspectors.length} inspectors (fallback)`);
+        
+        if (allInspectors.length === 0) {
+          return { success: true, data: [] };
+        }
+
+        // Convert to InspectorAssignment format
+        const fallbackAssignments: InspectorAssignment[] = allInspectors.map((inspector: any) => ({
+          inspectorId: inspector.id,
+          inspectorName: `${inspector.first_name || ''} ${inspector.last_name || ''}`.trim() || inspector.email,
+          certificationLevel: CertificationLevel.CERTIFIED, // Default
+          certificationType: CertificationType.GENERAL, // Default
+          averageRating: 0,
+          totalInspections: 0,
+          internationallyRecognized: false
+        }));
+
+        return { success: true, data: fallbackAssignments };
+      }
+
+      console.log(`[ThirdPartyInspectionService] Found ${certsResult.data.length} certified inspectors`);
+
+      // Filter by location if provided
+      let candidateInspectors = certsResult.data;
+      const assignments: InspectorAssignment[] = [];
+
+      if (locationParams) {
+        for (const cert of candidateInspectors) {
+          // Check country/region match
+          if (locationParams.countryId) {
+            const isValidForCountry = 
+              !cert.countryId || 
+              cert.countryId === locationParams.countryId || 
+              (cert.validCountries && cert.validCountries.includes(locationParams.countryId)) || 
+              cert.internationallyRecognized;
+
+            if (!isValidForCountry) {
+              continue;
+            }
+          }
+
+          // Check region match
+          if (locationParams.region && cert.region && cert.region !== locationParams.region) {
+            if (!cert.internationallyRecognized) {
+              continue;
+            }
+          }
+
+          // Get inspector details
+          const inspector = await db('users')
+            .where('id', cert.inspectorId)
+            .select('id', 'first_name', 'last_name', 'email')
+            .first();
+
+          if (!inspector) {
+            continue;
+          }
+
+          let distance: number | undefined;
+          
+          // Calculate distance if coordinates provided
+          if (locationParams.latitude && locationParams.longitude) {
+            const locationsResult = await this.locationRepo.findNearbyInspectors(
+              locationParams.latitude,
+              locationParams.longitude,
+              100, // 100km radius
+              locationParams.countryId,
+              50 // Limit to 50 nearby inspectors
+            );
+
+            if (locationsResult.success && locationsResult.data) {
+              const inspectorLocation = locationsResult.data.find(loc => loc.inspectorId === cert.inspectorId);
+              if (inspectorLocation) {
+                distance = inspectorLocation.distance;
+              }
+            }
+          }
+
+          assignments.push({
+            inspectorId: cert.inspectorId,
+            inspectorName: `${inspector.first_name || ''} ${inspector.last_name || ''}`.trim() || inspector.email,
+            certificationLevel: cert.certificationLevel,
+            certificationType: cert.certificationType,
+            averageRating: cert.averageRating || 0,
+            totalInspections: cert.totalInspections || 0,
+            specializations: cert.specializations,
+            distance,
+            countryId: cert.countryId,
+            region: cert.region,
+            internationallyRecognized: cert.internationallyRecognized,
+            languages: cert.specializations // Using specializations as languages for now
+          });
+        }
+      } else {
+        // No location filter - return all certified inspectors
+        for (const cert of candidateInspectors) {
+          const inspector = await db('users')
+            .where('id', cert.inspectorId)
+            .select('id', 'first_name', 'last_name', 'email')
+            .first();
+
+          if (!inspector) {
+            continue;
+          }
+
+          assignments.push({
+            inspectorId: cert.inspectorId,
+            inspectorName: `${inspector.first_name || ''} ${inspector.last_name || ''}`.trim() || inspector.email,
+            certificationLevel: cert.certificationLevel,
+            certificationType: cert.certificationType,
+            averageRating: cert.averageRating || 0,
+            totalInspections: cert.totalInspections || 0,
+            specializations: cert.specializations,
+            countryId: cert.countryId,
+            region: cert.region,
+            internationallyRecognized: cert.internationallyRecognized
+          });
+        }
+      }
+
+      // Sort by distance (if available), then by rating
+      assignments.sort((a, b) => {
+        if (a.distance !== undefined && b.distance !== undefined) {
+          return a.distance - b.distance;
+        }
+        if (a.distance !== undefined) return -1;
+        if (b.distance !== undefined) return 1;
+        return (b.averageRating || 0) - (a.averageRating || 0);
+      });
+
+      return { success: true, data: assignments };
+    } catch (error) {
+      console.error('[ThirdPartyInspectionService] Get available inspectors error:', error);
+      return {
+        success: false,
+        error: (error as Error).message || 'Failed to get available inspectors'
+      };
+    }
+  }
+
+  /**
+   * Get bookings for a product owner (to select booking for inspection)
+   */
+  async getOwnerBookings(productId: string, ownerId: string): Promise<ServiceResponse<any>> {
+    try {
+      const db = getDatabase();
+      
+      // Verify product ownership
+      const product = await db('products')
+        .where({ id: productId, owner_id: ownerId })
+        .first();
+
+      if (!product) {
+        return { success: false, error: 'Product not found or you do not have permission' };
+      }
+
+      // Get bookings where user is owner and product matches
+      const bookings = await db('bookings')
+        .where({ product_id: productId, owner_id: ownerId })
+        .whereIn('status', ['confirmed', 'in_progress', 'completed'])
+        .orderBy('created_at', 'desc')
+        .select(
+          'id',
+          'booking_number',
+          'status',
+          'start_date',
+          'end_date',
+          'renter_id',
+          'created_at',
+          'total_amount',
+          'payment_status'
+        );
+
+      // Get renter information for each booking
+      const bookingsWithRenter = await Promise.all(
+        bookings.map(async (booking) => {
+          const renter = await db('users')
+            .where({ id: booking.renter_id })
+            .select('id', 'first_name', 'last_name', 'email')
+            .first();
+
+          return {
+            ...booking,
+            renter: renter || null
+          };
+        })
+      );
+
+      return {
+        success: true,
+        data: bookingsWithRenter
+      };
+    } catch (error) {
+      console.error('[ThirdPartyInspectionService] Get owner bookings error:', error);
+      return {
+        success: false,
+        error: (error as Error).message || 'Failed to retrieve bookings'
       };
     }
   }

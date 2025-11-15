@@ -13,6 +13,7 @@ export enum InspectionType {
 
 export enum InspectionStatus {
   PENDING = 'pending',
+  PENDING_PAYMENT = 'pending_payment', // Payment required before inspection can proceed
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
   DISPUTED = 'disputed',

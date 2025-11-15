@@ -22,8 +22,8 @@ export class ThirdPartyInspectionController extends BaseController {
     const body = req.body as ThirdPartyInspectionRequest;
 
     // Validate required fields
-    if (!body.productId || !body.categoryId || !body.scheduledAt) {
-      return ResponseHelper.error(res, 'Missing required fields: productId, categoryId, scheduledAt', 400);
+    if (!body.productId || !body.categoryId || !body.scheduledAt || !body.bookingId) {
+      return ResponseHelper.error(res, 'Missing required fields: productId, categoryId, scheduledAt, bookingId', 400);
     }
 
     const result = await ThirdPartyInspectionService.createThirdPartyInspection(body, userId);
@@ -126,6 +126,86 @@ export class ThirdPartyInspectionController extends BaseController {
     }
 
     return ResponseHelper.success(res, 'Public reports retrieved successfully', result.data);
+  });
+
+  /**
+   * Process payment for inspection
+   * POST /api/v1/third-party-inspections/:id/pay
+   */
+  public processInspectionPayment = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (this.handleValidationErrors(req as any, res)) return;
+
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { paymentMethodId, amount, currency, provider } = req.body;
+
+    if (!paymentMethodId || !amount || !currency) {
+      return ResponseHelper.error(res, 'Missing required fields: paymentMethodId, amount, currency', 400);
+    }
+
+    const result = await ThirdPartyInspectionService.processInspectionPayment(
+      id,
+      { paymentMethodId, amount, currency, provider },
+      userId
+    );
+
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Payment processing failed', 400);
+    }
+
+    this.logAction('PROCESS_INSPECTION_PAYMENT', userId, id, { amount, currency });
+
+    return ResponseHelper.success(res, 'Inspection payment processed successfully', result.data);
+  });
+
+  /**
+   * Get bookings for product owner (to select booking for inspection)
+   * GET /api/v1/third-party-inspections/bookings/:productId
+   */
+  public getOwnerBookings = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { productId } = req.params;
+    const userId = req.user.id;
+
+    const result = await ThirdPartyInspectionService.getOwnerBookings(productId, userId);
+
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to retrieve bookings', 400);
+    }
+
+    return ResponseHelper.success(res, 'Bookings retrieved successfully', result.data);
+  });
+
+  /**
+   * Get available inspectors for a category and location
+   * GET /api/v1/third-party-inspections/available-inspectors
+   */
+  public getAvailableInspectors = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { categoryId, countryId, region, latitude, longitude, preferredLanguage } = req.query;
+
+    if (!categoryId) {
+      return ResponseHelper.error(res, 'Missing required parameter: categoryId', 400);
+    }
+
+    const locationParams = {
+      countryId: countryId as string | undefined,
+      region: region as string | undefined,
+      latitude: latitude ? parseFloat(latitude as string) : undefined,
+      longitude: longitude ? parseFloat(longitude as string) : undefined,
+      preferredLanguage: preferredLanguage as string | undefined
+    };
+
+    const result = await ThirdPartyInspectionService.getAvailableInspectors(
+      categoryId as string,
+      Object.keys(locationParams).some(key => locationParams[key as keyof typeof locationParams] !== undefined)
+        ? locationParams
+        : undefined
+    );
+
+    if (!result.success) {
+      return ResponseHelper.error(res, result.error || 'Failed to retrieve available inspectors', 400);
+    }
+
+    return ResponseHelper.success(res, 'Available inspectors retrieved successfully', result.data);
   });
 }
 

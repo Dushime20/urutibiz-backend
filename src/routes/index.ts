@@ -39,6 +39,7 @@ import systemRoutes from './system.routes';
 import testRoutes from './test.routes';
 import validationRoutes from './validation.routes';
 import walletRoutes from './wallet.routes';
+import thirdPartyInspectionRoutes from './thirdPartyInspection.routes';
 
 const router = Router();
 
@@ -117,6 +118,10 @@ router.use('/validate', validationRoutes);
 console.log('🔧 Mounting Wallet routes at /wallet');
 router.use('/wallet', walletRoutes);
 
+// Third-Party Inspection routes
+console.log('🔧 Mounting Third-Party Inspection routes at /third-party-inspections');
+router.use('/third-party-inspections', thirdPartyInspectionRoutes);
+
 // Placeholder routes - remove when actual routes are implemented
 router.get('/', (_req, res) => {
   res.status(200).json({
@@ -150,6 +155,7 @@ router.get('/', (_req, res) => {
       ai: '/api/v1/ai',
       admin: '/api/v1/admin',
       analytics: '/api/v1/analytics',
+      third_party_inspections: '/api/v1/third-party-inspections',
     },
   });
 });

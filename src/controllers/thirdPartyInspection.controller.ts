@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { BaseController } from './BaseController';
-import { ResponseHelper } from '@/utils/responseHelper';
+import { ResponseHelper } from '@/utils/response';
 import ThirdPartyInspectionService from '@/services/thirdPartyInspection.service';
 import { AuthenticatedRequest } from '@/types';
 import {

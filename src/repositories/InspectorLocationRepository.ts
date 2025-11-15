@@ -1,4 +1,4 @@
-import { OptimizedBaseRepository } from './OptimizedBaseRepository';
+import { OptimizedBaseRepository } from '@/repositories/BaseRepository.optimized';
 import { InspectorLocation, CreateInspectorLocationRequest } from '@/types/thirdPartyInspection.types';
 
 export class InspectorLocationRepository extends OptimizedBaseRepository<InspectorLocation> {

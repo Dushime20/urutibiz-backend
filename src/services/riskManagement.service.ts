@@ -14,6 +14,7 @@ import {
   RiskLevel,
   ComplianceStatus,
   EnforcementAction,
+  EnforcementLevel,
   RiskManagementStats
 } from '@/types/riskManagement.types';
 import { NotificationEngine } from '@/services/notification/NotificationEngine';
@@ -30,15 +31,15 @@ export class RiskManagementService {
   /**
    * Map risk level to valid enforcement level
    */
-  private mapRiskLevelToEnforcementLevel(riskLevel: string): string {
-    const mapping = {
-      'low': 'lenient',
-      'medium': 'moderate', 
-      'high': 'strict',
-      'critical': 'very_strict'
+  private mapRiskLevelToEnforcementLevel(riskLevel: string): EnforcementLevel {
+    const mapping: Record<string, EnforcementLevel> = {
+      'low': EnforcementLevel.LENIENT,
+      'medium': EnforcementLevel.MODERATE, 
+      'high': EnforcementLevel.STRICT,
+      'critical': EnforcementLevel.VERY_STRICT
     };
     
-    return mapping[riskLevel.toLowerCase() as keyof typeof mapping] || 'moderate';
+    return mapping[riskLevel.toLowerCase()] || EnforcementLevel.MODERATE;
   }
 
   /**
@@ -901,7 +902,7 @@ export class RiskManagementService {
             severity: 'HIGH',
             message: 'Insurance is mandatory for this product',
             requiredAction: 'Purchase insurance coverage',
-            deadline: new Date(Date.now() + profile.complianceDeadlineHours * 60 * 60 * 1000),
+            deadline: new Date(Date.now() + (profile.mandatoryRequirements?.complianceDeadlineHours || 72) * 60 * 60 * 1000),
             status: 'PENDING'
           };
           enforcementActions.push(action);
@@ -923,7 +924,7 @@ export class RiskManagementService {
             severity: 'HIGH',
             message: 'Inspection is mandatory for this product',
             requiredAction: 'Schedule and complete inspection',
-            deadline: new Date(Date.now() + profile.complianceDeadlineHours * 60 * 60 * 1000),
+            deadline: new Date(Date.now() + (profile.mandatoryRequirements?.complianceDeadlineHours || 72) * 60 * 60 * 1000),
             status: 'PENDING'
           };
           enforcementActions.push(action);

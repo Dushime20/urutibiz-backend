@@ -31,15 +31,49 @@ export class AdminService {
       ]);
 
       return {
-        totalUsers: parseInt((totalUsers as any).count) || 0,
-        totalBookings: parseInt((totalBookings as any).count) || 0,
-        totalRevenue: parseFloat((totalRevenue as any).total) || 0,
-        activeProducts: parseInt((activeProducts as any).count) || 0,
-        pendingVerifications: parseInt((pendingVerifications as any).count) || 0,
-        recentBookings: parseInt((recentBookings as any).count) || 0,
-        recentUsers: parseInt((recentUsers as any).count) || 0,
-        timeframe,
-        generatedAt: new Date()
+        overview: {
+          totalUsers: parseInt((totalUsers as any).count) || 0,
+          totalProducts: parseInt((activeProducts as any).count) || 0,
+          totalBookings: parseInt((totalBookings as any).count) || 0,
+          totalRevenue: parseFloat((totalRevenue as any).total) || 0,
+          activeUsers: parseInt((recentUsers as any).count) || 0,
+          pendingApprovals: parseInt((pendingVerifications as any).count) || 0,
+          disputedBookings: 0, // TODO: Calculate from disputes table
+          platformGrowth: 0 // TODO: Calculate growth percentage
+        },
+        userMetrics: {
+          newUsersToday: 0,
+          newUsersThisWeek: 0,
+          newUsersThisMonth: parseInt((recentUsers as any).count) || 0,
+          usersByRole: [],
+          usersByStatus: [],
+          usersByCountry: []
+        },
+        productMetrics: {
+          newProductsToday: 0,
+          newProductsThisWeek: 0,
+          newProductsThisMonth: 0,
+          productsByCategory: [],
+          productsByStatus: [],
+          topPerformingProducts: []
+        },
+        bookingMetrics: {
+          bookingsToday: 0,
+          bookingsThisWeek: 0,
+          bookingsThisMonth: parseInt((recentBookings as any).count) || 0,
+          bookingsByStatus: [],
+          averageBookingValue: 0,
+          conversionRate: 0
+        },
+        financialMetrics: {
+          revenueToday: 0,
+          revenueThisWeek: 0,
+          revenueThisMonth: parseFloat((totalRevenue as any).total) || 0,
+          revenueThisYear: 0,
+          platformFees: 0,
+          payoutsPending: 0,
+          refundsProcessed: 0
+        }
       };
     } catch (error) {
       logger.error('Error fetching dashboard stats:', error);
@@ -502,7 +536,7 @@ export class AdminService {
   }
 
   private static async getBookingTrends(startDate: Date, granularity: string, endDate?: Date): Promise<any[]> {
-    const dateFormat = granularity === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM';
+    // const dateFormat = granularity === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM';
     let query = this.db('bookings')
       .select(this.db.raw(`DATE_TRUNC('${granularity}', created_at) as date`))
       .count('* as count')
@@ -518,7 +552,7 @@ export class AdminService {
   }
 
   private static async getUserGrowth(startDate: Date, granularity: string, endDate?: Date): Promise<any[]> {
-    const dateFormat = granularity === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM';
+    // const dateFormat = granularity === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM';
     let query = this.db('users')
       .select(this.db.raw(`DATE_TRUNC('${granularity}', created_at) as date`))
       .count('* as count')

@@ -20,7 +20,7 @@ import { configurePassport } from './config/passport';
 import { errorHandler } from './middleware/error.middleware';
 import { corsMiddleware } from './middleware/cors.middleware';
 import { securityMiddleware } from './middleware/security.middleware';
-import { rateLimitMiddleware } from './middleware/rateLimitMiddleware';
+// import { rateLimitMiddleware } from './middleware/rateLimitMiddleware'; // Commented out - not used
 import { loggingMiddleware } from './middleware/logging.middleware';
 
 // Import routes - will be loaded after database initialization
@@ -92,7 +92,7 @@ class App {
     this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
     
     // Serve Swagger JSON specification
-    this.app.get('/api-docs.json', (req, res) => {
+    this.app.get('/api-docs.json', (_req, res) => {
       res.setHeader('Content-Type', 'application/json');
       res.send(swaggerSpec);
     });

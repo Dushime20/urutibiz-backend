@@ -127,7 +127,7 @@ export class UserFavoritesController extends BaseController {
       const cached = favoritesCache.get(cacheKey);
       
       if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.FAVORITES_LIST * 1000) {
-        return this.formatPaginatedResponse(res, 'User favorites retrieved successfully (cached)', cached.data);
+        return this.formatFavoritesPaginatedResponse(res, 'User favorites retrieved successfully (cached)', cached.data);
       }
 
       const result = await userFavoritesService.getUserFavorites(userId, filters);
@@ -143,7 +143,7 @@ export class UserFavoritesController extends BaseController {
       });
 
       this.logAction('GET_FAVORITES', userId);
-      return this.formatPaginatedResponse(res, 'User favorites retrieved successfully', result.data!);
+      return this.formatFavoritesPaginatedResponse(res, 'User favorites retrieved successfully', result.data!);
 
     } catch (error: any) {
       logger.error('Error in getUserFavorites:', error);
@@ -373,7 +373,7 @@ export class UserFavoritesController extends BaseController {
   /**
    * Format paginated response for favorites
    */
-  private formatPaginatedResponse(res: Response, message: string, data: any): Response {
+  private formatFavoritesPaginatedResponse(res: Response, message: string, data: any): Response {
     return ResponseHelper.success(res, message, data.favorites, 200, {
       pagination: data.pagination
     });

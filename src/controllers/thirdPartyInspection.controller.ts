@@ -5,9 +5,7 @@ import ThirdPartyInspectionService from '@/services/thirdPartyInspection.service
 import { AuthenticatedRequest } from '@/types';
 import {
   ThirdPartyInspectionRequest,
-  CompleteThirdPartyInspectionRequest,
-  CreateCriteriaTemplateRequest,
-  CreateInspectorCertificationRequest
+  CompleteThirdPartyInspectionRequest
 } from '@/types/thirdPartyInspection.types';
 
 export class ThirdPartyInspectionController extends BaseController {

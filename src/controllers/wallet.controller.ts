@@ -1,5 +1,5 @@
-import { Request, Response } from 'express';
-import { AuthenticatedRequest } from '@/types/auth.types';
+import { Response } from 'express';
+import { AuthenticatedRequest } from '@/types';
 import { getDatabase } from '@/config/database';
 import { ResponseHelper } from '@/utils/response';
 
@@ -15,7 +15,8 @@ export class WalletController {
 
       // Check authorization - user can only view their own earnings, or admin can view anyone's
       if (authenticatedUserId !== ownerId && req.user?.role !== 'admin') {
-        return ResponseHelper.error(res, 'Access denied. You can only view your own earnings.', 403);
+        ResponseHelper.error(res, 'Access denied. You can only view your own earnings.', undefined, 403);
+        return;
       }
 
       const db = getDatabase();
@@ -149,7 +150,8 @@ export class WalletController {
 
       // Check authorization
       if (authenticatedUserId !== ownerId && req.user?.role !== 'admin') {
-        return ResponseHelper.error(res, 'Access denied', 403);
+        ResponseHelper.error(res, 'Access denied', undefined, 403);
+        return;
       }
 
       const db = getDatabase();

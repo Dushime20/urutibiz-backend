@@ -332,9 +332,10 @@ export class AIRecommendationService {
       return analytics;
     } catch (error) {
       console.error('❌ Error getting recommendation analytics:', error);
+      const err = error as Error;
       console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
+        message: err.message,
+        stack: err.stack,
         filters: { userId, timeRange }
       });
       throw new AIRecommendationError('Failed to get recommendation analytics');
@@ -464,7 +465,7 @@ export class AIRecommendationService {
 
   // Helper method for recording metrics
   
-  private async _generateCollaborativeFilteringRecommendations(
+  private async __generateCollaborativeFilteringRecommendations(
     userId: string,
     behaviorProfile: any,
     excludeProductIds: string[]
@@ -487,14 +488,14 @@ export class AIRecommendationService {
       return recommendations.slice(0, 3);
     } catch (error) {
       console.error('Error in collaborative filtering:', error);
-      return this.getFallbackRecommendations(userId, excludeProductIds, RecommendationType.COLLABORATIVE_FILTERING);
+      return this._getFallbackRecommendations(userId, excludeProductIds, RecommendationType.COLLABORATIVE_FILTERING);
     }
   }
 
   /**
    * Improved content-based recommendations
    */
-  private async _generateContentBasedRecommendations(
+  private async __generateContentBasedRecommendations(
     userId: string,
     behaviorProfile: any,
     excludeProductIds: string[]
@@ -525,7 +526,7 @@ export class AIRecommendationService {
   /**
    * Improved behavior-based recommendations
    */
-  private async _generateBehaviorBasedRecommendations(
+  private async __generateBehaviorBasedRecommendations(
     userId: string,
     behaviorProfile: any,
     excludeProductIds: string[]
@@ -556,7 +557,7 @@ export class AIRecommendationService {
   /**
    * Improved trending recommendations
    */
-  private async _generateTrendingRecommendations(
+  private async __generateTrendingRecommendations(
     userId: string,
     excludeProductIds: string[]
   ): Promise<CreateAIRecommendationRequest[]> {

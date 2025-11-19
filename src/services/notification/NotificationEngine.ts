@@ -118,6 +118,10 @@ export class NotificationEngine extends EventEmitter {
         throw new Error(notification.error || 'Failed to create notification record');
       }
 
+      if (!notification.data) {
+        throw new Error('Notification data is missing');
+      }
+
       // Send through all channels
       const channelResults = await this.sendThroughChannels(notification.data, channels, payload);
       
@@ -136,7 +140,7 @@ export class NotificationEngine extends EventEmitter {
         errors: hasFailures ? Object.values(channelResults)
           .filter(r => !r.success)
           .map(r => r.error)
-          .filter(Boolean) : undefined
+          .filter((error): error is string => Boolean(error)) : undefined
       };
 
       this.emit('notification:sent', result);
@@ -145,13 +149,28 @@ export class NotificationEngine extends EventEmitter {
       return result;
 
     } catch (error) {
-      this.logger.error('Failed to send notification', { error: error.message, payload });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Failed to send notification', { error: errorMessage, payload });
       this.emit('notification:error', { error, payload });
+      
+      // Create empty channel results with all required channels
+      const emptyChannelResults: Record<NotificationChannel, {
+        success: boolean;
+        messageId?: string;
+        error?: string;
+        deliveredAt?: Date;
+      }> = {
+        [NotificationChannel.EMAIL]: { success: false, error: errorMessage },
+        [NotificationChannel.SMS]: { success: false, error: errorMessage },
+        [NotificationChannel.PUSH]: { success: false, error: errorMessage },
+        [NotificationChannel.WEBHOOK]: { success: false, error: errorMessage },
+        [NotificationChannel.IN_APP]: { success: false, error: errorMessage }
+      };
       
       return {
         success: false,
-        channelResults: {},
-        errors: [error.message]
+        channelResults: emptyChannelResults,
+        errors: [errorMessage]
       };
     }
   }
@@ -187,7 +206,8 @@ export class NotificationEngine extends EventEmitter {
       return await this.sendNotification(payload);
 
     } catch (error) {
-      this.logger.error('Failed to send templated notification', { error: error.message, templateName });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Failed to send templated notification', { error: errorMessage, templateName });
       throw error;
     }
   }
@@ -208,7 +228,7 @@ export class NotificationEngine extends EventEmitter {
         scheduledAt
       });
 
-      if (!notification.success) {
+      if (!notification.success || !notification.data) {
         throw new Error('Failed to schedule notification');
       }
 
@@ -221,8 +241,9 @@ export class NotificationEngine extends EventEmitter {
       return { success: true, notificationId: notification.data.id };
 
     } catch (error) {
-      this.logger.error('Failed to schedule notification', { error: error.message });
-      return { success: false, error: error.message };
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Failed to schedule notification', { error: errorMessage });
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -244,11 +265,27 @@ export class NotificationEngine extends EventEmitter {
           errors.push(`Failed to send notification to ${payload.recipientId}: ${result.errors?.join(', ')}`);
         }
       } catch (error) {
-        errors.push(`Error sending notification to ${payload.recipientId}: ${error.message}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        errors.push(`Error sending notification to ${payload.recipientId}: ${errorMessage}`);
+        
+        // Create empty channel results with all required channels
+        const emptyChannelResults: Record<NotificationChannel, {
+          success: boolean;
+          messageId?: string;
+          error?: string;
+          deliveredAt?: Date;
+        }> = {
+          [NotificationChannel.EMAIL]: { success: false, error: errorMessage },
+          [NotificationChannel.SMS]: { success: false, error: errorMessage },
+          [NotificationChannel.PUSH]: { success: false, error: errorMessage },
+          [NotificationChannel.WEBHOOK]: { success: false, error: errorMessage },
+          [NotificationChannel.IN_APP]: { success: false, error: errorMessage }
+        };
+        
         results.push({
           success: false,
-          channelResults: {},
-          errors: [error.message]
+          channelResults: emptyChannelResults,
+          errors: [errorMessage]
         });
       }
     }
@@ -271,23 +308,45 @@ export class NotificationEngine extends EventEmitter {
     try {
       const scheduledNotifications = await this.queueService.getDueNotifications();
       
-      for (const notification of scheduledNotifications) {
+      for (const queuedNotification of scheduledNotifications) {
         try {
-          await this.sendNotification(notification);
-          await this.queueService.markProcessed(notification.id);
+          // Fetch the actual notification data
+          const notification = await this.repository.findById(queuedNotification.notificationId);
+          if (!notification || !notification.data) {
+            throw new Error('Notification not found');
+          }
+
+          // Convert notification data to payload
+          const payload: NotificationPayload = {
+            type: notification.data.type,
+            recipientId: notification.data.recipientId,
+            title: notification.data.title,
+            message: notification.data.message,
+            data: notification.data.data,
+            priority: notification.data.priority,
+            channels: notification.data.channels,
+            scheduledAt: notification.data.scheduledAt,
+            expiresAt: notification.data.expiresAt,
+            metadata: notification.data.metadata
+          };
+
+          await this.sendNotification(payload);
+          await this.queueService.markProcessed(queuedNotification.id);
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
           this.logger.error('Failed to process scheduled notification', { 
-            notificationId: notification.id, 
-            error: error.message 
+            notificationId: queuedNotification.id, 
+            error: errorMessage 
           });
-          await this.queueService.markFailed(notification.id, error.message);
+          await this.queueService.markFailed(queuedNotification.id, errorMessage);
         }
       }
 
       this.logger.info('Processed scheduled notifications', { count: scheduledNotifications.length });
       
     } catch (error) {
-      this.logger.error('Failed to process scheduled notifications', { error: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Failed to process scheduled notifications', { error: errorMessage });
     }
   }
 
@@ -342,7 +401,8 @@ export class NotificationEngine extends EventEmitter {
     });
 
     this.on('notification:error', (data) => {
-      this.logger.error('Notification error event', { error: data.error.message });
+      const errorMessage = data.error instanceof Error ? data.error.message : String(data.error);
+      this.logger.error('Notification error event', { error: errorMessage });
     });
 
     this.on('notification:scheduled', (data) => {
@@ -363,34 +423,63 @@ export class NotificationEngine extends EventEmitter {
 
   private determineChannels(
     payload: NotificationPayload, 
-    preferences: any
+    _preferences: any
   ): NotificationChannel[] {
     // Use payload channels if specified, otherwise use user preferences
     if (payload.channels && payload.channels.length > 0) {
       return payload.channels;
     }
 
-    // Default channels based on notification type
-    const defaultChannels: Record<NotificationType, NotificationChannel[]> = {
+    // Default channels based on notification type - include all notification types
+    const defaultChannels: Partial<Record<NotificationType, NotificationChannel[]>> = {
       [NotificationType.INSPECTION_SCHEDULED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
       [NotificationType.INSPECTION_STARTED]: [NotificationChannel.PUSH, NotificationChannel.SMS],
       [NotificationType.INSPECTION_COMPLETED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      [NotificationType.INSPECTION_CANCELLED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      [NotificationType.INSPECTION_REMINDER]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
       [NotificationType.DISPUTE_RAISED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH, NotificationChannel.SMS],
       [NotificationType.DISPUTE_RESOLVED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      [NotificationType.DISPUTE_ESCALATED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH, NotificationChannel.SMS],
+      [NotificationType.BOOKING_CONFIRMED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      [NotificationType.BOOKING_CANCELLED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      [NotificationType.BOOKING_REMINDER]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      [NotificationType.PAYMENT_RECEIVED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      [NotificationType.PAYMENT_FAILED]: [NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH],
+      [NotificationType.PAYMENT_REMINDER]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      [NotificationType.SYSTEM_MAINTENANCE]: [NotificationChannel.EMAIL],
+      [NotificationType.SYSTEM_UPDATE]: [NotificationChannel.EMAIL],
+      [NotificationType.SECURITY_ALERT]: [NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH],
+      [NotificationType.ACCOUNT_VERIFIED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      [NotificationType.PASSWORD_RESET]: [NotificationChannel.EMAIL, NotificationChannel.SMS],
+      [NotificationType.PROFILE_UPDATED]: [NotificationChannel.EMAIL],
       [NotificationType.REMINDER]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
       [NotificationType.SYSTEM]: [NotificationChannel.EMAIL],
-      [NotificationType.SECURITY]: [NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH]
+      [NotificationType.SECURITY]: [NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH],
+      [NotificationType.RISK_COMPLIANCE_REQUIRED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      [NotificationType.RISK_ESCALATION]: [NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH],
+      [NotificationType.RISK_VIOLATION_DETECTED]: [NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH],
+      [NotificationType.RISK_VIOLATION_RESOLVED]: [NotificationChannel.EMAIL, NotificationChannel.PUSH]
     };
 
     return defaultChannels[payload.type] || [NotificationChannel.EMAIL];
   }
 
   private async sendThroughChannels(
-    notification: any,
+    _notification: any,
     channels: NotificationChannel[],
     payload: NotificationPayload
-  ): Promise<Record<NotificationChannel, any>> {
-    const results: Record<NotificationChannel, any> = {} as any;
+  ): Promise<Record<NotificationChannel, {
+    success: boolean;
+    messageId?: string;
+    error?: string;
+    deliveredAt?: Date;
+  }>> {
+    const results: Partial<Record<NotificationChannel, {
+      success: boolean;
+      messageId?: string;
+      error?: string;
+      deliveredAt?: Date;
+    }>> = {};
 
     const sendPromises = channels.map(async (channel) => {
       try {
@@ -407,7 +496,8 @@ export class NotificationEngine extends EventEmitter {
                 recipientEmail = user?.email || '';
                 this.logger.info('Fetched user email', { userId: payload.recipientId, email: recipientEmail });
               } catch (error) {
-                this.logger.error('Failed to fetch user email', { error: error.message, userId: payload.recipientId });
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                this.logger.error('Failed to fetch user email', { error: errorMessage, userId: payload.recipientId });
                 recipientEmail = '';
               }
             }
@@ -483,15 +573,31 @@ export class NotificationEngine extends EventEmitter {
         };
 
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         results[channel] = {
           success: false,
-          error: error.message
+          error: errorMessage
         };
       }
     });
 
     await Promise.all(sendPromises);
-    return results;
+    
+    // Ensure all channels are present in results
+    const allChannelResults: Record<NotificationChannel, {
+      success: boolean;
+      messageId?: string;
+      error?: string;
+      deliveredAt?: Date;
+    }> = {
+      [NotificationChannel.EMAIL]: results[NotificationChannel.EMAIL] || { success: false, error: 'Channel not used' },
+      [NotificationChannel.SMS]: results[NotificationChannel.SMS] || { success: false, error: 'Channel not used' },
+      [NotificationChannel.PUSH]: results[NotificationChannel.PUSH] || { success: false, error: 'Channel not used' },
+      [NotificationChannel.WEBHOOK]: results[NotificationChannel.WEBHOOK] || { success: false, error: 'Channel not used' },
+      [NotificationChannel.IN_APP]: results[NotificationChannel.IN_APP] || { success: false, error: 'Channel not used' }
+    };
+    
+    return allChannelResults;
   }
 }
 

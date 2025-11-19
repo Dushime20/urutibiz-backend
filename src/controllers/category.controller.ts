@@ -11,10 +11,13 @@ export default class CategoryController {
     }
   }
 
-  static async getCategoryById(req: Request, res: Response) {
+  static async getCategoryById(req: Request, res: Response): Promise<void> {
     const { id } = req.params;
     const category = await CategoryService.getCategoryById(id);
-    if (!category) return res.status(404).json({ error: 'Category not found' });
+    if (!category) {
+      res.status(404).json({ error: 'Category not found' });
+      return;
+    }
     res.json(category);
   }
 
@@ -23,18 +26,21 @@ export default class CategoryController {
     res.json(categories);
   }
 
-  static async updateCategory(req: Request, res: Response) {
+  static async updateCategory(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       const category = await CategoryService.updateCategory(id, req.body);
-      if (!category) return res.status(404).json({ error: 'Category not found' });
+      if (!category) {
+        res.status(404).json({ error: 'Category not found' });
+        return;
+      }
       res.json(category);
     } catch (err) {
       res.status(400).json({ error: 'Failed to update category', details: err instanceof Error ? err.message : String(err) });
     }
   }
 
-  static async deleteCategory(req: Request, res: Response) {
+  static async deleteCategory(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       const hardDelete = req.query.hard === 'true'; // Check for ?hard=true query parameter
@@ -42,7 +48,8 @@ export default class CategoryController {
       const success = await CategoryService.deleteCategory(id, hardDelete);
       
       if (!success) {
-        return res.status(404).json({ error: 'Category not found' });
+        res.status(404).json({ error: 'Category not found' });
+        return;
       }
       
       const message = hardDelete 
@@ -58,10 +65,11 @@ export default class CategoryController {
       const errorMessage = err instanceof Error ? err.message : String(err);
       
       if (errorMessage.includes('subcategories') || errorMessage.includes('products')) {
-        return res.status(400).json({ 
+        res.status(400).json({ 
           error: 'Cannot delete category', 
           details: errorMessage 
         });
+        return;
       }
       
       res.status(500).json({ 
@@ -71,13 +79,14 @@ export default class CategoryController {
     }
   }
 
-  static async restoreCategory(req: Request, res: Response) {
+  static async restoreCategory(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       const category = await CategoryService.restoreCategory(id);
       
       if (!category) {
-        return res.status(404).json({ error: 'Category not found' });
+        res.status(404).json({ error: 'Category not found' });
+        return;
       }
       
       res.json({ 

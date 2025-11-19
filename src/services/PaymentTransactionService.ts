@@ -105,6 +105,188 @@ export class PaymentTransactionService {
   }
 
   /**
+   * Get payment transactions for an inspector
+   * Filters by inspection_fee transactions where metadata.inspection_id 
+   * matches inspections assigned to the inspector
+   */
+  async getInspectorPayments(
+    inspectorId: string,
+    params?: {
+      page?: number;
+      limit?: number;
+      status?: PaymentStatus | PaymentStatus[];
+      startDate?: Date;
+      endDate?: Date;
+    }
+  ): Promise<{
+    transactions: PaymentTransactionData[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    stats: {
+      totalEarnings: number;
+      completedPayments: number;
+      pendingPayments: number;
+      thisMonthEarnings: number;
+    };
+  }> {
+    if (!inspectorId) {
+      throw new PaymentTransactionError('Inspector ID is required', 'INVALID_INSPECTOR_ID');
+    }
+
+    const db = getDatabase();
+    const page = params?.page || 1;
+    const limit = params?.limit || 50;
+    const offset = (page - 1) * limit;
+
+    // Build base query: Join payment_transactions with product_inspections
+    // where metadata->>'inspection_id' matches inspection.id
+    // and inspection.inspector_id = inspectorId
+    // Cast the extracted text to UUID to match pi.id type
+    let query = db('payment_transactions as pt')
+      .select('pt.*')
+      .join('product_inspections as pi', 'pt.id', '!=', 'pi.id') // Dummy join, we'll filter with whereRaw
+      .whereRaw("CAST(pt.metadata->>'inspection_id' AS UUID) = pi.id")
+      .where('pt.transaction_type', 'inspection_fee')
+      .where('pi.inspector_id', inspectorId);
+
+    // Apply status filter
+    if (params?.status) {
+      if (Array.isArray(params.status)) {
+        query = query.whereIn('pt.status', params.status);
+      } else {
+        query = query.where('pt.status', params.status);
+      }
+    }
+
+    // Apply date filters
+    if (params?.startDate) {
+      query = query.where('pt.created_at', '>=', params.startDate);
+    }
+    if (params?.endDate) {
+      query = query.where('pt.created_at', '<=', params.endDate);
+    }
+
+    // Get total count - build a separate query without select to avoid GROUP BY error
+    const countQuery = db('payment_transactions as pt')
+      .join('product_inspections as pi', 'pt.id', '!=', 'pi.id') // Dummy join, we'll filter with whereRaw
+      .whereRaw("CAST(pt.metadata->>'inspection_id' AS UUID) = pi.id")
+      .where('pt.transaction_type', 'inspection_fee')
+      .where('pi.inspector_id', inspectorId);
+
+    // Apply same filters as main query
+    if (params?.status) {
+      if (Array.isArray(params.status)) {
+        countQuery.whereIn('pt.status', params.status);
+      } else {
+        countQuery.where('pt.status', params.status);
+      }
+    }
+
+    if (params?.startDate) {
+      countQuery.where('pt.created_at', '>=', params.startDate);
+    }
+    if (params?.endDate) {
+      countQuery.where('pt.created_at', '<=', params.endDate);
+    }
+
+    const countResult = await countQuery.count('pt.id as count');
+    const total = Number(countResult[0]?.count || 0);
+
+    // Get paginated results
+    const transactions = await query
+      .orderBy('pt.created_at', 'desc')
+      .limit(limit)
+      .offset(offset);
+
+    // Parse metadata for each transaction
+    const parsedTransactions = transactions.map((t: any) => {
+      if (t.metadata) {
+        try {
+          if (typeof t.metadata === 'string') {
+            t.metadata = JSON.parse(t.metadata);
+          }
+        } catch (error) {
+          console.warn('⚠️ Warning: Could not parse metadata JSON:', t.metadata);
+          t.metadata = null;
+        }
+      }
+      return t as PaymentTransactionData;
+    });
+
+    // Calculate stats from all transactions (not just paginated ones)
+    // We need to get all completed transactions for accurate stats
+    const statsQuery = db('payment_transactions as pt')
+      .select('pt.*')
+      .join('product_inspections as pi', 'pt.id', '!=', 'pi.id') // Dummy join, we'll filter with whereRaw
+      .whereRaw("CAST(pt.metadata->>'inspection_id' AS UUID) = pi.id")
+      .where('pt.transaction_type', 'inspection_fee')
+      .where('pi.inspector_id', inspectorId);
+
+    if (params?.status) {
+      if (Array.isArray(params.status)) {
+        statsQuery.whereIn('pt.status', params.status);
+      } else {
+        statsQuery.where('pt.status', params.status);
+      }
+    }
+
+    // Apply date filters to stats query as well
+    if (params?.startDate) {
+      statsQuery.where('pt.created_at', '>=', params.startDate);
+    }
+    if (params?.endDate) {
+      statsQuery.where('pt.created_at', '<=', params.endDate);
+    }
+
+    const allTransactions = await statsQuery.orderBy('pt.created_at', 'desc');
+    
+    // Parse metadata for stats transactions
+    const parsedAllTransactions = allTransactions.map((t: any) => {
+      if (t.metadata) {
+        try {
+          if (typeof t.metadata === 'string') {
+            t.metadata = JSON.parse(t.metadata);
+          }
+        } catch (error) {
+          t.metadata = null;
+        }
+      }
+      return t as PaymentTransactionData;
+    });
+
+    const completedTransactions = parsedAllTransactions.filter(t => t.status === 'completed');
+    const totalEarnings = completedTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    
+    const thisMonth = new Date();
+    const thisMonthTransactions = completedTransactions.filter(t => {
+      const date = new Date(t.processed_at || t.created_at);
+      return date.getMonth() === thisMonth.getMonth() && 
+             date.getFullYear() === thisMonth.getFullYear();
+    });
+    const thisMonthEarnings = thisMonthTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    const pendingPayments = parsedAllTransactions.filter(t => 
+      t.status === 'pending' || t.status === 'processing'
+    ).length;
+
+    return {
+      transactions: parsedTransactions,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      stats: {
+        totalEarnings,
+        completedPayments: completedTransactions.length,
+        pendingPayments,
+        thisMonthEarnings
+      }
+    };
+  }
+
+  /**
    * Update a transaction
    */
   async updateTransaction(id: string, updates: UpdatePaymentTransactionData): Promise<PaymentTransactionData> {
@@ -166,7 +348,7 @@ export class PaymentTransactionService {
 
       // Create initial transaction record
       const transaction = await this.createTransaction({
-        user_id: request.user_id,
+        user_id: request.user_id!,
         booking_id: request.booking_id,
         payment_method_id: request.payment_method_id,
         amount: request.amount,
@@ -269,9 +451,9 @@ export class PaymentTransactionService {
       const finalStatuses: PaymentStatus[] = ['completed', 'failed', 'refunded', 'partially_refunded', 'cancelled'];
       const updateData: Partial<UpdatePaymentTransactionData> = {
         status: refundResult.status,
-        provider_transaction_id: refundResult.provider_transaction_id,
-        provider_response: JSON.stringify(refundResult.provider_response),
-        failure_reason: refundResult.failure_reason
+        provider_transaction_id: refundResult.providerTransactionId,
+        provider_response: JSON.stringify(refundResult.providerResponse),
+        failure_reason: refundResult.failureReason
       };
 
       // Set processed_at when status is final (required by database constraint)
@@ -296,7 +478,7 @@ export class PaymentTransactionService {
         refund_amount: refundAmount,
         status: refundResult.status,
         message: refundResult.status === 'completed' ? 'Refund processed successfully' : 'Refund failed',
-        error: refundResult.failure_reason
+        error: refundResult.failureReason
       };
     } catch (error) {
       console.error('Refund processing error:', error);
@@ -351,7 +533,7 @@ export class PaymentTransactionService {
     
     transactions.forEach(t => {
       // Handle null, undefined, or empty values
-      if (t.amount == null || t.amount === '') {
+      if (t.amount == null || (typeof t.amount === 'string' && t.amount === '')) {
         return;
       }
       
@@ -383,8 +565,6 @@ export class PaymentTransactionService {
     });
     
     const totalCount = transactions.length;
-    const completedCount = transactions.filter(t => t.status === 'completed').length;
-    const pendingCount = transactions.filter(t => t.status === 'pending').length;
     const averageAmount = totalCount > 0 ? totalAmount / totalCount : 0;
 
     // Status breakdown
@@ -424,21 +604,14 @@ export class PaymentTransactionService {
     }));
 
     return {
-      totalAmount, // Pending + Completed transactions (for reporting)
-      totalCount,
-      averageAmount,
-      // Additional amount breakdowns
-      completedAmount, // Only completed transactions
-      pendingAmount, // Only pending transactions
-      allStatusAmount, // All transactions regardless of status
-      completedCount, // Count of completed transactions
-      pendingCount, // Count of pending transactions
-      statusBreakdown,
-      providerBreakdown: providerBreakdown as Record<PaymentProvider, number>,
-      currencyBreakdown: currencyBreakdown as any,
-      transactionTypeBreakdown: transactionTypeBreakdown as Record<TransactionType, number>,
-      monthlyTrends, // For backward compatibility
-      trends // New enhanced trends with daily/monthly granularity and status breakdown
+      total_amount: totalAmount, // Pending + Completed transactions (for reporting)
+      total_count: totalCount,
+      average_amount: averageAmount,
+      status_breakdown: statusBreakdown,
+      provider_breakdown: providerBreakdown as Record<PaymentProvider, number>,
+      currency_breakdown: currencyBreakdown as any,
+      transaction_type_breakdown: transactionTypeBreakdown as Record<TransactionType, number>,
+      monthly_trends: monthlyTrends
     };
   }
 
@@ -735,15 +908,10 @@ export class PaymentTransactionService {
    */
   private getEmptyStats(): PaymentTransactionStats {
     return {
-      totalAmount: 0, // Pending + Completed transactions
-      totalCount: 0,
-      averageAmount: 0,
-      completedAmount: 0, // Only completed transactions
-      pendingAmount: 0, // Only pending transactions
-      allStatusAmount: 0, // All transactions regardless of status
-      completedCount: 0, // Count of completed transactions
-      pendingCount: 0, // Count of pending transactions
-      statusBreakdown: {
+      total_amount: 0, // Pending + Completed transactions
+      total_count: 0,
+      average_amount: 0,
+      status_breakdown: {
         pending: 0,
         processing: 0,
         completed: 0,
@@ -752,10 +920,10 @@ export class PaymentTransactionService {
         partially_refunded: 0,
         cancelled: 0
       },
-      providerBreakdown: {} as Record<PaymentProvider, number>,
-      currencyBreakdown: {} as any,
-      transactionTypeBreakdown: {} as Record<TransactionType, number>,
-      monthlyTrends: []
+      provider_breakdown: {} as Record<PaymentProvider, number>,
+      currency_breakdown: {} as any,
+      transaction_type_breakdown: {} as Record<TransactionType, number>,
+      monthly_trends: []
     };
   }
 
@@ -811,8 +979,8 @@ export class PaymentTransactionService {
     // Handle refunds - cancel booking if fully refunded (main payment transaction)
     if (transaction.status === 'refunded' && booking.status !== 'cancelled') {
       // Check if this is the main payment transaction
-      const isMainPayment = transaction.transaction_type === 'payment' || 
-                            transaction.transaction_type === 'deposit';
+      const isMainPayment = transaction.transaction_type === 'booking_payment' || 
+                            transaction.transaction_type === 'security_deposit';
       
       if (isMainPayment) {
         updateData.status = 'cancelled';

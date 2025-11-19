@@ -24,7 +24,9 @@ import {
   ReturnStatus,
   NotificationChannel,
   NotificationPriority,
-  NotificationStatus
+  NotificationStatus,
+  AccessoryItem,
+  MaintenanceItem
 } from '@/types/handoverReturn.types';
 
 export class HandoverReturnService {
@@ -172,7 +174,7 @@ export class HandoverReturnService {
         preHandoverPhotos: this.safeParseJsonArray(result.pre_handover_photos),
         postHandoverPhotos: this.safeParseJsonArray(result.post_handover_photos),
         conditionReport: this.safeParseJsonObject(result.condition_report),
-        accessoryChecklist: this.safeParseJsonArray(result.accessory_checklist),
+        accessoryChecklist: this.safeParseTypedArray<AccessoryItem>(result.accessory_checklist),
         ownerSignature: result.owner_signature,
         renterSignature: result.renter_signature,
         witnessId: result.witness_id,
@@ -428,10 +430,10 @@ export class HandoverReturnService {
         preReturnPhotos: this.safeParseJsonArray(result.pre_return_photos),
         postReturnPhotos: this.safeParseJsonArray(result.post_return_photos),
         conditionComparison: this.safeParseJsonObject(result.condition_comparison),
-        accessoryVerification: this.safeParseJsonArray(result.accessory_verification),
+        accessoryVerification: this.safeParseTypedArray<AccessoryItem>(result.accessory_verification),
         damageAssessment: result.damage_assessment ? this.safeParseJsonObject(result.damage_assessment) : undefined,
         cleaningAssessment: result.cleaning_assessment ? this.safeParseJsonObject(result.cleaning_assessment) : undefined,
-        maintenanceRequired: this.safeParseJsonArray(result.maintenance_required),
+        maintenanceRequired: result.maintenance_required ? this.safeParseTypedArray<MaintenanceItem>(result.maintenance_required) : undefined,
         ownerSignature: result.owner_signature,
         renterSignature: result.renter_signature,
         inspectorId: result.inspector_id,
@@ -911,9 +913,9 @@ export class HandoverReturnService {
       userId: handoverSession.renterId,
       handoverSessionId: handoverSession.id,
       type: 'reminder',
-      channel: 'push',
+      channel: NotificationChannel.PUSH,
       message: `Handover reminder: Your rental starts tomorrow at ${handoverSession.scheduledDateTime.toLocaleTimeString()}`,
-      priority: 'medium',
+      priority: NotificationPriority.MEDIUM,
       scheduledAt: reminderTime
     });
 
@@ -921,9 +923,9 @@ export class HandoverReturnService {
       userId: handoverSession.ownerId,
       handoverSessionId: handoverSession.id,
       type: 'reminder',
-      channel: 'push',
+      channel: NotificationChannel.PUSH,
       message: `Handover reminder: You have a handover scheduled tomorrow at ${handoverSession.scheduledDateTime.toLocaleTimeString()}`,
-      priority: 'medium',
+      priority: NotificationPriority.MEDIUM,
       scheduledAt: reminderTime
     });
   }
@@ -936,9 +938,9 @@ export class HandoverReturnService {
       userId: returnSession.renterId,
       returnSessionId: returnSession.id,
       type: 'reminder',
-      channel: 'push',
+      channel: NotificationChannel.PUSH,
       message: `Return reminder: Your rental ends tomorrow at ${returnSession.scheduledDateTime.toLocaleTimeString()}`,
-      priority: 'medium',
+      priority: NotificationPriority.MEDIUM,
       scheduledAt: reminderTime
     });
 
@@ -946,9 +948,9 @@ export class HandoverReturnService {
       userId: returnSession.ownerId,
       returnSessionId: returnSession.id,
       type: 'reminder',
-      channel: 'push',
+      channel: NotificationChannel.PUSH,
       message: `Return reminder: You have a return scheduled tomorrow at ${returnSession.scheduledDateTime.toLocaleTimeString()}`,
-      priority: 'medium',
+      priority: NotificationPriority.MEDIUM,
       scheduledAt: reminderTime
     });
   }
@@ -958,9 +960,9 @@ export class HandoverReturnService {
       userId: handoverSession.renterId,
       handoverSessionId: handoverSession.id,
       type: 'completion',
-      channel: 'push',
+      channel: NotificationChannel.PUSH,
       message: 'Handover completed successfully! Enjoy your rental.',
-      priority: 'high',
+      priority: NotificationPriority.HIGH,
       scheduledAt: new Date()
     });
 
@@ -968,9 +970,9 @@ export class HandoverReturnService {
       userId: handoverSession.ownerId,
       handoverSessionId: handoverSession.id,
       type: 'completion',
-      channel: 'push',
+      channel: NotificationChannel.PUSH,
       message: 'Handover completed successfully! Your item has been rented.',
-      priority: 'high',
+      priority: NotificationPriority.HIGH,
       scheduledAt: new Date()
     });
   }
@@ -980,9 +982,9 @@ export class HandoverReturnService {
       userId: returnSession.renterId,
       returnSessionId: returnSession.id,
       type: 'completion',
-      channel: 'push',
+      channel: NotificationChannel.PUSH,
       message: 'Return completed successfully! Thank you for using our platform.',
-      priority: 'high',
+      priority: NotificationPriority.HIGH,
       scheduledAt: new Date()
     });
 
@@ -990,9 +992,9 @@ export class HandoverReturnService {
       userId: returnSession.ownerId,
       returnSessionId: returnSession.id,
       type: 'completion',
-      channel: 'push',
+      channel: NotificationChannel.PUSH,
       message: 'Return completed successfully! Your item has been returned.',
-      priority: 'high',
+      priority: NotificationPriority.HIGH,
       scheduledAt: new Date()
     });
   }
@@ -1166,7 +1168,7 @@ export class HandoverReturnService {
         preHandoverPhotos: this.safeParseJsonArray(session.pre_handover_photos),
         postHandoverPhotos: this.safeParseJsonArray(session.post_handover_photos),
         conditionReport: this.safeParseJsonObject(session.condition_report),
-        accessoryChecklist: this.safeParseJsonArray(session.accessory_checklist),
+        accessoryChecklist: this.safeParseTypedArray<AccessoryItem>(session.accessory_checklist),
         ownerSignature: session.owner_signature,
         renterSignature: session.renter_signature,
         witnessId: session.witness_id,
@@ -1308,7 +1310,7 @@ export class HandoverReturnService {
         preReturnPhotos: this.safeParseJsonArray(session.pre_return_photos),
         postReturnPhotos: this.safeParseJsonArray(session.post_return_photos),
         conditionComparison: this.safeParseJsonObject(session.condition_comparison),
-        accessoryVerification: this.safeParseJsonArray(session.accessory_verification),
+        accessoryVerification: this.safeParseTypedArray<AccessoryItem>(session.accessory_verification),
         ownerSignature: session.owner_signature,
         renterSignature: session.renter_signature,
         witnessId: session.witness_id,
@@ -1351,6 +1353,31 @@ export class HandoverReturnService {
         } catch {
           // If not JSON, treat as comma-separated string
           return value.split(',').map((s: string) => s.trim());
+        }
+      } else {
+        return [];
+      }
+    } catch (error) {
+      return [];
+    }
+  }
+
+  /**
+   * Safely parse JSON array as typed array
+   */
+  private safeParseTypedArray<T>(value: any): T[] {
+    try {
+      if (Array.isArray(value)) {
+        return value as T[];
+      } else if (typeof value === 'string') {
+        if (!value || value.trim() === '') {
+          return [];
+        }
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed as T[] : [];
+        } catch {
+          return [];
         }
       } else {
         return [];

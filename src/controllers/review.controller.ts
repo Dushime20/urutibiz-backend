@@ -42,34 +42,38 @@ export class ReviewController {
       // Validate required fields before proceeding
       if (!reviewData.bookingId) {
         console.error('Missing bookingId in review data');
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'bookingId is required'
         });
+        return;
       }
 
       if (!reviewData.reviewedUserId) {
         console.error('Missing reviewedUserId in review data');
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'reviewedUserId is required'
         });
+        return;
       }
 
       if (!reviewData.overallRating) {
         console.error('Missing overallRating in review data');
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'overallRating is required'
         });
+        return;
       }
 
       if (!reviewData.reviewerId) {
         console.error('Missing reviewerId in review data');
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'reviewerId is required (user must be authenticated)'
         });
+        return;
       }
 
       console.log('Validated review data:', reviewData);

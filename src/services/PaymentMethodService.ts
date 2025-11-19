@@ -8,11 +8,8 @@ import {
   CreatePaymentMethodData,
   UpdatePaymentMethodData,
   PaymentMethodFilters,
-  CardValidationData,
-  MobileMoneyValidationData,
   PaymentMethodAnalytics,
-  PaymentMethodType,
-  PaymentProvider
+  PaymentMethodType
 } from '@/types/paymentMethod.types';
 
 class PaymentMethodService {
@@ -75,7 +72,8 @@ class PaymentMethodService {
    */
   async getDefaultByUserId(userId: string): Promise<{ success: boolean; data?: PaymentMethodData; error?: string }> {
     try {
-      const defaultMethod = await this.repository.findDefaultByUserId(userId);
+      const methods = await this.repository.findByUserId(userId);
+      const defaultMethod = methods.find(m => m.is_default);
       
       if (!defaultMethod) {
         return { success: false, error: 'No default payment method found' };
@@ -207,7 +205,7 @@ class PaymentMethodService {
         methods_by_currency: {}, // Could be implemented if needed
         verification_rate: stats.totalMethods > 0 ? (stats.verifiedCount / stats.totalMethods) * 100 : 0,
         default_methods_count: stats.defaultCount,
-        recently_added
+        recently_added: recentlyAdded
       };
 
       return { success: true, data: analytics };
@@ -243,53 +241,6 @@ class PaymentMethodService {
     }
   }
 
-  /**
-   * Validate card data
-   */
-  private validateCard(data: CardValidationData): { isValid: boolean; error?: string } {
-    // Basic card number validation (Luhn algorithm)
-    if (!this.isValidCardNumber(data.card_number)) {
-      return { isValid: false, error: 'Invalid card number' };
-    }
-
-    // Expiry date validation
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1;
-
-    if (data.exp_year < currentYear || (data.exp_year === currentYear && data.exp_month < currentMonth)) {
-      return { isValid: false, error: 'Card has expired' };
-    }
-
-    if (data.exp_month < 1 || data.exp_month > 12) {
-      return { isValid: false, error: 'Invalid expiry month' };
-    }
-
-    // CVV validation
-    if (!/^\d{3,4}$/.test(data.cvv)) {
-      return { isValid: false, error: 'Invalid CVV' };
-    }
-
-    return { isValid: true };
-  }
-
-  /**
-   * Validate mobile money data
-   */
-  private validateMobileMoney(data: MobileMoneyValidationData): { isValid: boolean; error?: string } {
-    // Phone number validation
-    if (!/^[+\d\s\-()]{10,15}$/.test(data.phone_number)) {
-      return { isValid: false, error: 'Invalid phone number format' };
-    }
-
-    // Provider validation
-    const validMobileProviders: PaymentProvider[] = ['mtn_momo', 'airtel_money'];
-    if (!validMobileProviders.includes(data.provider)) {
-      return { isValid: false, error: 'Invalid mobile money provider' };
-    }
-
-    return { isValid: true };
-  }
 
   /**
    * Validate payment method data
@@ -330,35 +281,6 @@ class PaymentMethodService {
     return { isValid: true };
   }
 
-  /**
-   * Luhn algorithm for card number validation
-   */
-  private isValidCardNumber(cardNumber: string): boolean {
-    const cleanNumber = cardNumber.replace(/\s/g, '');
-    
-    if (!/^\d+$/.test(cleanNumber) || cleanNumber.length < 13 || cleanNumber.length > 19) {
-      return false;
-    }
-
-    let sum = 0;
-    let isEven = false;
-
-    for (let i = cleanNumber.length - 1; i >= 0; i--) {
-      let digit = parseInt(cleanNumber[i]);
-
-      if (isEven) {
-        digit *= 2;
-        if (digit > 9) {
-          digit -= 9;
-        }
-      }
-
-      sum += digit;
-      isEven = !isEven;
-    }
-
-    return sum % 10 === 0;
-  }
 
   /**
    * Get card brand from card number

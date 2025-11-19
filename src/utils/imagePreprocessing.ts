@@ -35,7 +35,8 @@ export async function downloadAndPreprocessImage(url: string, size = 112): Promi
     
   } catch (error) {
     console.error(`❌ Image preprocessing failed for ${url}:`, error);
-    throw new Error(`Image preprocessing failed: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Image preprocessing failed: ${errorMessage}`);
   }
 }
 

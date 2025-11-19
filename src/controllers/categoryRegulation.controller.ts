@@ -370,7 +370,7 @@ export class CategoryRegulationController {
   /**
    * Get category regulation statistics
    */
-  static async getStats(req: Request, res: Response): Promise<void> {
+  static async getStats(_req: Request, res: Response): Promise<void> {
     try {
       const result = await CategoryRegulationService.getStats();
       

@@ -5,7 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 
-export const debugMiddleware = (req: Request, res: Response, next: NextFunction) => {
+export const debugMiddleware = (req: Request, _res: Response, next: NextFunction) => {
   // Only log for auth routes to avoid spam
   if (req.path.includes('/auth/')) {
     console.log('\n🔍 [DEBUG MIDDLEWARE] Request Details:');

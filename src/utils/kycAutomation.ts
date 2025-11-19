@@ -1,6 +1,6 @@
 // kycAutomation.ts - OCR and liveness integration with Tesseract.js
 
-import { createWorker, PSM } from 'tesseract.js';
+import { createWorker } from 'tesseract.js';
 import sharp from 'sharp';
 import axios from 'axios';
 
@@ -48,7 +48,7 @@ export async function runOcrOnImage(imageUrl: string): Promise<OCRResult> {
     // Configure Tesseract for fast document recognition
     await worker.setParameters({
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,:-/',
-      tessedit_pageseg_mode: '6', // Uniform block of text (faster than SINGLE_BLOCK)
+      tessedit_pageseg_mode: '6' as any, // Uniform block of text (faster than SINGLE_BLOCK) - using string to avoid type error
       tessedit_ocr_engine_mode: '1', // Neural nets LSTM only (faster)
       preserve_interword_spaces: '1',
       tessedit_do_invert: '0', // Skip inversion (faster)

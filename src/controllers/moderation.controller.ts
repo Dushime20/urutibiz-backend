@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { ModerationRule, ModerationConfig } from '@/types/moderation.types';
 import ModerationService from '@/services/moderation.service';
 import { ResponseHelper } from '@/utils/response';
 import logger from '@/utils/logger';
@@ -11,7 +10,7 @@ export default class ModerationController {
   /**
    * Get current moderation config
    */
-  static async getConfig(req: Request, res: Response) {
+  static async getConfig(_req: Request, res: Response) {
     try {
       const config = await ModerationService.getConfig();
       return ResponseHelper.success(res, 'Moderation configuration retrieved successfully', config);
@@ -37,7 +36,7 @@ export default class ModerationController {
   /**
    * List moderation rules
    */
-  static async listRules(req: Request, res: Response) {
+  static async listRules(_req: Request, res: Response) {
     try {
       const rules = await ModerationService.listRules();
       return ResponseHelper.success(res, 'Moderation rules retrieved successfully', rules);
@@ -89,7 +88,7 @@ export default class ModerationController {
   /**
    * Get moderation queue
    */
-  static async getQueue(req: Request, res: Response) {
+  static async getQueue(_req: Request, res: Response) {
     try {
       const queue = await ModerationService.getQueue();
       return ResponseHelper.success(res, 'Moderation queue retrieved successfully', queue);
@@ -102,7 +101,7 @@ export default class ModerationController {
   /**
    * Get moderation metrics
    */
-  static async getMetrics(req: Request, res: Response) {
+  static async getMetrics(_req: Request, res: Response) {
     try {
       const metrics = await ModerationService.getMetrics();
       return ResponseHelper.success(res, 'Moderation metrics retrieved successfully', metrics);
@@ -179,7 +178,7 @@ export default class ModerationController {
   }
 
   // ✅ NEW: Get moderation statistics
-  static async getModerationStats(req: Request, res: Response) {
+  static async getModerationStats(_req: Request, res: Response) {
     try {
       const stats = await ModerationService.getModerationStats();
       return ResponseHelper.success(res, 'Moderation statistics retrieved successfully', stats);

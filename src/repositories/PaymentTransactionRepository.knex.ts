@@ -214,7 +214,7 @@ export class PaymentTransactionRepository {
     limit: number;
     totalPages: number;
   }> {
-    const { page = 1, limit = 10, sortBy = 'created_at', sortOrder = 'desc', ...filters } = params;
+    const { page = 1, limit = 10, sort_by = 'created_at', sort_order = 'desc', ...filters } = params;
     const offset = (page - 1) * limit;
 
     // Build base query
@@ -242,7 +242,7 @@ export class PaymentTransactionRepository {
 
     // Get paginated results - use snake_case column names
     const transactions = await query
-      .orderBy(sortBy === 'createdAt' ? 'created_at' : sortBy, sortOrder)
+      .orderBy(sort_by, sort_order)
       .limit(limit)
       .offset(offset);
 
@@ -389,17 +389,23 @@ export class PaymentTransactionRepository {
     
     if (transactions.length === 0) return null;
 
-    const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
     const completedTransactions = transactions.filter(t => t.status === 'completed');
-    const completedAmount = completedTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const failedTransactions = transactions.filter(t => t.status === 'failed');
+    const pendingTransactions = transactions.filter(t => t.status === 'pending' || t.status === 'processing');
+    const totalCompletedAmount = completedTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const totalFailedAmount = failedTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const uniqueProviders = new Set(transactions.map(t => t.provider));
 
     return {
-      totalTransactions: transactions.length,
-      totalAmount,
-      completedTransactions: completedTransactions.length,
-      completedAmount,
-      averageAmount: totalAmount / transactions.length,
-      lastTransaction: transactions[0] // Already sorted by created_at desc
+      user_id: userId,
+      total_transactions: transactions.length,
+      completed_transactions: completedTransactions.length,
+      failed_transactions: failedTransactions.length,
+      pending_transactions: pendingTransactions.length,
+      total_completed_amount: totalCompletedAmount,
+      total_failed_amount: totalFailedAmount,
+      last_transaction_date: transactions[0]?.created_at || new Date(),
+      unique_providers_used: uniqueProviders.size
     };
   }
 

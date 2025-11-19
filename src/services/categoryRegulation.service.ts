@@ -138,7 +138,7 @@ export class CategoryRegulationService {
       const orderConditions: OrderItem[] = [[sort_by, sort_order.toUpperCase()]];
       
       // Include associations
-      const include = [
+      const include: any[] = [
         // Associations removed to avoid errors - model works independently
         // If you need category/country data, fetch it separately using Knex
       ];

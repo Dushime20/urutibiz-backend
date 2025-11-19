@@ -617,7 +617,7 @@ export class ThirdPartyInspectionService {
         success: true,
         data: {
           inspection: updateResult.data,
-          scores: scoresResult.data,
+          scores: scoresResult.data ?? [],
           publicReport: reportResult.success ? reportResult.data : undefined,
           template: template
         }
@@ -773,9 +773,65 @@ export class ThirdPartyInspectionService {
       }
 
       // Verify payment amount matches inspection cost
-      const expectedAmount = inspection.inspection_cost || 0;
-      if (Math.abs(paymentData.amount - expectedAmount) > 0.01) {
-        return { success: false, error: `Payment amount mismatch. Expected ${expectedAmount}, got ${paymentData.amount}` };
+      // Frontend handles all currency conversion in this global system
+      // The frontend converts the inspection cost to the payment currency before sending
+      const expectedAmount = Number(inspection.inspection_cost) || 0;
+      const inspectionCurrency = inspection.currency || 'USD';
+      const paymentAmount = Number(paymentData.amount);
+      
+      // Basic sanity check - payment amount must be positive
+      if (paymentAmount <= 0) {
+        return { 
+          success: false, 
+          error: `Invalid payment amount: ${paymentAmount}. Amount must be greater than 0.` 
+        };
+      }
+      
+      // Since frontend handles all currency conversion, we trust the converted amount
+      // Only do strict validation if currencies match
+      if (paymentData.currency === inspectionCurrency) {
+        // Same currency - direct comparison with strict tolerance
+        const tolerance = 0.01;
+        const difference = Math.abs(paymentAmount - expectedAmount);
+        if (difference > tolerance) {
+          return { 
+            success: false, 
+            error: `Payment amount mismatch. Expected ${expectedAmount.toFixed(2)} ${paymentData.currency}, got ${paymentAmount.toFixed(2)} ${paymentData.currency}` 
+          };
+        }
+      } else {
+        // Different currencies - frontend has already converted
+        // Trust the frontend's conversion completely (frontend handles all conversion)
+        // Just log for debugging/audit purposes
+        console.log(`Payment in different currency. Inspection: ${expectedAmount} ${inspectionCurrency}, Payment: ${paymentAmount} ${paymentData.currency} (frontend converted)`);
+        
+        // Optional: Try to verify conversion for logging only (don't fail if it doesn't match)
+        try {
+          const { ExchangeRatesService } = await import('@/services/localization/ExchangeRatesService');
+          const conversionResult = await ExchangeRatesService.convertCurrency(
+            expectedAmount,
+            inspectionCurrency,
+            paymentData.currency
+          );
+          
+          if (conversionResult.success && conversionResult.data) {
+            const backendConverted = Number(conversionResult.data.convertedAmount);
+            const difference = Math.abs(paymentAmount - backendConverted);
+            const percentageDiff = (difference / backendConverted) * 100;
+            
+            console.log(`Backend conversion check: ${expectedAmount} ${inspectionCurrency} = ${backendConverted} ${paymentData.currency}`);
+            console.log(`Frontend sent: ${paymentAmount} ${paymentData.currency} (difference: ${percentageDiff.toFixed(2)}%)`);
+            
+            // Only log if difference is significant (>10%)
+            if (percentageDiff > 10) {
+              console.warn(`Significant difference between frontend and backend conversion. This is expected if exchange rates differ.`);
+            }
+          }
+        } catch (error) {
+          // Conversion service unavailable - that's fine, we trust frontend
+          console.log(`Currency conversion service unavailable. Trusting frontend conversion: ${paymentAmount} ${paymentData.currency}`);
+        }
+        // Accept frontend's converted amount without validation
       }
 
       // Import payment service
@@ -985,8 +1041,13 @@ export class ThirdPartyInspectionService {
 
             if (locationsResult.success && locationsResult.data) {
               const inspectorLocation = locationsResult.data.find(loc => loc.inspectorId === cert.inspectorId);
-              if (inspectorLocation) {
-                distance = inspectorLocation.distance;
+              if (inspectorLocation && inspectorLocation.latitude && inspectorLocation.longitude && locationParams.latitude && locationParams.longitude) {
+                distance = this.calculateDistance(
+                  locationParams.latitude,
+                  locationParams.longitude,
+                  inspectorLocation.latitude,
+                  inspectorLocation.longitude
+                );
               }
             }
           }

@@ -2,7 +2,7 @@ import { BaseController } from './BaseController';
 import { ResponseHelper } from '@/utils/response';
 import HandoverReturnService from '@/services/handoverReturn.service';
 import { AuthenticatedRequest } from '@/types';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import {
   CreateHandoverSessionRequest,
   UpdateHandoverSessionRequest,

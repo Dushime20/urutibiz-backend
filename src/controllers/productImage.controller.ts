@@ -1,10 +1,7 @@
 import { Request, Response } from 'express';
 import ProductImageService from '@/services/productImage.service';
 import { ResponseHelper } from '@/utils/response';
-import multer from 'multer';
 import cloudinary from '@/config/cloudinary';
-
-const upload = multer({ dest: 'uploads/' });
 
 class ProductImageController {
   async create(req: Request, res: Response) {
@@ -66,7 +63,7 @@ class ProductImageController {
     return ResponseHelper.success(res, 'Images retrieved', result.data);
   }
 
-  async getAll(req: Request, res: Response) {
+  async getAll(_req: Request, res: Response) {
     const result = await ProductImageService.getAll();
     if (!result.success) {
       return res.status(500).json({ success: false, message: result.error || 'Failed to fetch images' });

@@ -133,16 +133,20 @@ export class ModerationActionModel {
       .count('* as count')
       .first();
 
+    const actionsByTypeResult: Record<string, number> = {};
+    actionsByType.forEach(item => {
+      actionsByTypeResult[String(item.action)] = Number(item.count);
+    });
+    
+    const actionsByResourceResult: Record<string, number> = {};
+    actionsByResource.forEach(item => {
+      actionsByResourceResult[String(item.resource_type)] = Number(item.count);
+    });
+    
     return {
       totalActions: Number(totalActions?.count || 0),
-      actionsByType: actionsByType.reduce((acc, item) => {
-        acc[item.action] = Number(item.count);
-        return acc;
-      }, {} as Record<string, number>),
-      actionsByResource: actionsByResource.reduce((acc, item) => {
-        acc[item.resource_type] = Number(item.count);
-        return acc;
-      }, {} as Record<string, number>),
+      actionsByType: actionsByTypeResult,
+      actionsByResource: actionsByResourceResult,
       recentActions: Number(recentActions?.count || 0)
     };
   }

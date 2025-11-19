@@ -7,7 +7,7 @@ import { PaymentTransactionService } from '../services/PaymentTransactionService
 import { 
   ProcessPaymentRequest, 
   RefundRequest, 
-  PaymentTransactionFilters 
+  PaymentTransactionSearchParams
 } from '../types/paymentTransaction.types';
 import { PaymentTransactionError, PaymentProviderError } from '../types/paymentTransaction.types';
 
@@ -84,27 +84,27 @@ export class PaymentTransactionController {
    */
   public getTransactions = async (req: Request, res: Response): Promise<void> => {
     try {
-      const searchParams: PaymentTransactionFilters = { // Assuming PaymentTransactionSearchParams is removed or replaced
+      const searchParams: PaymentTransactionSearchParams = {
         page: parseInt(req.query.page as string) || 1,
         limit: parseInt(req.query.limit as string) || 10,
-        sortBy: req.query.sortBy as any || 'createdAt',
-        sortOrder: req.query.sortOrder as 'asc' | 'desc' || 'desc',
+        sort_by: (req.query.sortBy as any) || 'id',
+        sort_order: (req.query.sortOrder as 'asc' | 'desc') || 'desc',
         search: req.query.search as string,
         
         // Filters
-        userId: req.query.userId as string,
-        bookingId: req.query.bookingId as string,
-        paymentMethodId: req.query.paymentMethodId as string,
-        transactionType: req.query.transactionType as any,
+        user_id: req.query.userId as string,
+        booking_id: req.query.bookingId as string,
+        payment_method_id: req.query.paymentMethodId as string,
+        transaction_type: req.query.transactionType as any,
         status: req.query.status as any,
         provider: req.query.provider as any,
         currency: req.query.currency as any,
-        amountMin: req.query.amountMin ? parseFloat(req.query.amountMin as string) : undefined,
-        amountMax: req.query.amountMax ? parseFloat(req.query.amountMax as string) : undefined,
-        createdAfter: req.query.createdAfter ? new Date(req.query.createdAfter as string) : undefined,
-        createdBefore: req.query.createdBefore ? new Date(req.query.createdBefore as string) : undefined,
-        processedAfter: req.query.processedAfter ? new Date(req.query.processedAfter as string) : undefined,
-        processedBefore: req.query.processedBefore ? new Date(req.query.processedBefore as string) : undefined
+        amount_min: req.query.amountMin ? parseFloat(req.query.amountMin as string) : undefined,
+        amount_max: req.query.amountMax ? parseFloat(req.query.amountMax as string) : undefined,
+        created_after: req.query.createdAfter ? new Date(req.query.createdAfter as string) : undefined,
+        created_before: req.query.createdBefore ? new Date(req.query.createdBefore as string) : undefined,
+        processed_after: req.query.processedAfter ? new Date(req.query.processedAfter as string) : undefined,
+        processed_before: req.query.processedBefore ? new Date(req.query.processedBefore as string) : undefined
       };
 
       const result = await this.service.getTransactions(searchParams);
@@ -140,6 +140,46 @@ export class PaymentTransactionController {
       });
     } catch (error) {
       this.handleError(res, error, 'Failed to retrieve user transactions');
+    }
+  };
+
+  /**
+   * Get payment transactions for an inspector
+   * GET /api/v1/payment-transactions/inspector/:inspectorId
+   */
+  public getInspectorPayments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { inspectorId } = req.params;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const status = req.query.status 
+        ? (Array.isArray(req.query.status) ? req.query.status : [req.query.status]) as any
+        : undefined;
+      const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+
+      const result = await this.service.getInspectorPayments(inspectorId, {
+        page,
+        limit,
+        status,
+        startDate,
+        endDate
+      });
+
+      res.json({
+        success: true,
+        data: result.transactions,
+        stats: result.stats,
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages
+        },
+        message: 'Inspector payments retrieved successfully'
+      });
+    } catch (error) {
+      this.handleError(res, error, 'Failed to retrieve inspector payments');
     }
   };
 
@@ -480,7 +520,7 @@ export class PaymentTransactionController {
         message: error.message,
         error: 'PAYMENT_PROVIDER_ERROR',
         provider: error.provider,
-        providerCode: error.providerCode,
+        providerCode: error.provider_code,
         details: error.details
       });
       return;

@@ -2,7 +2,7 @@ import { BaseController } from './BaseController';
 import { ResponseHelper } from '@/utils/response';
 import ProductInspectionService from '@/services/productInspection.service';
 import { AuthenticatedRequest } from '@/types';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { 
   CreateInspectionRequest,
   UpdateInspectionRequest,
@@ -166,7 +166,7 @@ export class ProductInspectionController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to create inspection', 400);
     }
 
-    this.logAction('CREATE_INSPECTION', req.user.id, result.data.id, { 
+    this.logAction('CREATE_INSPECTION', req.user.id, result.data?.id || '', { 
       ...inspectionData, 
       hasPreInspectionData: !!ownerPreInspectionData,
       photoCount: ownerPreInspectionData?.photos?.length || 0
@@ -277,7 +277,6 @@ export class ProductInspectionController extends BaseController {
    */
   public getInspectionDisputes = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
-    const userId = req.user.id;
 
     // Check if user can view this inspection
     const inspection = await ProductInspectionService.getInspectionById(id);
@@ -311,8 +310,8 @@ export class ProductInspectionController extends BaseController {
     }
 
     // Check authorization - only participants can view inspection
-    const inspection = result.data.inspection;
-    if (!this.canViewInspection(inspection, req.user)) {
+    const inspection = result.data?.inspection;
+    if (!inspection || !this.canViewInspection(inspection, req.user)) {
       return this.handleUnauthorized(res, 'Not authorized to view this inspection');
     }
 
@@ -499,7 +498,7 @@ export class ProductInspectionController extends BaseController {
       return this.handleNotFound(res, 'Inspection');
     }
 
-    if (!this.canUpdateInspection(currentInspection.data.inspection, req.user)) {
+    if (!currentInspection.data?.inspection || !this.canUpdateInspection(currentInspection.data.inspection, req.user)) {
       return this.handleUnauthorized(res, 'Not authorized to update this inspection');
     }
 
@@ -628,7 +627,7 @@ export class ProductInspectionController extends BaseController {
       return this.handleNotFound(res, 'Inspection');
     }
 
-    if (!this.canUpdateInspection(currentInspection.data.inspection, req.user)) {
+    if (!currentInspection.data?.inspection || !this.canUpdateInspection(currentInspection.data.inspection, req.user)) {
       return this.handleUnauthorized(res, 'Not authorized to update this inspection');
     }
 
@@ -700,7 +699,7 @@ export class ProductInspectionController extends BaseController {
     }
 
     // Only inspectors and admins can resolve disputes
-    if (!this.canResolveDispute(currentInspection.data.inspection, req.user)) {
+    if (!currentInspection.data?.inspection || !this.canResolveDispute(currentInspection.data.inspection, req.user)) {
       return this.handleUnauthorized(res, 'Not authorized to resolve disputes');
     }
 
@@ -842,7 +841,8 @@ export class ProductInspectionController extends BaseController {
       return ResponseHelper.error(res, 'Inspection not found', 404);
     }
 
-    if (inspection.data.ownerId !== userId) {
+    const inspectionData = (inspection.data as any).inspection || inspection.data;
+    if ((inspectionData as any).ownerId !== userId && (inspectionData as any).owner_id !== userId) {
       return ResponseHelper.error(res, 'Not authorized. Only the product owner can submit pre-inspection.', 403);
     }
 
@@ -910,7 +910,8 @@ export class ProductInspectionController extends BaseController {
       return ResponseHelper.error(res, 'Inspection not found', 404);
     }
 
-    if (inspection.data.ownerId !== userId) {
+    const inspectionData = (inspection.data as any).inspection || inspection.data;
+    if ((inspectionData as any).ownerId !== userId && (inspectionData as any).owner_id !== userId) {
       return ResponseHelper.error(res, 'Not authorized. Only the product owner can confirm pre-inspection.', 403);
     }
 
@@ -950,7 +951,7 @@ export class ProductInspectionController extends BaseController {
     const inspectionData = inspectionResult.data.inspection || inspectionResult.data;
     
     // Handle both camelCase and snake_case, and ensure string comparison
-    const inspectionRenterId = String(inspectionData.renterId || inspectionData.renter_id || '');
+    const inspectionRenterId = String(inspectionData.renterId || (inspectionData as any).renter_id || '');
     const currentUserId = String(userId || '');
     
     console.log('[ProductInspectionController] Authorization check:', {
@@ -960,9 +961,9 @@ export class ProductInspectionController extends BaseController {
       match: inspectionRenterId === currentUserId,
       inspectionData: {
         renterId: inspectionData.renterId,
-        renter_id: inspectionData.renter_id,
+        renter_id: (inspectionData as any).renter_id,
         ownerId: inspectionData.ownerId,
-        owner_id: inspectionData.owner_id
+        owner_id: (inspectionData as any).owner_id
       },
       fullInspectionResult: inspectionResult.data
     });
@@ -1023,7 +1024,7 @@ export class ProductInspectionController extends BaseController {
     const inspectionData = inspectionResult.data.inspection || inspectionResult.data;
     
     // Handle both camelCase and snake_case, and ensure string comparison
-    const inspectionRenterId = String(inspectionData.renterId || inspectionData.renter_id || '');
+    const inspectionRenterId = String(inspectionData.renterId || (inspectionData as any).renter_id || '');
     const currentUserId = String(userId || '');
     
     console.log('[ProductInspectionController] Report discrepancy authorization check:', {
@@ -1033,9 +1034,9 @@ export class ProductInspectionController extends BaseController {
       match: inspectionRenterId === currentUserId,
       inspectionData: {
         renterId: inspectionData.renterId,
-        renter_id: inspectionData.renter_id,
+        renter_id: (inspectionData as any).renter_id,
         ownerId: inspectionData.ownerId,
-        owner_id: inspectionData.owner_id
+        owner_id: (inspectionData as any).owner_id
       }
     });
 
@@ -1142,7 +1143,7 @@ export class ProductInspectionController extends BaseController {
     const inspectionData = inspectionResult.data.inspection || inspectionResult.data;
     
     // Handle both camelCase and snake_case, and ensure string comparison
-    const inspectionRenterId = String(inspectionData.renterId || inspectionData.renter_id || '');
+    const inspectionRenterId = String(inspectionData.renterId || (inspectionData as any).renter_id || '');
     const currentUserId = String(userId || '');
     
     console.log('[ProductInspectionController] Submit post-inspection authorization check:', {
@@ -1265,7 +1266,7 @@ export class ProductInspectionController extends BaseController {
     }
 
     const inspectionData = inspectionResult.data.inspection || inspectionResult.data;
-    const inspectionRenterId = String(inspectionData.renterId || inspectionData.renter_id || '');
+    const inspectionRenterId = String(inspectionData.renterId || (inspectionData as any).renter_id || '');
     const currentUserId = String(userId || '');
 
     if (inspectionRenterId !== currentUserId) {
@@ -1304,7 +1305,7 @@ export class ProductInspectionController extends BaseController {
     const inspectionData = inspectionResult.data.inspection || inspectionResult.data;
     
     // Handle both camelCase and snake_case, and ensure string comparison
-    const inspectionOwnerId = String(inspectionData.ownerId || inspectionData.owner_id || '');
+    const inspectionOwnerId = String(inspectionData.ownerId || (inspectionData as any).owner_id || '');
     const currentUserId = String(userId || '');
     
     console.log('[ProductInspectionController] Submit owner post-review authorization check:', {

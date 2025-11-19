@@ -11,7 +11,7 @@ const MODEL_PATH = path.join(__dirname, '../../models/face-api');
 async function ensureModelsLoaded() {
   await faceapi.nets.ssdMobilenetv1.loadFromDisk(MODEL_PATH);
   console.log('[face-api] ssdMobilenetv1 loaded');
-  await faceapi.nets.faceLandmark68Net.loadFromDisk(MODEL_PATH);
+  await faceapi.nets.faceLandmarkNet.loadFromDisk(MODEL_PATH);
   console.log('[face-api] faceLandmark68Net loaded');
   await faceapi.nets.faceRecognitionNet.loadFromDisk(MODEL_PATH);
   console.log('[face-api] faceRecognitionNet loaded');

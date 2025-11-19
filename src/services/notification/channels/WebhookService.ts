@@ -45,14 +45,15 @@ export class WebhookService {
       };
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to send webhook', { 
-        error: error.message, 
+        error: errorMessage, 
         url: payload.url 
       });
 
       return {
         success: false,
-        error: error.message
+        error: errorMessage
       };
     }
   }
@@ -74,9 +75,10 @@ export class WebhookService {
         });
         results.push(result);
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         results.push({
           success: false,
-          error: error.message
+          error: errorMessage
         });
       }
     }
@@ -93,7 +95,8 @@ export class WebhookService {
       const isHealthy = await this.checkHealth();
       return { connected: isHealthy };
     } catch (error) {
-      return { connected: false, error: error.message };
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { connected: false, error: errorMessage };
     }
   }
 
@@ -122,9 +125,10 @@ export class WebhookService {
       }
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       return { 
         success: false, 
-        error: error.message 
+        error: errorMessage 
       };
     }
   }
@@ -198,9 +202,10 @@ export class WebhookService {
         lastError = error as Error;
         
         if (attempt < maxRetries) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
           this.logger.warn(`Webhook attempt ${attempt} failed, retrying...`, {
             url: payload.url,
-            error: error.message,
+            error: errorMessage,
             attempt
           });
 

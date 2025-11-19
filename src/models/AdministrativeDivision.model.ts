@@ -56,7 +56,7 @@ export class AdministrativeDivisionModel {
     // Convert bounds to PostGIS POLYGON if provided
     if (cleanData.bounds) {
       const coordString = cleanData.bounds.coordinates[0]
-        .map(coord => `${coord[0]} ${coord[1]}`)
+        .map((coord: number[]) => `${coord[0]} ${coord[1]}`)
         .join(', ');
       divisionData.bounds = db.raw(
         `ST_GeomFromText('POLYGON((${coordString}))', 4326)`

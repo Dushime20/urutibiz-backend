@@ -25,7 +25,8 @@ export async function downloadImage(url: string): Promise<Buffer> {
     return Buffer.from(response.data);
   } catch (error) {
     console.error(`Failed to download image from ${url}:`, error);
-    throw new Error(`Image download failed: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Image download failed: ${errorMessage}`);
   }
 }
 

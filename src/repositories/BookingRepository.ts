@@ -5,7 +5,7 @@ import { getDatabase } from '@/config/database';
 
 class BookingRepository extends OptimizedBaseRepository<BookingData, CreateBookingData, UpdateBookingData> {
   protected readonly tableName = 'bookings';
-  protected readonly modelClass = Booking;
+  protected readonly modelClass = Booking as any;
   private knex = getDatabase();
   
   constructor() {
@@ -19,9 +19,9 @@ class BookingRepository extends OptimizedBaseRepository<BookingData, CreateBooki
     this.cacheKeyPrefix = 'booking';
   }
 
-  // Override create to remove features from payload
+  // Override create to remove features from payload if present
   async create(data: CreateBookingData) {
-    const { features, ...safeData } = data;
+    const { features, ...safeData } = data as any;
     return await super.create(safeData);
   }
 

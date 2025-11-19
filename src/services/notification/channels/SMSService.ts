@@ -43,14 +43,15 @@ export class SMSService {
       };
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to send SMS', { 
-        error: error.message, 
+        error: errorMessage, 
         to: payload.to 
       });
 
       return {
         success: false,
-        error: error.message
+        error: errorMessage
       };
     }
   }
@@ -72,9 +73,10 @@ export class SMSService {
         results.push(result);
 
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         results.push({
           success: false,
-          error: error.message
+          error: errorMessage
         });
       }
     }
@@ -91,7 +93,8 @@ export class SMSService {
       const isConnected = await this.checkConnection();
       return { connected: isConnected };
     } catch (error) {
-      return { connected: false, error: error.message };
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { connected: false, error: errorMessage };
     }
   }
 

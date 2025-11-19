@@ -4,7 +4,7 @@ import { getDatabase } from '@/config/database';
 // In-memory cache for view tracking (in production, use Redis)
 const viewTrackingCache = new Map<string, number>();
 
-export const trackProductView = async (req: Request, res: Response, next: NextFunction) => {
+export const trackProductView = async (req: Request, _res: Response, next: NextFunction) => {
   const { id: productId } = req.params;
   const userId = (req as any).user?.id;
   const ipAddress = req.ip || req.connection.remoteAddress;

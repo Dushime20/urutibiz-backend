@@ -93,6 +93,8 @@ export interface CreatePaymentTransactionData {
   // Status and processing
   status?: PaymentStatus;
   expires_at?: Date;
+  failure_reason?: string;
+  processed_at?: Date;
   
   // Multi-currency support
   original_currency?: CurrencyCode;

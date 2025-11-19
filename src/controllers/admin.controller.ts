@@ -104,7 +104,7 @@ export class AdminController extends BaseController {
    *       200:
    *         description: Real-time metrics
    */
-  public async getRealTimeMetrics(req: Request, res: Response) {
+  public async getRealTimeMetrics(_req: Request, res: Response) {
     try {
       const metrics = await AdminService.getRealTimeMetrics();
       return ResponseHelper.success(res, 'Real-time metrics retrieved successfully', metrics);
@@ -755,7 +755,7 @@ export class AdminController extends BaseController {
    *       200:
    *         description: System health
    */
-  public async getSystemHealth(req: Request, res: Response) {
+  public async getSystemHealth(_req: Request, res: Response) {
     try {
       const health = await AdminService.getSystemHealth();
       return ResponseHelper.success(res, 'System health retrieved successfully', health);
@@ -908,7 +908,7 @@ export class AdminController extends BaseController {
     }
   }
 
-  public async getConfig(req: Request, res: Response) {
+  public async getConfig(_req: Request, res: Response) {
     try {
       const config = await AdminService.getPlatformConfig();
       return ResponseHelper.success(res, 'Configuration retrieved successfully', config);

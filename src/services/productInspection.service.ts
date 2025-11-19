@@ -22,7 +22,8 @@ import {
   InspectionReport,
   InspectionType,
   InspectionStatus,
-  ItemCondition
+  ItemCondition,
+  DisputeType
 } from '@/types/productInspection.types';
 import { ServiceResponse } from '@/types';
 import { getDatabase } from '@/config/database';
@@ -1472,10 +1473,10 @@ export class ProductInspectionService {
       // If dispute is raised, create a dispute record for inspector access
       if (data.disputeRaised) {
         try {
-          const ownerId = inspection.data.ownerId || inspection.data.owner_id;
+          const ownerId = inspection.data.ownerId;
           const disputeData = {
             inspectionId,
-            disputeType: data.disputeType || 'other',
+            disputeType: (data.disputeType || DisputeType.OTHER) as DisputeType,
             reason: data.disputeReason || '',
             evidence: JSON.stringify({
               photos: data.disputeEvidence || [],
@@ -1509,7 +1510,7 @@ export class ProductInspectionService {
       // If owner accepts (no issue), close the rental/booking
       if (data.accepted && !data.disputeRaised && updated.data) {
         try {
-          const bookingId = updated.data.bookingId || updated.data.booking_id;
+          const bookingId = updated.data.bookingId;
           if (bookingId) {
             const db = getDatabase();
             await db('bookings')

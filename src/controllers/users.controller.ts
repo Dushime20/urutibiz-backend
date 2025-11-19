@@ -145,8 +145,8 @@ export class UsersController extends BaseController {
 
     // Performance: Check cache first (temporarily disabled for debugging)
     const cacheKey = `user_profile_${id}`;
-    const cached = statsCache.get(cacheKey);
     // Temporarily disable cache to test new location structure
+    // const cached = statsCache.get(cacheKey);
     // if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.USER_PROFILE * 1000) {
     //   return ResponseHelper.success(res, 'User retrieved successfully (cached)', cached.data);
     // }

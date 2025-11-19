@@ -1,4 +1,4 @@
-import { NotificationPreferences } from '../types';
+import { NotificationPreferences, NotificationType } from '../types';
 import { Logger } from '@/utils/logger';
 import { getDatabase } from '@/config/database';
 
@@ -30,7 +30,7 @@ export class NotificationPreferencesService {
       return this.mapFromDb(row);
 
     } catch (error) {
-      this.logger.error('Failed to get user preferences', { error: error.message, userId });
+      this.logger.error('Failed to get user preferences', { error: error instanceof Error ? error.message : String(error), userId });
       return this.getDefaultPreferences(userId);
     }
   }
@@ -95,7 +95,7 @@ export class NotificationPreferencesService {
       }
 
     } catch (error) {
-      this.logger.error('Failed to update user preferences', { error: error.message, userId });
+      this.logger.error('Failed to update user preferences', { error: error instanceof Error ? error.message : String(error), userId });
       return null;
     }
   }
@@ -126,14 +126,17 @@ export class NotificationPreferencesService {
       }
 
       // Check type-specific preferences
-      if (preferences.types && preferences.types[type as any]) {
-        return preferences.types[type as any][channel as any] !== false;
+      if (preferences.types && type in preferences.types && Object.values(NotificationType).includes(type as NotificationType)) {
+        const typePrefs = preferences.types[type as NotificationType];
+        if (typePrefs && channel in typePrefs) {
+          return typePrefs[channel as keyof typeof typePrefs] !== false;
+        }
       }
 
       return true;
 
     } catch (error) {
-      this.logger.error('Failed to check notification preferences', { error: error.message, userId });
+      this.logger.error('Failed to check notification preferences', { error: error instanceof Error ? error.message : String(error), userId });
       return true; // Default to allowing notifications
     }
   }
@@ -167,7 +170,7 @@ export class NotificationPreferencesService {
       return filteredUserIds;
 
     } catch (error) {
-      this.logger.error('Failed to get users for notification type', { error: error.message, type });
+      this.logger.error('Failed to get users for notification type', { error: error instanceof Error ? error.message : String(error), type });
       return [];
     }
   }
@@ -187,7 +190,7 @@ export class NotificationPreferencesService {
           errors.push(`Failed to update preferences for user ${update.userId}`);
         }
       } catch (error) {
-        errors.push(`Error updating preferences for user ${update.userId}: ${error.message}`);
+        errors.push(`Error updating preferences for user ${update.userId}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
@@ -212,7 +215,7 @@ export class NotificationPreferencesService {
       return true;
 
     } catch (error) {
-      this.logger.error('Failed to delete user preferences', { error: error.message, userId });
+      this.logger.error('Failed to delete user preferences', { error: error instanceof Error ? error.message : String(error), userId });
       return false;
     }
   }
@@ -255,7 +258,7 @@ export class NotificationPreferencesService {
       };
 
     } catch (error) {
-      this.logger.error('Failed to get preferences statistics', { error: error.message });
+      this.logger.error('Failed to get preferences statistics', { error: error instanceof Error ? error.message : String(error) });
       return {
         totalUsers: 0,
         emailEnabled: 0,

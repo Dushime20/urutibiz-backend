@@ -44,7 +44,8 @@ export class EmailService {
       this.logger.info('Email service initialized successfully');
 
     } catch (error) {
-      this.logger.error('Failed to initialize email service', { error: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Failed to initialize email service', { error: errorMessage });
       throw error;
     }
   }
@@ -84,15 +85,16 @@ export class EmailService {
       };
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to send email', { 
-        error: error.message, 
+        error: errorMessage, 
         to: payload.to,
         subject: payload.subject 
       });
 
       return {
         success: false,
-        error: error.message
+        error: errorMessage
       };
     }
   }
@@ -114,9 +116,10 @@ export class EmailService {
         results.push(result);
 
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         results.push({
           success: false,
-          error: error.message
+          error: errorMessage
         });
       }
     }
@@ -142,10 +145,11 @@ export class EmailService {
       });
 
     } catch (error) {
-      this.logger.error('Failed to send templated email', { error: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Failed to send templated email', { error: errorMessage });
       return {
         success: false,
-        error: error.message
+        error: errorMessage
       };
     }
   }
@@ -186,7 +190,7 @@ export class EmailService {
     };
 
     // Add custom headers if provided
-    if (payload.data?.headers) {
+    if (payload.data?.headers && mailOptions.headers) {
       Object.assign(mailOptions.headers, payload.data.headers);
     }
 
@@ -248,7 +252,8 @@ export class EmailService {
       await this.transporter.verify();
       return { connected: true };
     } catch (error) {
-      return { connected: false, error: error.message };
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { connected: false, error: errorMessage };
     }
   }
 

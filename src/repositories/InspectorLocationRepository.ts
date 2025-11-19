@@ -1,9 +1,15 @@
 import { OptimizedBaseRepository } from '@/repositories/BaseRepository.optimized';
-import { InspectorLocation, CreateInspectorLocationRequest } from '@/types/thirdPartyInspection.types';
+import { InspectorLocation } from '@/types/thirdPartyInspection.types';
+import { getDatabase } from '@/config/database';
 
 export class InspectorLocationRepository extends OptimizedBaseRepository<InspectorLocation> {
   protected tableName = 'inspector_locations';
   protected primaryKey = 'id';
+  protected readonly modelClass = class {
+    static fromDb(row: any): any { return row; }
+    constructor(public data: any) {}
+  } as any;
+  protected db = getDatabase();
 
   /**
    * Get all active locations for an inspector

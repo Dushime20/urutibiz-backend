@@ -3,7 +3,9 @@ import ProductRepository from '@/repositories/ProductRepository';
 import { ProductData, CreateProductData, UpdateProductData } from '@/types/product.types';
 import { ValidationError } from '@/types';
 
-class ProductService extends BaseService<ProductData, CreateProductData, UpdateProductData> {
+// ProductData uses snake_case (created_at, updated_at) but BaseService expects BaseModel with camelCase
+// We'll use a type assertion to work around this
+class ProductService extends BaseService<ProductData & { createdAt: Date; updatedAt: Date }, CreateProductData, UpdateProductData> {
   constructor() {
     super(ProductRepository);
   }
@@ -12,11 +14,9 @@ class ProductService extends BaseService<ProductData, CreateProductData, UpdateP
     const errors: ValidationError[] = [];
     if (!data.title) errors.push({ field: 'title', message: 'Title is required' });
     if (!data.description) errors.push({ field: 'description', message: 'Description is required' });
-    if (!data.categoryId) errors.push({ field: 'categoryId', message: 'Category is required' });
-    if (!data.basePrice) errors.push({ field: 'basePrice', message: 'Base price is required' });
-    if (!data.baseCurrency) errors.push({ field: 'baseCurrency', message: 'Base currency is required' });
-    if (!data.pickupMethods || !data.pickupMethods.length) errors.push({ field: 'pickupMethods', message: 'At least one pickup method is required' });
+    if (!data.category_id) errors.push({ field: 'category_id', message: 'Category is required' });
     if (!data.location) errors.push({ field: 'location', message: 'Location is required' });
+    if (!data.pickup_methods || !data.pickup_methods.length) errors.push({ field: 'pickup_methods', message: 'At least one pickup method is required' });
     // Add more advanced validation as needed
     return errors;
   }
@@ -38,8 +38,8 @@ class ProductService extends BaseService<ProductData, CreateProductData, UpdateP
   }
 
   public async findById(id: string) {
-    const product = await this.repository.findById(id);
-    if (!product) {
+    const productResult = await this.repository.findById(id);
+    if (!productResult || !productResult.success || !productResult.data) {
       return { success: false, error: 'Product not found' };
     }
 
@@ -51,21 +51,22 @@ class ProductService extends BaseService<ProductData, CreateProductData, UpdateP
         is_active: true
       });
       
-      // Add pricing data to product
+      // Add pricing data to product - productResult.data is ProductData & { createdAt, updatedAt }
+      const product = productResult.data as unknown as ProductData;
       const enhancedProduct = {
         ...product,
         pricing: prices.prices || [],
-        // Ensure delivery fee is included
-        delivery_fee: product.delivery_fee || 0,
-        delivery_available: product.delivery_available || false,
-        delivery_radius_km: product.delivery_radius_km || 0
+        // Ensure delivery fee is included (these properties may not exist on ProductData)
+        delivery_fee: (product as any).delivery_fee || 0,
+        delivery_available: (product as any).delivery_available || false,
+        delivery_radius_km: (product as any).delivery_radius_km || 0
       };
       
       return { success: true, data: enhancedProduct };
     } catch (error) {
       // If pricing fetch fails, return product without pricing
       console.warn('Failed to fetch pricing for product:', id, error);
-      return { success: true, data: product };
+      return { success: true, data: productResult };
     }
   }
 }

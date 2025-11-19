@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { BaseController } from './BaseController';
 import { AuthenticatedRequest } from '@/types';
 import { ResponseHelper } from '@/utils/response';
@@ -91,7 +91,7 @@ export class NotificationController extends BaseController {
 
     } catch (error) {
       this.logger.error('Failed to send notification', { error: error instanceof Error ? error.message : String(error) });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -135,7 +135,7 @@ export class NotificationController extends BaseController {
 
     } catch (error) {
       this.logger.error('Failed to send templated notification', { error: error instanceof Error ? error.message : String(error) });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -200,7 +200,7 @@ export class NotificationController extends BaseController {
 
     } catch (error) {
       this.logger.error('Failed to schedule notification', { error: error instanceof Error ? error.message : String(error) });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -228,7 +228,7 @@ export class NotificationController extends BaseController {
     try {
       const result = await NotificationEngine.sendBulkNotifications(notifications);
 
-      this.logAction('SEND_BULK_NOTIFICATIONS', req.user.id, null, { count: notifications.length });
+      this.logAction('SEND_BULK_NOTIFICATIONS', req.user.id, undefined, { count: notifications.length });
 
       return ResponseHelper.success(res, 'Bulk notifications processed', {
         total: notifications.length,
@@ -238,8 +238,8 @@ export class NotificationController extends BaseController {
       });
 
     } catch (error) {
-      this.logger.error('Failed to send bulk notifications', { error: error.message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to send bulk notifications', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -265,14 +265,14 @@ export class NotificationController extends BaseController {
       });
       
       if (!result.success) {
-        return ResponseHelper.error(res, 'Failed to fetch notifications', null, 500);
+        return ResponseHelper.error(res, 'Failed to fetch notifications', undefined, 500);
       }
 
       return ResponseHelper.success(res, 'Notifications retrieved successfully', result.data);
 
     } catch (error) {
-      this.logger.error('Failed to get user notifications', { error: error.message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to get user notifications', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -288,8 +288,8 @@ export class NotificationController extends BaseController {
       return ResponseHelper.success(res, 'Statistics retrieved successfully', stats);
 
     } catch (error) {
-      this.logger.error('Failed to get notification statistics', { error: error.message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to get notification statistics', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -301,18 +301,17 @@ export class NotificationController extends BaseController {
     const type = req.query.type as string;
 
     try {
-      let templates;
+      let templates = await NotificationEngine.getTemplateService().getAllTemplates();
+      
       if (type) {
-        templates = await NotificationEngine.getTemplateService().getTemplatesByType(type as any);
-      } else {
-        templates = await NotificationEngine.getTemplateService().getAllTemplates();
+        templates = templates.filter(t => t.type === type);
       }
 
       return ResponseHelper.success(res, 'Templates retrieved successfully', templates);
 
     } catch (error) {
-      this.logger.error('Failed to get notification templates', { error: error.message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to get notification templates', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -331,13 +330,13 @@ export class NotificationController extends BaseController {
     try {
       const ok = await NotificationEngine.getPushService().registerToken(userId, deviceToken, (platform || 'web'));
       if (!ok) {
-        return ResponseHelper.error(res, 'Failed to register device token', null, 500);
+        return ResponseHelper.error(res, 'Failed to register device token', undefined, 500);
       }
-      this.logAction('REGISTER_DEVICE_TOKEN', userId, null, { platform: platform || 'web' });
+      this.logAction('REGISTER_DEVICE_TOKEN', userId, undefined, { platform: platform || 'web' });
       return ResponseHelper.success(res, 'Device token registered successfully');
     } catch (error) {
-      this.logger.error('Failed to register device token', { error: (error as Error).message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to register device token', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -362,7 +361,7 @@ export class NotificationController extends BaseController {
       return ResponseHelper.success(res, 'Device token unregistered successfully');
     } catch (error) {
       this.logger.error('Failed to unregister device token', { error: (error as Error).message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -406,8 +405,8 @@ export class NotificationController extends BaseController {
       return ResponseHelper.success(res, 'Template created successfully', template);
 
     } catch (error) {
-      this.logger.error('Failed to create notification template', { error: error.message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to create notification template', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -433,8 +432,8 @@ export class NotificationController extends BaseController {
       return ResponseHelper.success(res, 'Template updated successfully', template);
 
     } catch (error) {
-      this.logger.error('Failed to update notification template', { error: error.message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to update notification template', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -457,8 +456,8 @@ export class NotificationController extends BaseController {
       return ResponseHelper.success(res, 'Template deleted successfully');
 
     } catch (error) {
-      this.logger.error('Failed to delete notification template', { error: error.message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to delete notification template', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -497,8 +496,8 @@ export class NotificationController extends BaseController {
       return ResponseHelper.success(res, 'Notification marked as read');
 
     } catch (error) {
-      this.logger.error('Failed to mark notification as read', { error: error.message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to mark notification as read', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -517,8 +516,8 @@ export class NotificationController extends BaseController {
       return ResponseHelper.success(res, 'Scheduled notifications processed successfully');
 
     } catch (error) {
-      this.logger.error('Failed to process scheduled notifications', { error: error.message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to process scheduled notifications', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -536,18 +535,18 @@ export class NotificationController extends BaseController {
       const result = await NotificationEngine.getRepository().cleanupExpiredNotifications();
       
       if (!result.success) {
-        return ResponseHelper.error(res, 'Failed to cleanup expired notifications', null, 500);
+        return ResponseHelper.error(res, 'Failed to cleanup expired notifications', undefined, 500);
       }
 
-      this.logAction('CLEANUP_EXPIRED_NOTIFICATIONS', req.user.id, null, { deleted: result.data.deleted });
+      this.logAction('CLEANUP_EXPIRED_NOTIFICATIONS', req.user.id, undefined, { deleted: result.data?.deleted });
 
       return ResponseHelper.success(res, 'Expired notifications cleaned up successfully', {
-        deleted: result.data.deleted
+        deleted: result.data?.deleted
       });
 
     } catch (error) {
-      this.logger.error('Failed to cleanup expired notifications', { error: error.message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to cleanup expired notifications', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 
@@ -555,7 +554,7 @@ export class NotificationController extends BaseController {
    * Get notification service status
    * GET /api/v1/notifications/status
    */
-  public getNotificationStatus = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  public getNotificationStatus = this.asyncHandler(async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const emailStatus = await NotificationEngine.getEmailService().getStatus();
       const pushStatus = await NotificationEngine.getPushService().getStatus();
@@ -567,8 +566,8 @@ export class NotificationController extends BaseController {
       });
 
     } catch (error) {
-      this.logger.error('Failed to get notification status', { error: error.message });
-      return ResponseHelper.error(res, 'Internal server error', null, 500);
+      this.logger.error('Failed to get notification status', { error: error instanceof Error ? error.message : String(error) });
+      return ResponseHelper.error(res, 'Internal server error', undefined, 500);
     }
   });
 }

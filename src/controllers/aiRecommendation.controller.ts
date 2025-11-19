@@ -338,8 +338,8 @@ export class AIRecommendationController {
         for (let i = 1; i < actions.length; i++) {
           const more = await repo.getPopularTargets(actions[i].toUpperCase(), 'product', 1000, timeRange);
           const map: Record<string, number> = Object.create(null);
-          results.forEach(r => { map[r.targetId] = (map[r.targetId] || 0) + r.count; });
-          more.forEach(r => { map[r.targetId] = (map[r.targetId] || 0) + r.count; });
+          results.forEach((r: { targetId: string; count: number }) => { map[r.targetId] = (map[r.targetId] || 0) + r.count; });
+          more.forEach((r: { targetId: string; count: number }) => { map[r.targetId] = (map[r.targetId] || 0) + r.count; });
           const merged = Object.entries(map).map(([targetId, count]) => ({ targetId, count }));
           merged.sort((a, b) => b.count - a.count);
           // replace results

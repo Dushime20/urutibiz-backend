@@ -5,36 +5,39 @@ import { AuthenticatedRequest } from '@/types';
  * Middleware to check if user has required role(s)
  * @param requiredRoles - Array of roles that are allowed to access the endpoint
  */
-export const requireRole = (requiredRoles: string[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+export const requireRole = (requiredRoles: string[]): ((req: Request, res: Response, next: NextFunction) => void) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     try {
       const authenticatedReq = req as AuthenticatedRequest;
       
       // Check if user is authenticated
       if (!authenticatedReq.user) {
-        return res.status(401).json({
+        res.status(401).json({
           success: false,
           message: 'Authentication required'
         });
+        return;
       }
 
       // Check if user has any of the required roles
       const userRole = authenticatedReq.user.role;
       if (!userRole || !requiredRoles.includes(userRole)) {
-        return res.status(403).json({
+        res.status(403).json({
           success: false,
           message: `Access denied. Required roles: ${requiredRoles.join(', ')}. Your role: ${userRole || 'none'}`
         });
+        return;
       }
 
       // User has required role, proceed
       next();
     } catch (error) {
       console.error('Role middleware error:', error);
-      return res.status(500).json({
+      res.status(500).json({
         success: false,
         message: 'Internal server error in role validation'
       });
+      return;
     }
   };
 };

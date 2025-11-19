@@ -2,7 +2,7 @@ import { OptimizedBaseRepository } from '@/repositories/BaseRepository.optimized
 import { ServiceResponse } from '@/types';
 import { InspectionPhoto } from '@/types/productInspection.types';
 
-export class InspectionPhotoRepository extends OptimizedBaseRepository<InspectionPhoto, Partial<InspectionPhoto>, Partial<InspectionPhoto>> {
+export class InspectionPhotoRepository extends OptimizedBaseRepository<any, Partial<InspectionPhoto>, Partial<InspectionPhoto>> {
   protected readonly tableName = 'inspection_photos';
   protected readonly modelClass = class {
     static fromDb(row: any): any { return row; }

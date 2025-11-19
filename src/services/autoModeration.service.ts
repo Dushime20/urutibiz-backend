@@ -1,18 +1,18 @@
 // Full implementation based on provided attachment
-import { getDatabase } from '@/config/database';
-import { client as redis } from '@/config/redis';
+// import { getDatabase } from '@/config/database';
+// import { client as redis } from '@/config/redis';
 import { 
-  ModerationRule, ModerationResult, ContentAnalysis, BehaviorAnalysis, FraudDetection,
-  ModerationConfig, ModerationQueue 
+  ModerationResult,
+  ModerationConfig
 } from '@/types/moderation.types';
 
-import ContentAnalysisService from './contentAnalysis.service';
-import BehaviorAnalysisService from './behaviorAnalysis.service';
-import FraudDetectionService from './fraudDetection.service';
-import MLModelService from './mlModel.service';
-import { NotificationService } from './notification.service';
-import logger from '@/utils/logger';
-import { v4 as uuidv4 } from 'uuid';
+// import ContentAnalysisService from './contentAnalysis.service';
+// import BehaviorAnalysisService from './behaviorAnalysis.service';
+// import FraudDetectionService from './fraudDetection.service';
+// import MLModelService from './mlModel.service';
+// import { NotificationService } from './notification.service';
+// import logger from '@/utils/logger';
+// import { v4 as uuidv4 } from 'uuid';
 
 // Import all required services and utilities as in the provided attachment
 
@@ -56,7 +56,7 @@ export default class AutoModerationService {
   }
   static async loadConfiguration() {}
   static async loadRules() {}
-  static async moderateContent(resourceType: string, resourceId: string, content: any): Promise<ModerationResult> {
+  static async moderateContent(resourceType: string, resourceId: string, _content: any): Promise<ModerationResult> {
     // Return a mock ModerationResult for now
     return {
       id: resourceId,

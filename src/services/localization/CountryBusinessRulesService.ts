@@ -4,6 +4,7 @@
  * Handles CRUD operations for country-specific business rules and configurations
  */
 import logger from '../../utils/logger';
+import { getDatabase } from '../../config/database';
 
 import {
   CountryBusinessRulesData,

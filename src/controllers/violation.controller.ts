@@ -6,7 +6,7 @@ import { BaseController } from './BaseController';
 import { ResponseHelper } from '@/utils/response';
 import ViolationService from '@/services/violation.service';
 import { AuthenticatedRequest } from '@/types';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { 
   CreateViolationRequest,
   UpdateViolationRequest,

@@ -14,7 +14,7 @@ import {
   PickupMethod,
   ProductAvailability
 } from '@/types/product.types';
-import { v4 as uuidv4 } from 'uuid';
+// import { v4 as uuidv4 } from 'uuid'; // Unused import
 
 // Demo Product Model - In-memory implementation
 export class Product implements ProductData {
@@ -52,6 +52,8 @@ export class Product implements ProductData {
 
   public created_at: Date;
   public updated_at: Date;
+  public createdAt: Date; // For BaseModel compatibility
+  public updatedAt: Date; // For BaseModel compatibility
 
   // In-memory storage for demo
   private static products: Product[] = [];
@@ -84,6 +86,8 @@ export class Product implements ProductData {
     this.features = data.features || [];
     this.created_at = new Date();
     this.updated_at = new Date();
+    this.createdAt = this.created_at; // For BaseModel compatibility
+    this.updatedAt = this.updated_at; // For BaseModel compatibility
   }
 
   // Static methods for CRUD operations
@@ -97,6 +101,8 @@ export class Product implements ProductData {
     if (typeof specifications === 'string') {
       try { specifications = JSON.parse(specifications); } catch { /* keep as is */ }
     }
+    const created_at = row.created_at instanceof Date ? row.created_at : new Date(row.created_at);
+    const updated_at = row.updated_at instanceof Date ? row.updated_at : new Date(row.updated_at);
     return {
       id: row.id,
       owner_id: row.owner_id,
@@ -114,8 +120,10 @@ export class Product implements ProductData {
       review_count: row.review_count || 0,
       average_rating: row.average_rating || 0,
       features: row.features,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
+      created_at,
+      updated_at,
+      createdAt: created_at, // For BaseModel compatibility
+      updatedAt: updated_at, // For BaseModel compatibility
       // Newly exposed fields
       brand: row.brand,
       model: row.model,
@@ -151,7 +159,7 @@ export class Product implements ProductData {
   static async getPaginated(
     page: number = 1, 
     limit: number = 10, 
-    filters: ProductFilters = {}
+    filters: Partial<ProductFilters> = {}
   ): Promise<{
     data: Product[];
     page: number;
@@ -231,19 +239,17 @@ export class Product implements ProductData {
     }
     Object.assign(this, data);
     this.updated_at = new Date();
+    this.updatedAt = this.updated_at; // For BaseModel compatibility
     return this;
   }
 
   toJSON(): ProductData {
-    return {
+    const result: any = {
       id: this.id,
       owner_id: this.owner_id,
       title: this.title,
       description: this.description,
       category_id: this.category_id,
-      brand: this.brand,
-      model: this.model,
-      year_manufactured: this.year_manufactured,
       address_line: this.address_line,
       delivery_fee: this.delivery_fee,
       included_accessories: this.included_accessories,
@@ -267,8 +273,11 @@ export class Product implements ProductData {
       recommendations: this.recommendations,
       features: this.features,
       created_at: this.created_at,
-      updated_at: this.updated_at
+      updated_at: this.updated_at,
+      createdAt: this.createdAt, // For BaseModel compatibility
+      updatedAt: this.updatedAt // For BaseModel compatibility
     };
+    return result as ProductData;
   }
 
   // Demo data seeding

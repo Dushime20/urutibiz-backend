@@ -1292,7 +1292,6 @@ export class BookingsController extends BaseController {
     const renter_id = renterId;
     const { 
       product_id,
-      owner_id,
       start_date, 
       end_date, 
       pickup_time,
@@ -1860,7 +1859,7 @@ export class BookingsController extends BaseController {
           updated_at: new Date()
         });
 
-      ResponseHelper.success(res, 'Booking pricing recalculated successfully', {
+      return ResponseHelper.success(res, 'Booking pricing recalculated successfully', {
         booking_id: id,
         new_pricing: pricing
       });

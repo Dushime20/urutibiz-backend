@@ -33,7 +33,8 @@ export async function downloadImage(url: string): Promise<Buffer> {
     return Buffer.from(response.data);
   } catch (error) {
     console.error(`Failed to download image from ${url}:`, error);
-    throw new Error(`Image download failed: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Image download failed: ${errorMessage}`);
   }
 }
 
@@ -56,7 +57,14 @@ export async function preprocessImage(imageBuffer: Buffer): Promise<ort.Tensor> 
     
     // Convert to ONNX tensor format
     const tensorData = await normalized.array();
-    const flatData = new Float32Array(tensorData.flat());
+    // Handle different tensor shapes - flatten the array
+    const flattenArray = (arr: any): number[] => {
+      if (Array.isArray(arr)) {
+        return arr.flat(Infinity) as number[];
+      }
+      return [arr as number];
+    };
+    const flatData = new Float32Array(flattenArray(tensorData));
     
     // Clean up TensorFlow tensors
     image.dispose();
@@ -65,7 +73,8 @@ export async function preprocessImage(imageBuffer: Buffer): Promise<ort.Tensor> 
     return new ort.Tensor('float32', flatData, [1, 224, 224, 3]);
   } catch (error) {
     console.error('Image preprocessing failed:', error);
-    throw new Error(`Image preprocessing failed: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Image preprocessing failed: ${errorMessage}`);
   }
 }
 
@@ -116,7 +125,14 @@ export async function extractImageFeatures(imageBuffer: Buffer): Promise<number[
  */
 async function extractHistogram(image: tf.Tensor): Promise<number[]> {
   const data = await image.array();
-  const flat = data.flat();
+  // Handle different tensor shapes
+  const flattenArray = (arr: any): number[] => {
+    if (Array.isArray(arr)) {
+      return arr.flat(Infinity) as number[];
+    }
+    return [arr as number];
+  };
+  const flat = flattenArray(data);
   
   // Calculate histogram
   const histogram = new Array(16).fill(0);
@@ -137,8 +153,12 @@ async function extractHistogram(image: tf.Tensor): Promise<number[]> {
  */
 async function extractEdgeFeatures(image: tf.Tensor): Promise<number[]> {
   const data = await image.array();
-  const height = data.length;
-  const width = data[0].length;
+  // Ensure data is a 2D array
+  if (!Array.isArray(data) || !Array.isArray(data[0])) {
+    return [0, 0, 0];
+  }
+  const height = (data as number[][]).length;
+  const width = (data as number[][])[0].length;
   
   const sobelX = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]];
   const sobelY = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]];
@@ -153,7 +173,8 @@ async function extractEdgeFeatures(image: tf.Tensor): Promise<number[]> {
       // Apply Sobel operators
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
-          const pixel = data[y + dy][x + dx];
+          const row = (data as number[][])[y + dy];
+          const pixel = Array.isArray(row) ? row[x + dx] : 0;
           gx += pixel * sobelX[dy + 1][dx + 1];
           gy += pixel * sobelY[dy + 1][dx + 1];
         }
@@ -179,8 +200,12 @@ async function extractEdgeFeatures(image: tf.Tensor): Promise<number[]> {
  */
 async function extractTextureFeatures(image: tf.Tensor): Promise<number[]> {
   const data = await image.array();
-  const height = data.length;
-  const width = data[0].length;
+  // Ensure data is a 2D array
+  if (!Array.isArray(data) || !Array.isArray(data[0])) {
+    return [0, 0];
+  }
+  const height = (data as number[][]).length;
+  const width = (data as number[][])[0].length;
   
   // Calculate local variance and contrast
   let variance = 0;
@@ -188,9 +213,15 @@ async function extractTextureFeatures(image: tf.Tensor): Promise<number[]> {
   
   for (let y = 1; y < height - 1; y++) {
     for (let x = 1; x < width - 1; x++) {
-      const center = data[y][x];
+      const row = (data as number[][])[y];
+      const center = Array.isArray(row) ? row[x] : 0;
+      const rowPrev = (data as number[][])[y - 1];
+      const rowNext = (data as number[][])[y + 1];
       const neighbors = [
-        data[y-1][x], data[y+1][x], data[y][x-1], data[y][x+1]
+        Array.isArray(rowPrev) ? rowPrev[x] : 0,
+        Array.isArray(rowNext) ? rowNext[x] : 0,
+        Array.isArray(row) ? row[x - 1] : 0,
+        Array.isArray(row) ? row[x + 1] : 0
       ];
       
       const mean = neighbors.reduce((sum, val) => sum + val, 0) / neighbors.length;

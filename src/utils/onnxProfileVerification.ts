@@ -81,7 +81,8 @@ async function runRealAIAnalysis(input: Record<string, ort.Tensor>): Promise<num
     const output = await session.run(onnxInput);
     
     // Get similarity score (adjust output key as needed)
-    const similarity = output['output']?.data[0] || output['similarity']?.data[0] || 0.5;
+    const similarityRaw = output['output']?.data[0] || output['similarity']?.data[0] || 0.5;
+    const similarity = typeof similarityRaw === 'number' ? similarityRaw : Number(similarityRaw) || 0.5;
     
     console.log(`📊 Real AI similarity score: ${similarity.toFixed(3)}`);
     return similarity;
@@ -125,8 +126,8 @@ async function runFallbackProfileVerification(input: Record<string, ort.Tensor>)
       return 0.5; // Neutral score
     }
 
-    // Basic similarity calculation using cosine similarity
-    const similarity = calculateCosineSimilarity(docTensor, selfieTensor);
+    // Basic similarity calculation using cosine similarity (not used in fallback mode)
+    // const similarity = calculateCosineSimilarity(docTensor, selfieTensor);
     
     // For fallback mode, provide more realistic scores
     // Since we're using dummy tensors, generate a reasonable score

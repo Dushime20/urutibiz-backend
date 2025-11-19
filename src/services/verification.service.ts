@@ -58,7 +58,24 @@ export class VerificationService {
         metadata: {
           userAgent: data.metadata?.userAgent || '',
           ipAddress: data.metadata?.ipAddress || '',
-          location: data.metadata?.location,
+          location: (() => {
+            const loc = data.metadata?.location;
+            if (!loc || !('coordinates' in loc)) return undefined;
+            const coords = loc.coordinates as any;
+            if (coords && typeof coords === 'object' && 
+                typeof coords.lat === 'number' && 
+                typeof coords.lng === 'number') {
+              return {
+                country: loc.country || '',
+                city: loc.city || '',
+                coordinates: {
+                  lat: coords.lat,
+                  lng: coords.lng
+                }
+              };
+            }
+            return undefined;
+          })(),
           deviceInfo: {
             type: 'desktop', // This would be determined from user agent
             os: 'unknown',
@@ -312,7 +329,10 @@ export class VerificationService {
   async getVerificationStatus(data: GetVerificationStatusRequest): Promise<ServiceResponse<VerificationStatusResponse>> {
     try {
       const verifications = await this.getUserVerifications(data.userId);
-      const trustScore = await this.getTrustScore({ userId: data.userId });
+      const trustScoreResult = await this.calculateTrustScore(data.userId);
+      const trustScore = trustScoreResult.success && trustScoreResult.data
+        ? trustScoreResult.data
+        : this.createDefaultTrustScore(data.userId);
 
       const overallStatus = this.determineOverallStatus(verifications);
 
@@ -322,7 +342,7 @@ export class VerificationService {
           userId: data.userId,
           verifications,
           overallStatus,
-          trustScore: trustScore.success ? trustScore.data : undefined
+          trustScore
         }
       };
 
@@ -430,6 +450,68 @@ export class VerificationService {
         await this.processBankAccountVerification(userId, data);
         break;
     }
+  }
+
+  private createDefaultTrustScore(userId: string): TrustScore {
+    return {
+      id: '',
+      userId,
+      overallScore: 0,
+      level: TrustScoreLevel.LOW,
+      breakdown: {
+        identityVerification: {
+          score: 0,
+          weight: 0.25 as 0.25,
+          factors: {
+            documentQuality: 0,
+            biometricMatch: 0,
+            livenessScore: 0
+          }
+        },
+        transactionHistory: {
+          score: 0,
+          weight: 0.25 as 0.25,
+          factors: {
+            completionRate: 0,
+            cancellationRate: 0,
+            disputeRate: 0,
+            averageRating: 0
+          }
+        },
+        userReviews: {
+          score: 0,
+          weight: 0.25 as 0.25,
+          factors: {
+            averageRating: 0,
+            reviewCount: 0,
+            responseRate: 0,
+            reviewQuality: 0
+          }
+        },
+        socialProof: {
+          score: 0,
+          weight: 0.15 as 0.15,
+          factors: {
+            linkedinVerification: 0,
+            socialConnections: 0,
+            professionalStatus: 0,
+            accountAge: 0
+          }
+        },
+        responseTime: {
+          score: 0,
+          weight: 0.10 as 0.10,
+          factors: {
+            averageResponseTime: 0,
+            availabilityScore: 0,
+            communicationQuality: 0
+          }
+        }
+      },
+      badges: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
   }
 
   private async processIdentityVerification(userId: string, data: any): Promise<void> {
@@ -827,7 +909,7 @@ export class VerificationService {
 
   private determineOverallStatus(verifications: any): VerificationStatus {
     const statuses = Object.values(verifications)
-      .filter(v => v !== undefined)
+      .filter((v): v is { status: VerificationStatus } => v !== undefined && v !== null && typeof v === 'object' && 'status' in v)
       .map(v => v.status);
     
     if (statuses.length === 0) {

@@ -228,16 +228,17 @@ export class PaymentTransactionRepository {
     }
 
     // Apply sorting
-    if (params.sortBy) {
+    if (params.sort_by) {
       transactions.sort((a, b) => {
-        const aValue = a[params.sortBy!];
-        const bValue = b[params.sortBy!];
+        const sortKey = params.sort_by!;
+        const aValue = a[sortKey as keyof PaymentTransactionData];
+        const bValue = b[sortKey as keyof PaymentTransactionData];
         
         if (aValue === null || aValue === undefined) return 1;
         if (bValue === null || bValue === undefined) return -1;
         
-        if (aValue < bValue) return params.sortOrder === 'desc' ? 1 : -1;
-        if (aValue > bValue) return params.sortOrder === 'desc' ? -1 : 1;
+        if (aValue < bValue) return params.sort_order === 'desc' ? 1 : -1;
+        if (aValue > bValue) return params.sort_order === 'desc' ? -1 : 1;
         return 0;
       });
     } else {

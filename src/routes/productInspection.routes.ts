@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '@/middleware/auth.middleware';
-import { uploadSingle, uploadMultiple } from '@/middleware/upload.middleware';
+import { uploadMultiple } from '@/middleware/upload.middleware';
 import controller from '@/controllers/productInspection.controller';
 import { requireRole } from '@/middleware/role.middleware';
 

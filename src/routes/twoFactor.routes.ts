@@ -98,7 +98,7 @@ const router = Router();
  *       400:
  *         description: Bad request
  */
-router.post('/setup', requireAuth, TwoFactorController.generateSetup);
+router.post('/setup', requireAuth, TwoFactorController.generateSetup as any);
 
 /**
  * @swagger
@@ -122,7 +122,7 @@ router.post('/setup', requireAuth, TwoFactorController.generateSetup);
  *       401:
  *         description: Unauthorized
  */
-router.post('/verify', requireAuth, TwoFactorController.verifyAndEnable);
+router.post('/verify', requireAuth, TwoFactorController.verifyAndEnable as any);
 
 /**
  * @swagger
@@ -206,7 +206,7 @@ router.post('/verify-backup', TwoFactorController.verifyBackupCode);
  *       401:
  *         description: Unauthorized
  */
-router.post('/disable', requireAuth, TwoFactorController.disable);
+router.post('/disable', requireAuth, TwoFactorController.disable as any);
 
 /**
  * @swagger
@@ -233,7 +233,7 @@ router.post('/disable', requireAuth, TwoFactorController.disable);
  *       401:
  *         description: Unauthorized
  */
-router.get('/status', requireAuth, TwoFactorController.getStatus);
+router.get('/status', requireAuth, TwoFactorController.getStatus as any);
 
 /**
  * @swagger
@@ -273,6 +273,6 @@ router.get('/status', requireAuth, TwoFactorController.getStatus);
  *       401:
  *         description: Unauthorized
  */
-router.post('/backup-codes', requireAuth, TwoFactorController.generateNewBackupCodes);
+router.post('/backup-codes', requireAuth, TwoFactorController.generateNewBackupCodes as any);
 
 export default router;

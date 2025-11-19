@@ -12,7 +12,7 @@ class ProductAvailabilityController {
   async getByProduct(req: Request, res: Response) {
     const { productId } = req.params;
     const result = await ProductAvailabilityService.getByProduct(productId);
-    if (!result.success) return ResponseHelper.error(res, result.error || 'Failed to fetch availability', 400);
+    if (!result.success) return ResponseHelper.error(res, 'Failed to fetch availability', undefined, 400);
     return ResponseHelper.success(res, 'Availability retrieved', result.data);
   }
 

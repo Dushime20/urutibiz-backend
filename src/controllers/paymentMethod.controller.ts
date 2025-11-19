@@ -553,7 +553,7 @@ export class PaymentMethodController {
    * Get all payment methods (admin only)
    */
 // In src/controllers/paymentMethod.controller.ts
-async getAllPaymentMethods(req: Request, res: Response): Promise<void> {
+async getAllPaymentMethods(_req: Request, res: Response): Promise<void> {
   try {
     // Remove admin check so any authenticated user can access
     const result = await paymentMethodService.getAll();

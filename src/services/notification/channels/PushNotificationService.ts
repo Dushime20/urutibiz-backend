@@ -56,14 +56,15 @@ export class PushNotificationService {
       };
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to send push notification', { 
-        error: error.message, 
+        error: errorMessage, 
         userId: payload.userId 
       });
 
       return {
         success: false,
-        error: error.message
+        error: errorMessage
       };
     }
   }
@@ -85,9 +86,10 @@ export class PushNotificationService {
         });
         results.push(result);
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         results.push({
           success: false,
-          error: error.message
+          error: errorMessage
         });
       }
     }
@@ -104,7 +106,8 @@ export class PushNotificationService {
       const isConnected = await this.checkConnection();
       return { connected: isConnected };
     } catch (error) {
-      return { connected: false, error: error.message };
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { connected: false, error: errorMessage };
     }
   }
 
@@ -119,7 +122,8 @@ export class PushNotificationService {
       this.logger.info('Push token registered', { userId, platform });
       return true;
     } catch (error) {
-      this.logger.error('Failed to register push token', { error: error.message, userId });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Failed to register push token', { error: errorMessage, userId });
       return false;
     }
   }
@@ -135,7 +139,8 @@ export class PushNotificationService {
       this.logger.info('Push token unregistered', { userId });
       return true;
     } catch (error) {
-      this.logger.error('Failed to unregister push token', { error: error.message, userId });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Failed to unregister push token', { error: errorMessage, userId });
       return false;
     }
   }
@@ -176,8 +181,9 @@ export class PushNotificationService {
         })
       });
       this.logger.info('Firebase Admin initialized for push notifications');
-    } catch (error: any) {
-      this.logger.error('Failed to initialize Firebase Admin', { error: error.message });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Failed to initialize Firebase Admin', { error: errorMessage });
     }
   }
 
@@ -245,7 +251,8 @@ export class PushNotificationService {
           await this.removeTokenIfExists(token);
         } catch {}
       }
-      return { success: false, error: error.message };
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage };
     }
   }
 

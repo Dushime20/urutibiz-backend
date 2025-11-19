@@ -2,7 +2,15 @@
 // VIOLATION MODEL
 // =====================================================
 
-import { ViolationData, CreateViolationRequest, UpdateViolationRequest } from '@/types/violation.types';
+import { 
+  ViolationData, 
+  CreateViolationRequest, 
+  UpdateViolationRequest,
+  ViolationType,
+  ViolationSeverity,
+  ViolationCategory,
+  ViolationStatus
+} from '@/types/violation.types';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '@/config/database';
 
@@ -11,9 +19,9 @@ export class Violation implements Partial<ViolationData> {
   public userId: string;
   public productId?: string;
   public bookingId?: string;
-  public violationType: string;
-  public severity: string;
-  public category: string;
+  public violationType: ViolationType;
+  public severity: ViolationSeverity;
+  public category: ViolationCategory;
   public title: string;
   public description: string;
   public evidence?: any[];
@@ -26,7 +34,7 @@ export class Violation implements Partial<ViolationData> {
   };
   public reportedBy: string;
   public assignedTo?: string;
-  public status: string;
+  public status: ViolationStatus;
   public resolution?: any;
   public metadata?: Record<string, any>;
   public createdAt: Date;
@@ -38,7 +46,7 @@ export class Violation implements Partial<ViolationData> {
     this.userId = data.userId || '';
     this.productId = data.productId;
     this.bookingId = data.bookingId;
-    this.violationType = data.violationType || '';
+    this.violationType = data.violationType || 'other';
     this.severity = data.severity || 'medium';
     this.category = data.category || 'other';
     this.title = data.title || '';
@@ -47,7 +55,7 @@ export class Violation implements Partial<ViolationData> {
     this.location = data.location;
     this.reportedBy = data.reportedBy || '';
     this.assignedTo = data.assignedTo;
-    this.status = data.status || 'reported';
+    this.status = data.status || 'reported' as ViolationStatus;
     this.resolution = data.resolution;
     this.metadata = data.metadata || {};
     this.createdAt = data.createdAt || new Date();
@@ -74,7 +82,7 @@ export class Violation implements Partial<ViolationData> {
       location_address: data.location?.address || null,
       location_latitude: data.location?.coordinates?.latitude || null,
       location_longitude: data.location?.coordinates?.longitude || null,
-      reported_by: data.reportedBy,
+      reported_by: (data as any).reportedBy || '',
       assigned_to: null,
       status: 'reported',
       resolution_action: null,

@@ -5,7 +5,6 @@
 
 import { Request, Response, NextFunction, RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
-import config from '../config/config';
 import { UnauthorizedError, ForbiddenError } from '../utils/ErrorHandler';
 import User from '../models/User.model';
 
@@ -93,7 +92,8 @@ export const requireRole = (roles: string[]): RequestHandler => {
         throw new UnauthorizedError('Authentication required');
       }
       
-      if (!roles.includes(req.user.role)) {
+      const userRole = (req.user as any).role;
+      if (!userRole || !roles.includes(userRole)) {
         throw new ForbiddenError(`Insufficient permissions. Required roles: ${roles.join(', ')}`);
       }
       

@@ -4,7 +4,7 @@
 
 import { Router } from 'express';
 import { PaymentTransactionController } from '../controllers/paymentTransaction.controller';
-import { requireAdmin, requireAuth } from '@/middleware';
+import { requireAuth } from '@/middleware';
 
 /**
  * Express router for payment transaction endpoints
@@ -77,6 +77,15 @@ router.delete('/:id', controller.deleteTransaction);
  * @params  userId - User ID
  */
 router.get('/user/:userId',requireAuth, controller.getTransactionsByUser);
+
+/**
+ * @route   GET /api/payment-transactions/inspector/:inspectorId
+ * @desc    Get payment transactions for an inspector
+ * @access  Private (requires authentication)
+ * @params  inspectorId - Inspector user ID
+ * @query   page, limit, status, startDate, endDate
+ */
+router.get('/inspector/:inspectorId', requireAuth, controller.getInspectorPayments as any);
 
 /**
  * @route   GET /api/payment-transactions/booking/:bookingId

@@ -425,8 +425,8 @@ export class PaymentProviderService {
         });
         
         // Ensure fee values are numbers with defaults and proper type conversion
-        const feePercentage = parseFloat(data.fee_percentage || 0) * amount;
-        const feeFixed = parseFloat(data.fee_fixed || 0);
+        const feePercentage = (typeof data.fee_percentage === 'number' ? data.fee_percentage : parseFloat(String(data.fee_percentage || 0))) * amount;
+        const feeFixed = typeof data.fee_fixed === 'number' ? data.fee_fixed : parseFloat(String(data.fee_fixed || 0));
         const totalFee = feePercentage + feeFixed;
         const totalAmount = amount + totalFee;
 
@@ -442,7 +442,7 @@ export class PaymentProviderService {
           provider_id: data.id,
           provider_name: data.display_name || data.provider_name,
           amount,
-          fee_percentage: parseFloat(data.fee_percentage || 0),
+          fee_percentage: typeof data.fee_percentage === 'number' ? data.fee_percentage : parseFloat(String(data.fee_percentage || 0)),
           fee_fixed: feeFixed,
           total_fee: Number(totalFee.toFixed(2)),
           total_amount: Number(totalAmount.toFixed(2)),

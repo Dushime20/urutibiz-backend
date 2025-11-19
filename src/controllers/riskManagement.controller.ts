@@ -2,14 +2,16 @@ import { BaseController } from './BaseController';
 import { ResponseHelper } from '@/utils/response';
 import RiskManagementService from '@/services/riskManagement.service';
 import { AuthenticatedRequest } from '@/types';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import {
   CreateRiskProfileRequest,
   UpdateRiskProfileRequest,
   RiskAssessmentRequest,
   ComplianceCheckRequest,
-  PolicyViolationRequest
+  PolicyViolationRequest,
+  EnforcementAction
 } from '@/types/riskManagement.types';
+import { PaginationResult } from '@/types/common.types';
 
 export class RiskManagementController extends BaseController {
 
@@ -37,7 +39,7 @@ export class RiskManagementController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to create risk profile', 400);
     }
 
-    this.logAction('CREATE_RISK_PROFILE', req.user.id, result.data.id, profileData);
+    this.logAction('CREATE_RISK_PROFILE', req.user.id, result.data?.id || '', profileData);
 
     return ResponseHelper.success(res, 'Risk profile created successfully', result.data);
   });
@@ -97,7 +99,7 @@ export class RiskManagementController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to get risk profiles', 400);
     }
 
-    this.logAction('GET_RISK_PROFILES', req.user.id, null, filters);
+    this.logAction('GET_RISK_PROFILES', req.user.id, undefined, filters);
 
     return ResponseHelper.success(res, 'Risk profiles retrieved successfully', result.data);
   });
@@ -191,7 +193,7 @@ export class RiskManagementController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to get assessments', 400);
     }
 
-    this.logAction('GET_RISK_ASSESSMENTS', req.user.id, null, filters);
+    this.logAction('GET_RISK_ASSESSMENTS', req.user.id, undefined, filters);
 
     return ResponseHelper.success(res, 'Assessments retrieved successfully', result.data);
   });
@@ -281,7 +283,7 @@ export class RiskManagementController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to get compliance checks', 400);
     }
 
-    this.logAction('GET_COMPLIANCE_CHECKS', req.user.id, null, filters);
+    this.logAction('GET_COMPLIANCE_CHECKS', req.user.id, undefined, filters);
 
     return ResponseHelper.success(res, 'Compliance checks retrieved successfully', result.data);
   });
@@ -336,7 +338,7 @@ export class RiskManagementController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to get violations', 400);
     }
 
-    this.logAction('GET_VIOLATIONS', req.user.id, null, filters);
+    this.logAction('GET_VIOLATIONS', req.user.id, undefined, filters);
 
     return ResponseHelper.success(res, 'Violations retrieved successfully', result.data);
   });
@@ -482,7 +484,7 @@ export class RiskManagementController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to get trends', 400);
     }
 
-    this.logAction('GET_RISK_MANAGEMENT_TRENDS', req.user.id, null, { period });
+    this.logAction('GET_RISK_MANAGEMENT_TRENDS', req.user.id, undefined, { period });
 
     return ResponseHelper.success(res, 'Trends retrieved successfully', result.data);
   });
@@ -571,7 +573,7 @@ export class RiskManagementController extends BaseController {
         for (const action of compliance.enforcementActions) {
           if (action.status === 'PENDING') {
             const executeResult = await RiskManagementService.executeEnforcementAction(action.id);
-            if (executeResult.success && executeResult.data?.status === 'executed') {
+            if (executeResult.success && executeResult.data?.status === 'EXECUTED') {
               actionsExecuted++;
             }
           }
@@ -669,9 +671,21 @@ export class RiskManagementController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to get enforcement actions', 400);
     }
 
-    this.logAction('GET_ALL_ENFORCEMENT_ACTIONS', req.user.id, null, { filters, pagination: { page, limit } });
+    this.logAction('GET_ALL_ENFORCEMENT_ACTIONS', req.user.id, undefined, { filters, pagination: { page, limit } });
 
-    return this.formatPaginatedResponse(res, 'Enforcement actions retrieved successfully', result.data);
+    if (!result.data) {
+      return ResponseHelper.error(res, 'No data returned', undefined, 500);
+    }
+    const paginationResult: PaginationResult<EnforcementAction> = {
+      data: result.data.data,
+      page: result.data.page,
+      limit: result.data.limit,
+      total: result.data.total,
+      totalPages: result.data.totalPages,
+      hasNext: result.data.page < result.data.totalPages,
+      hasPrev: result.data.page > 1
+    };
+    return this.formatPaginatedResponse(res, 'Enforcement actions retrieved successfully', paginationResult);
   });
 
   // =====================================================
@@ -698,7 +712,7 @@ export class RiskManagementController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to create risk management config', 400);
     }
 
-    this.logAction('CREATE_RISK_CONFIG', req.user.id, result.data.id, configData);
+    this.logAction('CREATE_RISK_CONFIG', req.user.id, result.data?.id || '', configData);
 
     return ResponseHelper.success(res, 'Risk management config created successfully', result.data);
   });
@@ -761,7 +775,7 @@ export class RiskManagementController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Failed to get risk management configs', 400);
     }
 
-    this.logAction('GET_RISK_CONFIGS', req.user.id, null, filters);
+    this.logAction('GET_RISK_CONFIGS', req.user.id, undefined, filters);
 
     return ResponseHelper.success(res, 'Risk management configs retrieved successfully', result.data);
   });
@@ -798,7 +812,7 @@ export class RiskManagementController extends BaseController {
       }
     }
 
-    this.logAction('BULK_CREATE_RISK_PROFILES', req.user.id, null, { count: profiles.length });
+    this.logAction('BULK_CREATE_RISK_PROFILES', req.user.id, undefined, { count: profiles.length });
 
     return ResponseHelper.success(res, 'Bulk risk profile creation completed', {
       successful: results.length,
@@ -836,7 +850,7 @@ export class RiskManagementController extends BaseController {
       }
     }
 
-    this.logAction('BULK_ASSESS_RISK', req.user.id, null, { count: assessments.length });
+    this.logAction('BULK_ASSESS_RISK', req.user.id, undefined, { count: assessments.length });
 
     return ResponseHelper.success(res, 'Bulk risk assessment completed', {
       successful: results.length,

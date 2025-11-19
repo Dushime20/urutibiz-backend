@@ -8,7 +8,6 @@ import {
   UserFavoriteFilters,
   UserFavoriteWithProduct,
   FavoriteStatusResponse,
-  UserFavoriteServiceResponse
 } from '@/types/userFavorites.types';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '@/config/database';
@@ -259,7 +258,7 @@ export class UserFavoritesModel {
     skipped: number;
     errors: Array<{ product_id: string; error: string }>;
   }> {
-    const db = getDatabase();
+    // const db = getDatabase(); // Unused
     const results = { added: 0, skipped: 0, errors: [] as Array<{ product_id: string; error: string }> };
 
     for (const productId of productIds) {
@@ -293,7 +292,7 @@ export class UserFavoritesModel {
     notFound: number;
     errors: Array<{ product_id: string; error: string }>;
   }> {
-    const db = getDatabase();
+    // const db = getDatabase(); // Unused
     const results = { removed: 0, notFound: 0, errors: [] as Array<{ product_id: string; error: string }> };
 
     for (const productId of productIds) {
@@ -323,7 +322,7 @@ export class UserFavoritesModel {
       id: row.id,
       user_id: row.user_id,
       product_id: row.product_id,
-      metadata: UserFavoritesModel.safeParseJson(row.metadata),
+      metadata: UserFavoritesModel.safeParseJson<Record<string, any>>(row.metadata) || undefined,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
@@ -337,7 +336,7 @@ export class UserFavoritesModel {
       id: row.id,
       user_id: row.user_id,
       product_id: row.product_id,
-      metadata: UserFavoritesModel.safeParseJson(row.metadata),
+      metadata: UserFavoritesModel.safeParseJson<Record<string, any>>(row.metadata) || undefined,
       created_at: row.created_at,
       updated_at: row.updated_at,
       product: {
@@ -350,7 +349,7 @@ export class UserFavoritesModel {
         owner_id: row.product_owner_id,
         category_id: row.product_category_id,
         condition: row.product_condition,
-        location: UserFavoritesModel.safeParseJson(row.product_location),
+        location: (UserFavoritesModel.safeParseJson<string>(row.product_location) || undefined),
         created_at: row.product_created_at,
       },
     };

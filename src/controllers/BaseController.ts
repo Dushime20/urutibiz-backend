@@ -97,20 +97,20 @@ export abstract class BaseController {
    * Handle resource not found
    */
   protected handleNotFound(res: Response, resource: string = 'Resource'): void {
-    ResponseHelper.error(res, `${resource} not found`, null, 404);
+    ResponseHelper.error(res, `${resource} not found`, undefined, 404);
   }
 
   /**
    * Handle unauthorized access
    */
   protected handleUnauthorized(res: Response, message: string = 'Not authorized'): void {
-    ResponseHelper.error(res, message, null, 403);
+    ResponseHelper.error(res, message, undefined, 403);
   }
 
   /**
    * Handle bad request
    */
   protected handleBadRequest(res: Response, message: string): void {
-    ResponseHelper.error(res, message, null, 400);
+    ResponseHelper.error(res, message, undefined, 400);
   }
 }

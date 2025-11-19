@@ -7,18 +7,18 @@ import {
   CreatePaymentMethodData,
   UpdatePaymentMethodData,
   PaymentMethodFilters,
-  PaymentMethodType,
-  PaymentProvider
+  PaymentMethodType
 } from '@/types/paymentMethod.types';
 import { getDatabase } from '@/config/database';
 
-async function findDefaultByUserId(user_id: string) {
-  const db = getDatabase();
-  const result = await db('payment_methods')
-    .where({ user_id, is_default: true })
-    .first();
-  return result || null;
-}
+// Helper function for future use
+// async function _findDefaultByUserId(user_id: string) {
+//   const db = getDatabase();
+//   const result = await db('payment_methods')
+//     .where({ user_id, is_default: true })
+//     .first();
+//   return result || null;
+// }
 
 export class PaymentMethodRepository {
   private db = getDatabase();
@@ -96,7 +96,7 @@ export class PaymentMethodRepository {
    * Verify a payment method
    */
   async verify(id: string): Promise<PaymentMethodData | null> {
-    return this.update(id, { isVerified: true });
+    return this.update(id, { is_verified: true } as any);
   }
 
   /**
@@ -109,10 +109,10 @@ export class PaymentMethodRepository {
     }
 
     // Unset other default methods for the user
-    await this.unsetDefaultForUser(method.userId);
+    await this.unsetDefaultForUser(method.user_id);
 
     // Set this method as default
-    return this.update(id, { isDefault: true });
+    return this.update(id, { is_default: true });
   }
 
   /**
@@ -122,8 +122,8 @@ export class PaymentMethodRepository {
     const userMethods = await this.findByUserId(userId);
     
     for (const method of userMethods) {
-      if (method.isDefault) {
-        await this.update(method.id, { isDefault: false });
+      if (method.is_default) {
+        await this.update(method.id, { is_default: false });
       }
     }
   }
@@ -162,8 +162,8 @@ export class PaymentMethodRepository {
       }
 
       // Count verified and default
-      if (method.isVerified) verifiedCount++;
-      if (method.isDefault) defaultCount++;
+      if (method.is_verified) verifiedCount++;
+      if (method.is_default) defaultCount++;
     });
 
     return {
@@ -184,13 +184,13 @@ export class PaymentMethodRepository {
     const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
 
     return (await this.findAll()).filter(method => {
-      if (method.type !== 'card' || !method.expYear || !method.expMonth) {
+      if (method.type !== 'card' || !method.exp_year || !method.exp_month) {
         return false;
       }
 
       // Card is expired if exp year is past, or exp year is current but month is past
-      return method.expYear < currentYear || 
-             (method.expYear === currentYear && method.expMonth < currentMonth);
+      return method.exp_year < currentYear || 
+             (method.exp_year === currentYear && method.exp_month < currentMonth);
     });
   }
 
@@ -208,14 +208,14 @@ export class PaymentMethodRepository {
     const futureMonth = twoMonthsFromNow.getMonth() + 1;
 
     return (await this.findAll()).filter(method => {
-      if (method.type !== 'card' || !method.expYear || !method.expMonth) {
+      if (method.type !== 'card' || !method.exp_year || !method.exp_month) {
         return false;
       }
 
       // Check if card expires within the next 2 months
-      const isCurrentOrFutureYear = method.expYear >= currentYear && method.expYear <= futureYear;
-      const isWithinTimeframe = (method.expYear === currentYear && method.expMonth >= currentMonth) ||
-                               (method.expYear === futureYear && method.expMonth <= futureMonth);
+      const isCurrentOrFutureYear = method.exp_year >= currentYear && method.exp_year <= futureYear;
+      const isWithinTimeframe = (method.exp_year === currentYear && method.exp_month >= currentMonth) ||
+                               (method.exp_year === futureYear && method.exp_month <= futureMonth);
 
       return isCurrentOrFutureYear && isWithinTimeframe;
     });
@@ -239,8 +239,8 @@ export class PaymentMethodRepository {
     // Remove undefined filters
     const cleanedFilters: Record<string, any> = {};
     for (const key in filters) {
-      if (filters[key] !== undefined) {
-        cleanedFilters[key] = filters[key];
+      if (key in filters && filters[key as keyof PaymentMethodFilters] !== undefined) {
+        cleanedFilters[key] = filters[key as keyof PaymentMethodFilters];
       }
     }
 

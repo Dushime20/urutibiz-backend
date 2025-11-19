@@ -5,7 +5,7 @@ import { CreateMessageRequest, UpdateMessageRequest, CreateMessageTemplateReques
 
 export class MessagingController {
   // Chat Management
-  static async getChats(req: Request, res: Response): Promise<void> {
+  static async getChats(_req: Request, res: Response): Promise<void> {
     try {
       const result = await MessagingService.getChats();
       
@@ -14,7 +14,7 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, result.data, 'Chats fetched successfully');
+      ResponseHelper.success(res, 'Chats fetched successfully', result.data);
     } catch (error: any) {
       ResponseHelper.error(res, 'Failed to fetch chats', error, 500);
     }
@@ -35,7 +35,7 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, result.data, 'Chat fetched successfully');
+      ResponseHelper.success(res, 'Chat fetched successfully', result.data);
     } catch (error: any) {
       ResponseHelper.error(res, 'Failed to fetch chat', error, 500);
     }
@@ -54,7 +54,7 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, result.data, 'Messages fetched successfully');
+      ResponseHelper.success(res, 'Messages fetched successfully', result.data);
     } catch (error: any) {
       ResponseHelper.error(res, 'Failed to fetch messages', error, 500);
     }
@@ -89,12 +89,12 @@ export class MessagingController {
         db('messages').count('* as count').first()
       ]);
 
-      ResponseHelper.success(res, {
+      ResponseHelper.success(res, 'All chat messages fetched successfully', {
         items: messages,
         total: parseInt((count as any)?.count || '0', 10),
         page,
         limit
-      }, 'All chat messages fetched successfully');
+      });
     } catch (error: any) {
       ResponseHelper.error(res, 'Failed to fetch all chat messages', error, 500);
     }
@@ -118,7 +118,7 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.created(res, result.data, 'Message sent successfully');
+      ResponseHelper.created(res, 'Message sent successfully', result.data);
     } catch (error: any) {
       ResponseHelper.error(res, 'Failed to send message', error, 500);
     }
@@ -136,7 +136,7 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, result.data, 'Message updated successfully');
+      ResponseHelper.success(res, 'Message updated successfully', result.data);
     } catch (error: any) {
       ResponseHelper.error(res, 'Failed to update message', error, 500);
     }
@@ -152,14 +152,14 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, null, 'Message deleted successfully');
+      ResponseHelper.success(res, 'Message deleted successfully', null);
     } catch (error: any) {
       ResponseHelper.error(res, 'Failed to delete message', error, 500);
     }
   }
 
   // Message Templates
-  static async getMessageTemplates(req: Request, res: Response): Promise<void> {
+  static async getMessageTemplates(_req: Request, res: Response): Promise<void> {
     try {
       const result = await MessagingService.getMessageTemplates();
       
@@ -168,9 +168,9 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, result.data, 'Message templates fetched successfully');
+      ResponseHelper.success(res, 'Message templates fetched successfully', result.data);
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to fetch message templates', error, 500);
     }
   }
 
@@ -190,9 +190,9 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.created(res, result.data, 'Message template created successfully');
+      ResponseHelper.created(res, 'Message template created successfully', result.data);
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to create message template', error, 500);
     }
   }
 
@@ -208,9 +208,9 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, result.data, 'Message template updated successfully');
+      ResponseHelper.success(res, 'Message template updated successfully', result.data);
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to update message template', error, 500);
     }
   }
 
@@ -224,14 +224,14 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, null, 'Message template deleted successfully');
+      ResponseHelper.success(res, 'Message template deleted successfully', null);
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to delete message template', error, 500);
     }
   }
 
   // Messaging Statistics
-  static async getMessageStats(req: Request, res: Response): Promise<void> {
+  static async getMessageStats(_req: Request, res: Response): Promise<void> {
     try {
       const result = await MessagingService.getMessageStats();
       
@@ -240,9 +240,9 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, result.data, 'Message stats fetched successfully');
+      ResponseHelper.success(res, 'Message stats fetched successfully', result.data);
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to fetch message stats', error, 500);
     }
   }
 
@@ -257,9 +257,9 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, result.data, 'Sentiment analysis completed');
+      ResponseHelper.success(res, 'Sentiment analysis completed', result.data);
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to analyze sentiment', error, 500);
     }
   }
 
@@ -273,9 +273,9 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, result.data, 'Conflict detection completed');
+      ResponseHelper.success(res, 'Conflict detection completed', result.data);
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to detect conflict', error, 500);
     }
   }
 
@@ -296,9 +296,9 @@ export class MessagingController {
         return;
       }
 
-      ResponseHelper.success(res, result.data, 'Response suggestions generated');
+      ResponseHelper.success(res, 'Response suggestions generated', result.data);
     } catch (error: any) {
-      ResponseHelper.internalServerError(res, error.message);
+      ResponseHelper.error(res, 'Failed to generate response suggestions', error, 500);
     }
   }
 }

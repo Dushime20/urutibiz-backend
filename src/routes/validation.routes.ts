@@ -42,7 +42,7 @@ const router = Router();
  */
 router.post('/', async (req, res) => {
   try {
-    const { type, value, context } = req.body;
+    const { type, value } = req.body;
 
     if (!type || !value) {
       return ResponseHelper.error(res, 'Type and value are required', undefined, 400);

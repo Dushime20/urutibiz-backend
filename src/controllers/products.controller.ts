@@ -181,7 +181,6 @@ import ProductService from '@/services/product.service'
 import UserVerificationService from '@/services/userVerification.service';
 import { 
   AuthenticatedRequest,
-  CreateProductData,
   UpdateProductData,
   ProductFilters,
   ProductData
@@ -215,8 +214,8 @@ interface OptionalAuthRequest extends Request {
 /**
  * High-performance filter normalization
  */
-const normalizeProductFilters = (query: any): ProductFilters => {
-  const filters: ProductFilters = {};
+const normalizeProductFilters = (query: any): Partial<ProductFilters> => {
+  const filters: Partial<ProductFilters> = {};
   
   // Fast string validation
   if (query.search && typeof query.search === 'string' && query.search.trim().length > 0) {
@@ -271,7 +270,7 @@ const normalizeProductFilters = (query: any): ProductFilters => {
 /**
  * Convert filters to database query format
  */
-const convertFiltersToQuery = (filters: ProductFilters): Partial<ProductData> => {
+const convertFiltersToQuery = (filters: Partial<ProductFilters>): Partial<ProductData> => {
   const query: Partial<ProductData> = {};
   
   if (filters.owner_id) query.owner_id = filters.owner_id;
@@ -755,7 +754,7 @@ export class ProductsController extends BaseController {
   /**
    * Calculate availability efficiently
    */
-  private calculateAvailability(product: any, start_date: string, end_date: string) {
+  private calculateAvailability(_product: any, start_date: string, end_date: string) {
     // Pricing now comes from product_prices; fall back to 0 for availability preview
     const base_price = 0;
     const start_date_obj = new Date(start_date);

@@ -2,8 +2,8 @@
 // VIOLATION SERVICE
 // =====================================================
 
-import { ViolationData, CreateViolationRequest, UpdateViolationRequest, ViolationFilters, ViolationStats } from '@/types/violation.types';
-import Violation from '@/models/Violation.model';
+import { ViolationData, CreateViolationRequest, UpdateViolationRequest, ViolationFilters, ViolationStats, ViolationAction, ViolationResolution } from '@/types/violation.types';
+import { Violation } from '@/models/Violation.model';
 import { getDatabase } from '@/config/database';
 
 export class ViolationService {
@@ -19,10 +19,10 @@ export class ViolationService {
   }> {
     try {
       // Validate required fields
-      if (!data.userId || !data.title || !data.description || !data.reportedBy) {
+      if (!data.userId || !data.title || !data.description) {
         return {
           success: false,
-          error: 'Missing required fields: userId, title, description, reportedBy'
+          error: 'Missing required fields: userId, title, description'
         };
       }
 
@@ -69,16 +69,7 @@ export class ViolationService {
         };
       }
 
-      // Check if reporter exists
-      const reporter = await this.db('users').where({ id: data.reportedBy }).first();
-      if (!reporter) {
-        return {
-          success: false,
-          error: 'Reporter not found'
-        };
-      }
-
-      // Create violation
+      // Create violation - reportedBy will be set by the model or from authenticated user context
       const violation = await Violation.create(data);
 
       return {
@@ -276,10 +267,24 @@ export class ViolationService {
     error?: string;
   }> {
     try {
-      const resolutionData = {
-        action: resolution.action,
+      // Validate action type
+      const validActions: ViolationAction[] = ['warning', 'fine', 'suspension', 'ban', 'restriction', 'dismiss', 'no_action'];
+      if (!validActions.includes(resolution.action as ViolationAction)) {
+        return {
+          success: false,
+          error: `Invalid action. Must be one of: ${validActions.join(', ')}`
+        };
+      }
+
+      const resolutionData: ViolationResolution = {
+        action: resolution.action as ViolationAction,
         reason: resolution.reason,
-        penalty: resolution.penalty,
+        penalty: resolution.penalty ? {
+          type: resolution.penalty.type as 'warning' | 'fine' | 'suspension' | 'ban' | 'restriction',
+          amount: resolution.penalty.amount,
+          duration: resolution.penalty.duration,
+          details: resolution.penalty.details
+        } : undefined,
         resolvedBy,
         resolvedAt: new Date(),
         notes: resolution.notes

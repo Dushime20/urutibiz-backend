@@ -31,7 +31,7 @@ export class NotificationQueueService {
       return true;
 
     } catch (error) {
-      this.logger.error('Failed to schedule notification', { error: error.message, notificationId });
+      this.logger.error('Failed to schedule notification', { error: error instanceof Error ? error.message : String(error), notificationId });
       return false;
     }
   }
@@ -54,7 +54,7 @@ export class NotificationQueueService {
       return rows.map(row => this.mapFromDb(row));
 
     } catch (error) {
-      this.logger.error('Failed to get due notifications', { error: error.message });
+      this.logger.error('Failed to get due notifications', { error: error instanceof Error ? error.message : String(error) });
       return [];
     }
   }
@@ -77,7 +77,7 @@ export class NotificationQueueService {
       return true;
 
     } catch (error) {
-      this.logger.error('Failed to mark notification as processing', { error: error.message, id });
+      this.logger.error('Failed to mark notification as processing', { error: error instanceof Error ? error.message : String(error), id });
       return false;
     }
   }
@@ -99,7 +99,7 @@ export class NotificationQueueService {
       return true;
 
     } catch (error) {
-      this.logger.error('Failed to mark notification as processed', { error: error.message, id });
+      this.logger.error('Failed to mark notification as processed', { error: error instanceof Error ? error.message : String(error), id });
       return false;
     }
   }
@@ -122,7 +122,7 @@ export class NotificationQueueService {
       return true;
 
     } catch (error) {
-      this.logger.error('Failed to mark notification as failed', { error: error.message, id });
+      this.logger.error('Failed to mark notification as failed', { error: error instanceof Error ? error.message : String(error), id });
       return false;
     }
   }
@@ -141,7 +141,7 @@ export class NotificationQueueService {
       return true;
 
     } catch (error) {
-      this.logger.error('Failed to increment attempts', { error: error.message, id });
+      this.logger.error('Failed to increment attempts', { error: error instanceof Error ? error.message : String(error), id });
       return false;
     }
   }
@@ -162,7 +162,7 @@ export class NotificationQueueService {
       return rows.map(row => this.mapFromDb(row));
 
     } catch (error) {
-      this.logger.error('Failed to get failed notifications', { error: error.message });
+      this.logger.error('Failed to get failed notifications', { error: error instanceof Error ? error.message : String(error) });
       return [];
     }
   }
@@ -186,7 +186,7 @@ export class NotificationQueueService {
       return true;
 
     } catch (error) {
-      this.logger.error('Failed to retry notification', { error: error.message, id });
+      this.logger.error('Failed to retry notification', { error: error instanceof Error ? error.message : String(error), id });
       return false;
     }
   }
@@ -209,7 +209,7 @@ export class NotificationQueueService {
       return result;
 
     } catch (error) {
-      this.logger.error('Failed to cleanup old notifications', { error: error.message });
+      this.logger.error('Failed to cleanup old notifications', { error: error instanceof Error ? error.message : String(error) });
       return 0;
     }
   }
@@ -253,7 +253,7 @@ export class NotificationQueueService {
       return result;
 
     } catch (error) {
-      this.logger.error('Failed to get queue statistics', { error: error.message });
+      this.logger.error('Failed to get queue statistics', { error: error instanceof Error ? error.message : String(error) });
       return {
         pending: 0,
         processing: 0,
@@ -279,7 +279,7 @@ export class NotificationQueueService {
       return row ? this.mapFromDb(row) : null;
 
     } catch (error) {
-      this.logger.error('Failed to get notification by ID', { error: error.message, id });
+      this.logger.error('Failed to get notification by ID', { error: error instanceof Error ? error.message : String(error), id });
       return null;
     }
   }

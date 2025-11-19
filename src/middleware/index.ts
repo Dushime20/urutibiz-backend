@@ -1,5 +1,5 @@
 // Export all middleware
-export * from './auth.middleware';
+export { authenticateToken, requireAuth } from './auth.middleware';
 export * from './validation.middleware';
 export * from './rateLimit.middleware';
 export * from './security.middleware';
@@ -10,4 +10,4 @@ export * from './error.middleware';
 export * from './logging.middleware';
 export * from './metrics.middleware';
 export * from './performance.middleware';
-export * from './role.middleware';
+export { requireRole, requireAdmin, requireSuperAdmin, requireInspector, requireOwner, requireRenter } from './role.middleware';

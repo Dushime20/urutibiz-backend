@@ -52,6 +52,8 @@ export interface ProductData {
   recommendations?: any[];
   created_at: Date;
   updated_at: Date;
+  createdAt: Date; // For BaseModel compatibility
+  updatedAt: Date; // For BaseModel compatibility
   features?: string[];
 }
 

@@ -2,7 +2,6 @@ import { Model, DataTypes, Sequelize} from 'sequelize';
 import {
   CategoryRegulationData,
   CreateCategoryRegulationData,
-  UpdateCategoryRegulationData,
   ComplianceLevel,
   SeasonalRestrictions,
   DocumentationType,

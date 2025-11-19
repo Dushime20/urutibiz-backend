@@ -123,7 +123,7 @@ export class BookingStatusHistoryRepository {
   /**
    * Update status history (not recommended for audit records)
    */
-  async update(id: string, _data: Partial<BookingStatusHistoryData>): Promise<BookingStatusHistoryData | null> {
+  async update(_id: string, _data: Partial<BookingStatusHistoryData>): Promise<BookingStatusHistoryData | null> {
     // Status history should not be updated for audit integrity
     throw new Error('Status history records cannot be modified for audit integrity');
   }
@@ -131,7 +131,7 @@ export class BookingStatusHistoryRepository {
   /**
    * Delete status history (not recommended for audit records)
    */
-  async delete(id: string): Promise<boolean> {
+  async delete(_id: string): Promise<boolean> {
     // Status history should not be deleted for audit integrity
     throw new Error('Status history records cannot be deleted for audit integrity');
   }

@@ -36,12 +36,12 @@ export class ReviewRepositoryKnex {
         delivery_rating: data.deliveryRating,
         title: data.title,
         comment: data.comment,
-        ai_sentiment_score: data.aiSentimentScore,
-        ai_toxicity_score: data.aiToxicityScore,
-        ai_helpfulness_score: data.aiHelpfulnessScore,
-        is_flagged: data.isFlagged || false,
-        moderation_status: data.moderationStatus || 'pending',
-        is_verified_booking: data.isVerifiedBooking || false,
+        ai_sentiment_score: (data as any).aiSentimentScore || null,
+        ai_toxicity_score: (data as any).aiToxicityScore || null,
+        ai_helpfulness_score: (data as any).aiHelpfulnessScore || null,
+        is_flagged: (data as any).isFlagged || false,
+        moderation_status: (data as any).moderationStatus || 'pending',
+        is_verified_booking: (data as any).isVerifiedBooking || false,
         review_type: data.reviewType,
         metadata: data.metadata ? JSON.stringify(data.metadata) : null,
         created_by: data.createdBy || 'user',
@@ -147,7 +147,9 @@ export class ReviewRepositoryKnex {
 
     // Get total count
     const totalResult = await query.clone().count('id as count').first();
-    const total = totalResult?.count || 0;
+    const total = typeof totalResult?.count === 'string' 
+      ? parseInt(totalResult.count, 10) 
+      : (totalResult?.count as number) || 0;
 
     // Get paginated results
     const reviews = await query
@@ -288,6 +290,171 @@ export class ReviewRepositoryKnex {
       updatedAt: dbReview.updated_at,
       createdBy: dbReview.created_by,
       updatedBy: dbReview.updated_by
+    };
+  }
+
+  /**
+   * Get moderation queue
+   */
+  async getModerationQueue(): Promise<ModerationQueueItem[]> {
+    const reviews = await this.findAll({ 
+      moderationStatus: ['pending', 'flagged'] as ModerationStatus[]
+    });
+
+    return reviews
+      .map(review => ({
+        id: review.id,
+        bookingId: review.bookingId,
+        reviewerId: review.reviewerId,
+        reviewedUserId: review.reviewedUserId,
+        overallRating: review.overallRating,
+        title: review.title || undefined,
+        comment: review.comment || undefined,
+        aiSentimentScore: review.aiSentimentScore || undefined,
+        aiToxicityScore: review.aiToxicityScore || undefined,
+        aiHelpfulnessScore: review.aiHelpfulnessScore || undefined,
+        isFlagged: review.isFlagged,
+        moderationStatus: review.moderationStatus,
+        createdAt: review.createdAt,
+        updatedAt: review.updatedAt
+      }));
+  }
+
+  /**
+   * Get user analytics
+   */
+  async getUserAnalytics(userId: string): Promise<UserReviewAnalytics | null> {
+    const userReviews = await this.findByReviewedUserId(userId);
+    
+    if (userReviews.length === 0) {
+      return null;
+    }
+
+    const approvedReviews = userReviews.filter(r => r.moderationStatus === 'approved');
+    const flaggedReviews = userReviews.filter(r => r.isFlagged);
+    const reviewsWithResponse = userReviews.filter(r => r.response);
+    const verifiedReviews = userReviews.filter(r => r.isVerifiedBooking);
+
+    const latestReview = userReviews.reduce((latest, current) => 
+      current.createdAt > latest.createdAt ? current : latest
+    );
+
+    const calculateAverage = (reviews: ReviewData[], field: keyof ReviewData): number => {
+      const values = reviews
+        .map(r => r[field])
+        .filter((v): v is number => typeof v === 'number');
+      return values.length > 0 ? values.reduce((sum, val) => sum + val, 0) / values.length : 0;
+    };
+
+    return {
+      userId,
+      totalReviews: userReviews.length,
+      approvedReviews: approvedReviews.length,
+      flaggedReviews: flaggedReviews.length,
+      avgOverallRating: calculateAverage(approvedReviews, 'overallRating'),
+      avgCommunicationRating: calculateAverage(approvedReviews, 'communicationRating'),
+      avgConditionRating: calculateAverage(approvedReviews, 'conditionRating'),
+      avgValueRating: calculateAverage(approvedReviews, 'valueRating'),
+      avgDeliveryRating: calculateAverage(approvedReviews, 'deliveryRating'),
+      avgSentimentScore: calculateAverage(approvedReviews, 'aiSentimentScore'),
+      responsesCount: reviewsWithResponse.length,
+      latestReviewDate: latestReview.createdAt,
+      verifiedReviewsCount: verifiedReviews.length
+    };
+  }
+
+  /**
+   * Get review statistics
+   */
+  async getReviewStats(filters?: ReviewFilters): Promise<ReviewStats> {
+    const reviews = await this.findAll(filters);
+    const totalReviews = reviews.length;
+    
+    if (totalReviews === 0) {
+      return {
+        totalReviews: 0,
+        averageRating: 0,
+        ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        moderationStatusBreakdown: {
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+          flagged: 0
+        },
+        reviewTypeBreakdown: {
+          renter_to_owner: 0,
+          owner_to_renter: 0
+        },
+        flaggedReviewsCount: 0,
+        verifiedReviewsCount: 0,
+        averageSentimentScore: 0,
+        averageToxicityScore: 0,
+        averageHelpfulnessScore: 0,
+        responseRate: 0,
+        monthlyTrends: []
+      };
+    }
+
+    const totalRating = reviews.reduce((sum, review) => sum + review.overallRating, 0);
+    const averageRating = totalRating / totalReviews;
+
+    const ratingDistribution: Record<RatingValue, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    reviews.forEach(review => {
+      ratingDistribution[review.overallRating]++;
+    });
+
+    const moderationStatusBreakdown: Record<ModerationStatus, number> = {
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      flagged: 0
+    };
+    reviews.forEach(review => {
+      moderationStatusBreakdown[review.moderationStatus]++;
+    });
+
+    const reviewTypeBreakdown: Record<ReviewType, number> = {
+      renter_to_owner: 0,
+      owner_to_renter: 0
+    };
+    reviews.forEach(review => {
+      if (review.reviewType && review.reviewType in reviewTypeBreakdown) {
+        reviewTypeBreakdown[review.reviewType]++;
+      }
+    });
+
+    const sentimentScores = reviews
+      .map(r => r.aiSentimentScore)
+      .filter((s): s is number => typeof s === 'number');
+    const toxicityScores = reviews
+      .map(r => r.aiToxicityScore)
+      .filter((s): s is number => typeof s === 'number');
+    const helpfulnessScores = reviews
+      .map(r => r.aiHelpfulnessScore)
+      .filter((s): s is number => typeof s === 'number');
+
+    const reviewsWithResponse = reviews.filter(r => r.response);
+    const responseRate = totalReviews > 0 ? (reviewsWithResponse.length / totalReviews) * 100 : 0;
+
+    return {
+      totalReviews,
+      averageRating,
+      ratingDistribution,
+      moderationStatusBreakdown,
+      reviewTypeBreakdown,
+      flaggedReviewsCount: reviews.filter(r => r.isFlagged).length,
+      verifiedReviewsCount: reviews.filter(r => r.isVerifiedBooking).length,
+      averageSentimentScore: sentimentScores.length > 0 
+        ? sentimentScores.reduce((sum, s) => sum + s, 0) / sentimentScores.length 
+        : 0,
+      averageToxicityScore: toxicityScores.length > 0 
+        ? toxicityScores.reduce((sum, s) => sum + s, 0) / toxicityScores.length 
+        : 0,
+      averageHelpfulnessScore: helpfulnessScores.length > 0 
+        ? helpfulnessScores.reduce((sum, s) => sum + s, 0) / helpfulnessScores.length 
+        : 0,
+      responseRate,
+      monthlyTrends: [] // TODO: Implement monthly trends calculation
     };
   }
 } 

@@ -691,4 +691,151 @@ router.post('/:id/images', cacheInvalidationMiddleware(['products:*', 'api:GET:*
  */
 router.get('/:id/analytics', controller.getProductAnalytics);
 
+/**
+ * @swagger
+ * /products/{id}/remove-from-market:
+ *   post:
+ *     summary: Remove product from market for specific dates
+ *     description: |
+ *       Remove a product from the market for selected dates. 
+ *       Dates with bookings, in-progress sessions, or pending bookings cannot be removed.
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Product ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - dates
+ *             properties:
+ *               dates:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: date
+ *                 description: Array of dates (YYYY-MM-DD) to remove from market
+ *                 example: ["2024-12-25", "2024-12-26"]
+ *               reason:
+ *                 type: string
+ *                 description: Optional reason for removal
+ *                 example: "owner_removed"
+ *     responses:
+ *       200:
+ *         description: Product removed from market successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     results:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           date:
+ *                             type: string
+ *                           status:
+ *                             type: string
+ *       400:
+ *         description: Invalid dates or dates have bookings
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not product owner
+ *       404:
+ *         description: Product not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/:id/remove-from-market', requireAuth, cacheInvalidationMiddleware(['products:*', 'api:GET:*products*']), controller.removeFromMarket);
+
+/**
+ * @swagger
+ * /products/{id}/restore-to-market:
+ *   post:
+ *     summary: Restore product to market for specific dates
+ *     description: |
+ *       Restore a product to the market for selected dates that were previously removed.
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Product ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - dates
+ *             properties:
+ *               dates:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: date
+ *                 description: Array of dates (YYYY-MM-DD) to restore to market
+ *                 example: ["2024-12-25", "2024-12-26"]
+ *     responses:
+ *       200:
+ *         description: Product restored to market successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     results:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           date:
+ *                             type: string
+ *                           status:
+ *                             type: string
+ *       400:
+ *         description: Invalid dates
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not product owner
+ *       404:
+ *         description: Product not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/:id/restore-to-market', requireAuth, cacheInvalidationMiddleware(['products:*', 'api:GET:*products*']), controller.restoreToMarket);
+
 export default router;

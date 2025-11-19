@@ -187,6 +187,9 @@ import {
 } from '@/types';
 import { ResponseHelper } from '@/utils/response';
 import { FavoriteEnhancer } from '@/utils/favoriteEnhancer.util';
+import { getDatabase } from '@/config/database';
+import { v4 as uuidv4 } from 'uuid';
+import ProductAvailabilityService from '@/services/productAvailability.service';
 
 // Performance: Cache configuration
 const CACHE_TTL = {
@@ -426,6 +429,11 @@ export class ProductsController extends BaseController {
       return ResponseHelper.error(res, result.error || 'Product not found', 404);
     }
 
+    // Automatically restore past unavailable dates (non-blocking)
+    ProductAvailabilityService.restorePastUnavailableDates().catch(err => {
+      console.error('Error restoring past unavailable dates (non-blocking):', err);
+    });
+
     // Enhance product with favorite status
     const enhancedProduct = await FavoriteEnhancer.enhanceProduct(result.data, userId);
 
@@ -527,6 +535,11 @@ export class ProductsController extends BaseController {
 
     const result = await ProductService.getPaginated(query, page, limit);
 
+    // Automatically restore past unavailable dates (non-blocking)
+    ProductAvailabilityService.restorePastUnavailableDates().catch(err => {
+      console.error('Error restoring past unavailable dates (non-blocking):', err);
+    });
+
     this.logAction('GET_USER_PRODUCTS', user_id);
 
     if (!result.success || !result.data) {
@@ -567,8 +580,29 @@ export class ProductsController extends BaseController {
       return this.handleNotFound(res, 'Product');
     }
 
-    // Performance: Optimized availability calculation
-    const availability = this.calculateAvailability(product_result.data, start_date as string, end_date as string);
+    // Automatically restore past unavailable dates before fetching (non-blocking)
+    ProductAvailabilityService.restorePastUnavailableDates().catch(err => {
+      console.error('Error restoring past unavailable dates (non-blocking):', err);
+    });
+
+    // Fetch actual availability records from database
+    const db = getDatabase();
+    const availabilityRecords = await db('product_availability')
+      .where({ product_id: id })
+      .whereBetween('date', [start_date as string, end_date as string])
+      .select('id', 'product_id', 'date', 'availability_type', 'price_override', 'notes', 'created_at')
+      .orderBy('date', 'asc');
+
+    // Format availability records to match frontend expectations
+    const availability = availabilityRecords.map((record: any) => ({
+      id: record.id,
+      product_id: record.product_id,
+      date: record.date,
+      availability_type: record.availability_type,
+      price_override: record.price_override,
+      notes: record.notes,
+      created_at: record.created_at
+    }));
 
     // Cache the result
     availabilityCache.set(cacheKey, {
@@ -928,6 +962,235 @@ export class ProductsController extends BaseController {
       cache.delete(key);
     }
   }
+
+  /**
+   * Remove product from market for specific dates
+   * POST /api/v1/products/:id/remove-from-market
+   */
+  public removeFromMarket = this.asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+    const { id: productId } = req.params;
+    const { dates, reason } = req.body;
+    const userId = req.user.id;
+
+    // Validate input
+    if (!dates || !Array.isArray(dates) || dates.length === 0) {
+      return this.handleBadRequest(res, 'Dates array is required and must not be empty');
+    }
+
+    // Verify product exists and user owns it
+    const productResult = await ProductService.getById(productId);
+    if (!productResult.success || !productResult.data) {
+      return this.handleNotFound(res, 'Product');
+    }
+
+    if (!this.checkResourceOwnership(req, productResult.data.owner_id)) {
+      return this.handleUnauthorized(res, 'Not authorized to modify this product');
+    }
+
+    const db = getDatabase();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Validate dates and check for bookings
+    const invalidDates: string[] = [];
+    const bookedDates: string[] = [];
+
+    for (const dateStr of dates) {
+      // Validate date format
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) {
+        invalidDates.push(dateStr);
+        continue;
+      }
+
+      // Check if date is in the past
+      date.setHours(0, 0, 0, 0);
+      if (date < today) {
+        invalidDates.push(dateStr);
+        continue;
+      }
+
+      // Check for bookings or in-progress sessions on this date
+      const conflictingBookings = await db('bookings')
+        .where({ product_id: productId })
+        .whereIn('status', ['confirmed', 'in_progress', 'pending'])
+        .where(function() {
+          this.whereRaw('DATE(start_date) <= ?', [dateStr])
+              .andWhereRaw('DATE(end_date) >= ?', [dateStr]);
+        })
+        .first();
+
+      if (conflictingBookings) {
+        bookedDates.push(dateStr);
+        continue;
+      }
+
+      // Check for in-progress handover sessions on this date
+      const conflictingHandover = await db('handover_sessions')
+        .where({ product_id: productId })
+        .whereIn('status', ['scheduled', 'in_progress'])
+        .whereRaw('DATE(scheduled_date_time) = ?', [dateStr])
+        .first();
+
+      if (conflictingHandover) {
+        bookedDates.push(dateStr);
+        continue;
+      }
+
+      // Check for in-progress return sessions on this date
+      const conflictingReturn = await db('return_sessions')
+        .where({ product_id: productId })
+        .whereIn('status', ['scheduled', 'in_progress'])
+        .whereRaw('DATE(scheduled_date_time) = ?', [dateStr])
+        .first();
+
+      if (conflictingReturn) {
+        bookedDates.push(dateStr);
+        continue;
+      }
+    }
+
+    if (invalidDates.length > 0) {
+      return ResponseHelper.error(res, `Invalid or past dates: ${invalidDates.join(', ')}`, 400);
+    }
+
+    if (bookedDates.length > 0) {
+      return ResponseHelper.error(
+        res,
+        `Cannot remove dates with bookings, handover sessions, or return sessions: ${bookedDates.join(', ')}`,
+        400
+      );
+    }
+
+    // Remove product from market for valid dates
+    const notes = reason || 'owner_removed';
+    const results = [];
+
+    for (const dateStr of dates) {
+      try {
+        // Check if availability record exists
+        const existing = await db('product_availability')
+          .where({ product_id: productId, date: dateStr })
+          .first();
+
+        if (existing) {
+          // Update existing record
+          await db('product_availability')
+            .where({ product_id: productId, date: dateStr })
+            .update({
+              availability_type: 'unavailable',
+              notes: notes
+            });
+        } else {
+          // Create new record
+          await db('product_availability').insert({
+            id: uuidv4(),
+            product_id: productId,
+            date: dateStr,
+            availability_type: 'unavailable',
+            notes: notes,
+            created_at: new Date()
+          });
+        }
+
+        results.push({ date: dateStr, status: 'removed' });
+      } catch (error: any) {
+        console.error(`Error removing date ${dateStr} from market:`, error);
+        results.push({ date: dateStr, status: 'error', error: error.message });
+      }
+    }
+
+    // Automatically restore any past unavailable dates before invalidating cache
+    ProductAvailabilityService.restorePastUnavailableDates().catch(err => {
+      console.error('Error restoring past unavailable dates (non-blocking):', err);
+    });
+
+    // Invalidate caches
+    this.invalidateProductCaches(productResult.data.owner_id, productId);
+
+    this.logAction('REMOVE_FROM_MARKET', userId, productId, { dates, reason });
+
+    return ResponseHelper.success(
+      res,
+      `Product removed from market for ${results.filter(r => r.status === 'removed').length} date(s)`,
+      { results }
+    );
+  });
+
+  /**
+   * Restore product to market for specific dates
+   * POST /api/v1/products/:id/restore-to-market
+   */
+  public restoreToMarket = this.asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+    const { id: productId } = req.params;
+    const { dates } = req.body;
+    const userId = req.user.id;
+
+    // Validate input
+    if (!dates || !Array.isArray(dates) || dates.length === 0) {
+      return this.handleBadRequest(res, 'Dates array is required and must not be empty');
+    }
+
+    // Verify product exists and user owns it
+    const productResult = await ProductService.getById(productId);
+    if (!productResult.success || !productResult.data) {
+      return this.handleNotFound(res, 'Product');
+    }
+
+    if (!this.checkResourceOwnership(req, productResult.data.owner_id)) {
+      return this.handleUnauthorized(res, 'Not authorized to modify this product');
+    }
+
+    const db = getDatabase();
+    const results = [];
+
+    for (const dateStr of dates) {
+      try {
+        // Check if availability record exists
+        const existing = await db('product_availability')
+          .where({ product_id: productId, date: dateStr })
+          .first();
+
+        if (existing && existing.availability_type === 'unavailable') {
+          // Delete the record to restore availability (or set to available)
+          // We'll set it to 'available' instead of deleting to maintain history
+          await db('product_availability')
+            .where({ product_id: productId, date: dateStr })
+            .update({
+              availability_type: 'available',
+              notes: 'restored_by_owner'
+            });
+
+          results.push({ date: dateStr, status: 'restored' });
+        } else if (existing) {
+          // Already available or has other status
+          results.push({ date: dateStr, status: 'already_available' });
+        } else {
+          // No record exists, product is already available
+          results.push({ date: dateStr, status: 'already_available' });
+        }
+      } catch (error: any) {
+        console.error(`Error restoring date ${dateStr} to market:`, error);
+        results.push({ date: dateStr, status: 'error', error: error.message });
+      }
+    }
+
+    // Automatically restore any past unavailable dates before invalidating cache
+    ProductAvailabilityService.restorePastUnavailableDates().catch(err => {
+      console.error('Error restoring past unavailable dates (non-blocking):', err);
+    });
+
+    // Invalidate caches
+    this.invalidateProductCaches(productResult.data.owner_id, productId);
+
+    this.logAction('RESTORE_TO_MARKET', userId, productId, { dates });
+
+    return ResponseHelper.success(
+      res,
+      `Product restored to market for ${results.filter(r => r.status === 'restored').length} date(s)`,
+      { results }
+    );
+  });
 }
 
 export default new ProductsController();

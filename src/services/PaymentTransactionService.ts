@@ -22,6 +22,8 @@ import {
   PaymentTransactionError,
   PaymentProviderError
 } from '../types/paymentTransaction.types';
+import NotificationEngine from './notification/NotificationEngine';
+import { NotificationType, NotificationPriority } from './notification/types';
 
 /**
  * Service class for managing payment transactions
@@ -378,12 +380,16 @@ export class PaymentTransactionService {
 
       await this.updateTransaction(transaction.id, updateData);
 
+      let updatedTransaction = await this.getTransactionById(transaction.id);
+
       // Sync booking with payment transaction (update payment_status and auto-confirm if payment completed)
-      if (transaction.booking_id) {
-        const updatedTransaction = await this.getTransactionById(transaction.id);
-        if (updatedTransaction) {
+      if (updatedTransaction?.booking_id) {
           await this.syncBookingWithPaymentTransaction(updatedTransaction);
+        updatedTransaction = await this.getTransactionById(transaction.id);
         }
+
+      if (updatedTransaction) {
+        await this.sendPaymentNotifications(updatedTransaction);
       }
 
       return {
@@ -995,5 +1001,141 @@ export class PaymentTransactionService {
       .update(updateData);
 
     console.log(`[PaymentSync] Updated booking ${transaction.booking_id}: payment_status=${newPaymentStatus}, status=${updateData.status || booking.status}`);
+  }
+
+  /**
+   * Notify payer/owner about payment result
+   */
+  private async sendPaymentNotifications(transaction: PaymentTransactionData): Promise<void> {
+    try {
+      const db = getDatabase();
+
+      const payer = transaction.user_id
+        ? await db('users')
+            .select('id', 'first_name', 'last_name', 'email')
+            .where('id', transaction.user_id)
+            .first()
+        : null;
+
+      let bookingContext: any = null;
+      if (transaction.booking_id) {
+        bookingContext = await db('bookings')
+          .select(
+            'bookings.id',
+            'bookings.booking_number',
+            'bookings.start_date',
+            'bookings.end_date',
+            'bookings.owner_id',
+            'bookings.renter_id',
+            'products.title as product_title',
+            'owner.first_name as owner_first_name',
+            'owner.email as owner_email',
+            'renter.first_name as renter_first_name',
+            'renter.email as renter_email'
+          )
+          .leftJoin('products', 'products.id', 'bookings.product_id')
+          .leftJoin({ owner: 'users' }, 'owner.id', 'products.owner_id')
+          .leftJoin({ renter: 'users' }, 'renter.id', 'bookings.renter_id')
+          .where('bookings.id', transaction.booking_id)
+          .first();
+      }
+
+      const amountText = this.formatCurrencyAmount(transaction.amount, transaction.currency);
+      const productName = bookingContext?.product_title || 'your booking';
+      const bookingNumber = bookingContext?.booking_number;
+      const success = transaction.status === 'completed';
+
+      const notifications: Promise<any>[] = [];
+
+      notifications.push(
+        NotificationEngine.sendTemplatedNotification(
+          success ? 'payment_received' : 'payment_failed',
+          transaction.user_id,
+          {
+            recipientName: payer?.first_name || payer?.email || 'there',
+            amount: amountText,
+            currency: transaction.currency,
+            bookingNumber: bookingNumber || transaction.booking_id || '',
+            productName,
+            paymentStatus: transaction.status
+          },
+          {
+            recipientEmail: payer?.email || undefined,
+            data: {
+              transactionId: transaction.id,
+              bookingId: transaction.booking_id,
+              bookingNumber,
+              productTitle: productName,
+              amount: transaction.amount,
+              currency: transaction.currency,
+              status: transaction.status,
+              role: 'payer'
+            },
+            metadata: {
+              source: 'payment_transaction_service',
+              event: success ? 'payment_success' : 'payment_failure'
+            },
+            priority: success ? NotificationPriority.NORMAL : NotificationPriority.HIGH
+          }
+        )
+      );
+
+      if (success && bookingContext?.owner_id) {
+        notifications.push(
+          NotificationEngine.sendTemplatedNotification(
+            'payment_received_owner',
+            bookingContext.owner_id,
+            {
+              recipientName: bookingContext.owner_first_name || bookingContext.owner_email || 'there',
+              amount: amountText,
+              currency: transaction.currency,
+              bookingNumber: bookingNumber || bookingContext.id || '',
+              productName,
+              paymentStatus: transaction.status,
+              payerName: payer?.first_name || 'a renter'
+            },
+            {
+              recipientEmail: bookingContext.owner_email || undefined,
+              data: {
+                transactionId: transaction.id,
+                bookingId: transaction.booking_id,
+                bookingNumber,
+                productTitle: productName,
+                payerName: payer?.first_name,
+                amount: transaction.amount,
+                currency: transaction.currency,
+                status: transaction.status,
+                role: 'owner'
+              },
+              metadata: {
+                source: 'payment_transaction_service',
+                event: 'owner_payment_received'
+              },
+              priority: NotificationPriority.NORMAL
+            }
+          )
+        );
+      }
+
+      await Promise.allSettled(notifications);
+    } catch (error) {
+      console.error('[PaymentNotifications] Failed to send payment notifications', error);
+    }
+  }
+
+  private formatCurrencyAmount(amount: number, currency?: string | null): string {
+    if (typeof amount !== 'number') {
+      return `${amount ?? ''} ${currency ?? ''}`.trim();
+    }
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency || 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+      }).format(amount);
+    } catch {
+      return `${amount} ${currency || ''}`.trim();
+    }
   }
 }

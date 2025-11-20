@@ -10,6 +10,8 @@ import { NotificationRepository } from './repositories/NotificationRepository';
 import { NotificationPreferencesService } from './preferences/NotificationPreferencesService';
 import { Logger } from '@/utils/logger';
 import { getDatabase } from '@/config/database';
+import { emitNotificationToUser } from '@/socket/socketManager';
+import logger from '@/utils/logger';
 
 export interface NotificationPayload {
   type: NotificationType;
@@ -142,6 +144,31 @@ export class NotificationEngine extends EventEmitter {
           .map(r => r.error)
           .filter((error): error is string => Boolean(error)) : undefined
       };
+
+      try {
+        emitNotificationToUser(notification.data.recipientId, {
+          id: notification.data.id,
+          title: payload.title,
+          message: payload.message,
+          type: payload.type,
+          priority: payload.priority || NotificationPriority.NORMAL,
+          channels,
+          data: payload.data,
+          status: hasFailures ? NotificationStatus.PARTIALLY_DELIVERED : NotificationStatus.DELIVERED,
+          createdAt: notification.data.createdAt || new Date().toISOString(),
+          isRead: false
+        });
+        logger.info('Realtime notification emitted', {
+          notificationId: notification.data.id,
+          recipientId: notification.data.recipientId,
+          type: payload.type
+        });
+      } catch (socketError) {
+        logger.error('Failed to emit realtime notification', {
+          notificationId: notification.data.id,
+          error: socketError instanceof Error ? socketError.message : String(socketError)
+        });
+      }
 
       this.emit('notification:sent', result);
       this.logger.info('Notification sent successfully', { notificationId: notification.data.id });

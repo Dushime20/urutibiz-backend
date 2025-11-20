@@ -31,8 +31,56 @@ async function sendSms(phoneNumber: string, message: string) {
 }
 
 export default class UserVerificationService {
+  /**
+   * Check if a document number is already used by another user
+   * @param documentNumber - The document number to check
+   * @param verificationType - The type of verification (national_id, passport, driving_license)
+   * @param excludeUserId - User ID to exclude from check (for resubmissions)
+   * @returns true if document is already used by another user
+   */
+  static async isDocumentNumberAlreadyUsed(
+    documentNumber: string | undefined,
+    verificationType: string,
+    excludeUserId?: string
+  ): Promise<boolean> {
+    if (!documentNumber || !documentNumber.trim()) {
+      return false; // No document number provided, skip check
+    }
+
+    // Only check for document types that have document numbers
+    if (!['national_id', 'passport', 'driving_license'].includes(verificationType)) {
+      return false; // Address and selfie don't have document numbers
+    }
+
+    const db = getDatabase();
+    const normalizedDocNumber = documentNumber.trim().toUpperCase(); // Normalize for comparison
+
+    const query = db('user_verifications')
+      .where('verification_type', verificationType)
+      .whereRaw('UPPER(TRIM(document_number)) = ?', [normalizedDocNumber])
+      .whereIn('verification_status', ['pending', 'verified']); // Only check active verifications
+
+    // Exclude current user's verifications (for resubmissions)
+    if (excludeUserId) {
+      query.whereNot('user_id', excludeUserId);
+    }
+
+    const existing = await query.first();
+
+    if (existing) {
+      console.log(`⚠️ Document number ${normalizedDocNumber} already used by user ${existing.user_id}`);
+      return true;
+    }
+
+    return false;
+  }
+
   static async submitVerification(userId: string, data: SubmitVerificationRequest): Promise<UserVerification> {
     const db = getDatabase();
+    
+    // Note: Document number uniqueness check is done during face comparison step
+    // (when both document and selfie are submitted)
+
     let ocrData, livenessScore, aiProfileScore;
     if (data.documentImageUrl && ['national_id', 'passport', 'driving_license'].includes(data.verificationType)) {
       ocrData = await runOcrOnImage(data.documentImageUrl);
@@ -63,7 +111,7 @@ export default class UserVerificationService {
     }
     // Get user's phone number for verification record
     const user = await db('users').where({ id: userId }).first();
-    const userPhoneNumber = user?.phone; // canonical 'phone' column
+    const userPhoneNumber = user?.phone || user?.phone_number || null; // normalize phone source
     
     console.log(`📱 User ${userId} phone number: ${userPhoneNumber}`);
     
@@ -147,6 +195,9 @@ export default class UserVerificationService {
     if (!existing) {
       throw new Error('Verification not found or access denied');
     }
+
+    // Note: Document number uniqueness check is done during face comparison step
+    // (when both document and selfie are submitted)
 
     // Process OCR and AI scoring again
     let ocrData, livenessScore, aiProfileScore;
@@ -368,9 +419,13 @@ export default class UserVerificationService {
 
   /**
    * Submit verification without AI processing (for async mode)
+   * Note: Document number uniqueness check is done during face comparison step
    */
   static async submitVerificationInitial(userId: string, data: SubmitVerificationRequest): Promise<UserVerification> {
     const db = getDatabase();
+    
+    // Note: Document number uniqueness check is done during face comparison step
+    // (when both document and selfie are submitted in updateVerification)
     
     const [row] = await db('user_verifications')
       .insert({
@@ -542,6 +597,38 @@ export default class UserVerificationService {
     const docUrl = data.documentImageUrl || existing.document_image_url;
     const selfieUrl = data.selfieImageUrl || existing.selfie_image_url;
     
+    // CRITICAL: Check document number uniqueness BEFORE face comparison
+    // This prevents wasting resources on face comparison if document is already used
+    if (docUrl && selfieUrl) {
+      // This is the actual submission point - both document and selfie are present
+      const documentNumberToCheck = data.documentNumber || existing.document_number;
+      const verificationTypeToCheck = data.verificationType || existing.verification_type;
+      
+      // Only check for document types that have document numbers
+      if (documentNumberToCheck && ['national_id', 'passport', 'driving_license'].includes(verificationTypeToCheck)) {
+        console.log(`🔍 Checking document number uniqueness before face comparison: ${documentNumberToCheck}`);
+        
+        const isUsed = await UserVerificationService.isDocumentNumberAlreadyUsed(
+          documentNumberToCheck,
+          verificationTypeToCheck,
+          userId // Exclude current user's verifications
+        );
+        
+        if (isUsed) {
+          // STOP PROCESS - Don't proceed with face comparison
+          console.error(`❌ Document number ${documentNumberToCheck} is already used - STOPPING face comparison process`);
+          const documentTypeName = verificationTypeToCheck.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+          throw new Error(
+            `This ${documentTypeName} number (${documentNumberToCheck}) has already been used for verification by another user. ` +
+            `Each document can only be verified once. Please upload a different document to continue the verification process.`
+          );
+        }
+        
+        console.log(`✅ Document number ${documentNumberToCheck} is unique - proceeding with face comparison`);
+      }
+    }
+    
+    // Only proceed with face comparison if document number check passed (or not applicable)
     if (docUrl && selfieUrl)
       try {
         console.log('🔍 Starting AI image comparison (face-api.js)...');

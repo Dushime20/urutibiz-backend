@@ -1,6 +1,7 @@
 import { Server as SocketServer, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger';
+import { setSocketServer } from './socketManager';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -8,6 +9,7 @@ interface AuthenticatedSocket extends Socket {
 }
 
 export const initializeSocket = (io: SocketServer): void => {
+  setSocketServer(io);
   // JWT verification middleware
   io.use(async (socket: AuthenticatedSocket, next) => {
     const token = socket.handshake.auth.token;

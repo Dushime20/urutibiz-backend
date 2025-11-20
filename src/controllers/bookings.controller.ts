@@ -29,6 +29,8 @@ import { InsuranceType } from '@/types/booking.types';
 import { ResponseHelper } from '@/utils/response';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '@/config/database';
+import NotificationEngine from '@/services/notification/NotificationEngine';
+import { NotificationType, NotificationPriority } from '@/services/notification/types';
 
 // Performance: Cache configuration
 const CACHE_TTL = {
@@ -1485,6 +1487,7 @@ export class BookingsController extends BaseController {
         undefined,
         'Booking created'
       );
+      await this.sendBookingCreatedNotifications(created.data.id);
     }
     
     // Performance: Invalidate related caches
@@ -1530,6 +1533,129 @@ export class BookingsController extends BaseController {
         .onConflict(['product_id', 'date'])
         .merge({ availability_type: 'unavailable', notes: `Booked (${booking.status})` });
     }
+  }
+
+  /**
+   * Send renter/owner notifications when a booking is created
+   */
+  private async sendBookingCreatedNotifications(bookingId: string): Promise<void> {
+    try {
+      const booking = await this.getBookingNotificationContext(bookingId);
+      if (!booking) {
+        console.warn(`[BookingNotifications] Booking context not found for ${bookingId}`);
+        return;
+      }
+
+      const productName = booking.product_title || 'your product';
+      const bookingNumber = booking.booking_number || booking.id;
+      const startDate = this.formatBookingDate(booking.start_date);
+      const endDate = this.formatBookingDate(booking.end_date);
+      const dateRangeText = startDate && endDate ? `${startDate} - ${endDate}` : '';
+
+      const renterTitle = `Booking confirmed - ${productName}`;
+      const renterMessage = `Hi ${booking.renter_first_name || 'there'}, your booking (${bookingNumber}) for ${productName} ${dateRangeText ? `from ${dateRangeText}` : ''} has been created successfully. We'll notify you if anything changes.`;
+
+      const ownerTitle = `New booking request - ${productName}`;
+      const ownerMessage = `Hi ${booking.owner_first_name || 'there'}, ${booking.renter_first_name || 'a renter'} just booked ${productName}${dateRangeText ? ` for ${dateRangeText}` : ''}. Review the booking details in your dashboard.`;
+
+      const notifications: Promise<any>[] = [];
+
+      if (booking.renter_id) {
+        notifications.push(
+          NotificationEngine.sendTemplatedNotification(
+            'booking_created_renter',
+            booking.renter_id,
+            {
+              recipientName: booking.renter_first_name || booking.renter_email || 'there',
+              productName,
+              bookingNumber,
+              startDate: startDate || '',
+              endDate: endDate || ''
+            },
+            {
+              recipientEmail: booking.renter_email || undefined,
+              data: {
+                bookingId: booking.id,
+                role: 'renter'
+              },
+              metadata: {
+                source: 'bookings_controller',
+                event: 'booking_created'
+              }
+            }
+          )
+        );
+      }
+
+      if (booking.owner_id) {
+        notifications.push(
+          NotificationEngine.sendTemplatedNotification(
+            'booking_created_owner',
+            booking.owner_id,
+            {
+              recipientName: booking.owner_first_name || booking.owner_email || 'there',
+              renterName: booking.renter_first_name || 'a renter',
+              productName,
+              bookingNumber,
+              startDate: startDate || '',
+              endDate: endDate || ''
+            },
+            {
+              recipientEmail: booking.owner_email || undefined,
+              data: {
+                bookingId: booking.id,
+                role: 'owner'
+              },
+              metadata: {
+                source: 'bookings_controller',
+                event: 'booking_created'
+              }
+            }
+          )
+        );
+      }
+
+      if (notifications.length > 0) {
+        await Promise.allSettled(notifications);
+      }
+    } catch (error) {
+      console.error('[BookingNotifications] Failed to send booking notifications', error);
+    }
+  }
+
+  private async getBookingNotificationContext(bookingId: string) {
+    const db = getDatabase();
+    return await db('bookings')
+      .select(
+        'bookings.id',
+        'bookings.booking_number',
+        'bookings.start_date',
+        'bookings.end_date',
+        'bookings.product_id',
+        'bookings.renter_id',
+        'products.owner_id',
+        'products.title as product_title',
+        'renter.first_name as renter_first_name',
+        'renter.email as renter_email',
+        'owner.first_name as owner_first_name',
+        'owner.email as owner_email'
+      )
+      .leftJoin('products', 'products.id', 'bookings.product_id')
+      .leftJoin({ renter: 'users' }, 'renter.id', 'bookings.renter_id')
+      .leftJoin({ owner: 'users' }, 'owner.id', 'products.owner_id')
+      .where('bookings.id', bookingId)
+      .first();
+  }
+
+  private formatBookingDate(dateStr?: string | null): string {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
   }
 
   /**

@@ -193,7 +193,7 @@ export class NotificationTemplateService {
   async initializeDefaultTemplates(): Promise<void> {
     try {
       const existingTemplates = await this.getAllTemplates();
-      const existingNames = existingTemplates.map(t => t.name);
+      const existingMap = new Map(existingTemplates.map(template => [template.name, template]));
 
       const defaultTemplates = [
         {
@@ -244,13 +244,101 @@ export class NotificationTemplateService {
           priority: NotificationPriority.NORMAL,
           variables: ['recipientName', 'productName', 'status', 'completedAt', 'inspectorName', 'score'],
           isActive: true
+        },
+        {
+          name: 'booking_created_renter',
+          type: NotificationType.BOOKING_CONFIRMED,
+          title: 'Booking Confirmed - {{productName}}',
+          message: `Hello {{recipientName}},
+
+Your booking ({{bookingNumber}}) for {{productName}} from {{startDate}} to {{endDate}} has been created successfully.
+You will receive updates here if anything changes.`,
+          channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH, NotificationChannel.IN_APP],
+          priority: NotificationPriority.NORMAL,
+          variables: ['recipientName', 'productName', 'bookingNumber', 'startDate', 'endDate'],
+          isActive: true
+        },
+        {
+          name: 'booking_created_owner',
+          type: NotificationType.BOOKING_CONFIRMED,
+          title: 'New Booking - {{productName}}',
+          message: `Hello {{recipientName}},
+
+{{renterName}} just booked {{productName}} (Booking {{bookingNumber}}) for {{startDate}} to {{endDate}}.
+Review the booking details in your dashboard.`,
+          channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH, NotificationChannel.IN_APP],
+          priority: NotificationPriority.NORMAL,
+          variables: ['recipientName', 'renterName', 'productName', 'bookingNumber', 'startDate', 'endDate'],
+          isActive: true
+        },
+        {
+          name: 'payment_received',
+          type: NotificationType.PAYMENT_RECEIVED,
+          title: 'Payment Confirmed - {{productName}}',
+          message: `Hello {{recipientName}},
+
+We received {{amount}} {{currency}} for booking {{bookingNumber}} ({{productName}}).
+Status: {{paymentStatus}}
+Payer: {{payerName}}.`,
+          channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH, NotificationChannel.IN_APP],
+          priority: NotificationPriority.NORMAL,
+          variables: ['recipientName', 'amount', 'currency', 'bookingNumber', 'productName', 'paymentStatus', 'payerName'],
+          isActive: true
+        },
+        {
+          name: 'payment_received_owner',
+          type: NotificationType.PAYMENT_RECEIVED,
+          title: 'Payment Confirmed - {{productName}}',
+          message: `Hello {{recipientName}},
+
+{{payerName}} paid {{amount}} {{currency}} for booking {{bookingNumber}} ({{productName}}).
+Status: {{paymentStatus}}.`,
+          channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH, NotificationChannel.IN_APP],
+          priority: NotificationPriority.NORMAL,
+          variables: ['recipientName', 'payerName', 'amount', 'currency', 'bookingNumber', 'productName', 'paymentStatus'],
+          isActive: true
+        },
+        {
+          name: 'payment_failed',
+          type: NotificationType.PAYMENT_FAILED,
+          title: 'Payment Failed - {{productName}}',
+          message: `Hello {{recipientName}},
+
+Your payment of {{amount}} {{currency}} for booking {{bookingNumber}} ({{productName}}) did not complete.
+Please try again or update your payment method.`,
+          channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH, NotificationChannel.IN_APP],
+          priority: NotificationPriority.HIGH,
+          variables: ['recipientName', 'amount', 'currency', 'bookingNumber', 'productName'],
+          isActive: true
         }
       ];
 
       for (const template of defaultTemplates) {
-        if (!existingNames.includes(template.name)) {
+        const existing = existingMap.get(template.name);
+        if (!existing) {
           await this.createTemplate(template);
           this.logger.info('Default template created', { name: template.name });
+          continue;
+        }
+
+        const needsUpdate =
+          (existing.title || '') !== (template.title || '') ||
+          (existing.message || '') !== (template.message || '') ||
+          JSON.stringify(existing.channels || []) !== JSON.stringify(template.channels || []) ||
+          (existing.priority || '') !== template.priority ||
+          JSON.stringify(existing.variables || []) !== JSON.stringify(template.variables || []);
+
+        if (needsUpdate) {
+          await this.updateTemplate(existing.id, {
+            title: template.title,
+            message: template.message,
+            channels: template.channels,
+            priority: template.priority,
+            variables: template.variables,
+            type: template.type,
+            isActive: template.isActive
+          });
+          this.logger.info('Default template updated', { name: template.name });
         }
       }
     } catch (error: any) {

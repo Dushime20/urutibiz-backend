@@ -812,3 +812,4 @@ For questions or issues, refer to:
 - Database: Query `user_verifications` table for verification records
 
 
+

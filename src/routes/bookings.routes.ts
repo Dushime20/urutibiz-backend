@@ -1002,4 +1002,91 @@ router.get('/:id/timeline', requireAuth, controller.getBookingTimeline);
  */
 router.get('/:id/status-history', requireAuth, controller.getBookingStatusHistory);
 
+/**
+ * @swagger
+ * /bookings/{id}/owner-confirm:
+ *   post:
+ *     summary: Owner confirms booking availability
+ *     description: |
+ *       Product owner confirms that the product is available and accessible for the booking.
+ *       This must be done before the renter can proceed with payment.
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Booking ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               notes:
+ *                 type: string
+ *                 description: Optional confirmation notes from owner
+ *     responses:
+ *       200:
+ *         description: Booking confirmed successfully
+ *       400:
+ *         description: Booking already confirmed or rejected
+ *       403:
+ *         description: Only product owner can confirm
+ *       404:
+ *         description: Booking not found
+ */
+router.post('/:id/owner-confirm', requireAuth, controller.confirmBookingByOwner);
+
+/**
+ * @swagger
+ * /bookings/{id}/owner-reject:
+ *   post:
+ *     summary: Owner rejects booking
+ *     description: |
+ *       Product owner rejects the booking if product is unavailable or damaged.
+ *       This will cancel the booking and notify the renter.
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Booking ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 description: Reason for rejection (e.g., "Product is damaged", "Product unavailable")
+ *               notes:
+ *                 type: string
+ *                 description: Optional additional notes
+ *     responses:
+ *       200:
+ *         description: Booking rejected successfully
+ *       400:
+ *         description: Invalid request or booking already confirmed/rejected
+ *       403:
+ *         description: Only product owner can reject
+ *       404:
+ *         description: Booking not found
+ */
+router.post('/:id/owner-reject', requireAuth, controller.rejectBookingByOwner);
+
 export default router;

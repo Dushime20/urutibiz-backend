@@ -2,6 +2,7 @@ import { Server as SocketServer, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger';
 import { setSocketServer } from './socketManager';
+import { getDatabase } from '../config/database';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -10,6 +11,7 @@ interface AuthenticatedSocket extends Socket {
 
 export const initializeSocket = (io: SocketServer): void => {
   setSocketServer(io);
+  const knex = getDatabase();
   // JWT verification middleware
   io.use(async (socket: AuthenticatedSocket, next) => {
     const token = socket.handshake.auth.token;
@@ -104,31 +106,154 @@ export const initializeSocket = (io: SocketServer): void => {
       logger.info(`Socket ${socket.id} left room: ${room}`);
     });
 
-    // Handle real-time chat messages
+    // Handle real-time chat messages (enhanced for international standards)
     socket.on('message', async (data) => {
-      const { chatId, message, toUserId } = data;
-      
-      if (!chatId || !message || !toUserId) {
-        socket.emit('error', { message: 'Invalid message data' });
-        return;
+      try {
+        const { chatId, content, messageType, replyToMessageId, attachments } = data;
+        
+        if (!chatId || !content || !userId) {
+          socket.emit('error', { message: 'Invalid message data' });
+          return;
+        }
+
+        // Import MessagingService
+        const { MessagingService } = await import('../services/messaging.service');
+        
+        // Create message via service
+        const result = await MessagingService.sendMessage(chatId, {
+          content,
+          message_type: messageType || 'text',
+          reply_to_message_id: replyToMessageId,
+          attachments
+        }, userId);
+
+        if (!result.success || !result.data) {
+          socket.emit('error', { message: result.error || 'Failed to send message' });
+          return;
+        }
+
+        const message = result.data;
+
+        // Get chat with product context
+        const chatResult = await MessagingService.getChatById(chatId, userId);
+        const chat = chatResult.data;
+        
+        // Fetch product details if product_id exists
+        let productTitle = chat?.subject || null;
+        if (chat?.product_id && !productTitle) {
+          try {
+            const product = await knex('products')
+              .where('id', chat.product_id)
+              .select('title')
+              .first();
+            if (product) {
+              productTitle = product.title;
+            }
+          } catch (err) {
+            logger.error('Error fetching product title:', err);
+          }
+        }
+        
+        // Prepare message payload with product context
+        const messagePayload = {
+          chatId,
+          message: result.data,
+          timestamp: new Date().toISOString(),
+          // Include product context for receiver identification
+          productContext: chat?.product_id ? {
+            productId: chat.product_id,
+            productTitle: productTitle,
+            bookingId: chat.booking_id || null
+          } : null
+        };
+
+        // Emit to sender for confirmation (only to sender, not broadcast)
+        socket.emit('message-sent', messagePayload);
+
+        // Broadcast to chat room ONLY (all participants including sender)
+        // This is the PRIMARY method - ensures real-time delivery without duplicates
+        // All participants should join the chat room when loading messages
+        io.to(`chat-${chatId}`).emit('new-message', messagePayload);
+        
+        // Note: We removed individual user room emissions to prevent duplicates
+        // All clients should join the chat room via joinRoom(chatId, 'chat')
+
+        logger.info(`Message sent from socket ${socket.id} in chat ${chatId}`);
+      } catch (error: any) {
+        logger.error('Error handling message:', error);
+        socket.emit('error', { message: 'Failed to send message' });
       }
+    });
 
-      // Broadcast to recipient
-      io.to(`user-${toUserId}`).emit('new-message', {
-        chatId,
-        message,
-        fromUserId: userId,
-        timestamp: new Date().toISOString(),
-      });
+    // Handle typing indicators
+    socket.on('typing', async (data) => {
+      try {
+        const { chatId, isTyping } = data;
+        
+        if (!chatId || !userId) {
+          return;
+        }
 
-      // Also emit to sender for confirmation
-      socket.emit('message-sent', {
-        chatId,
-        message,
-        timestamp: new Date().toISOString(),
-      });
+        const { MessagingService } = await import('../services/messaging.service');
+        await MessagingService.setTypingIndicator(chatId, userId, isTyping === true);
 
-      logger.info(`Message from socket ${socket.id} to user ${toUserId}`);
+        // Broadcast typing status to other participants in chat room
+        socket.to(`chat-${chatId}`).emit('user-typing', {
+          chatId,
+          userId,
+          isTyping,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error: any) {
+        logger.error('Error handling typing indicator:', error);
+      }
+    });
+
+    // Handle message read receipts
+    socket.on('message-read', async (data) => {
+      try {
+        const { messageId, chatId } = data;
+        
+        if (!messageId || !userId) {
+          return;
+        }
+
+        const { MessagingService } = await import('../services/messaging.service');
+        await MessagingService.markMessageAsRead(messageId, userId);
+
+        // Broadcast read receipt to chat room
+        io.to(`chat-${chatId}`).emit('message-read-receipt', {
+          messageId,
+          chatId,
+          readBy: userId,
+          readAt: new Date().toISOString(),
+        });
+      } catch (error: any) {
+        logger.error('Error handling message read:', error);
+      }
+    });
+
+    // Handle chat read (mark all messages as read)
+    socket.on('chat-read', async (data) => {
+      try {
+        const { chatId } = data;
+        
+        if (!chatId || !userId) {
+          return;
+        }
+
+        const { MessagingService } = await import('../services/messaging.service');
+        await MessagingService.markChatAsRead(chatId, userId);
+
+        // Broadcast to chat room
+        io.to(`chat-${chatId}`).emit('chat-read', {
+          chatId,
+          readBy: userId,
+          readAt: new Date().toISOString(),
+        });
+      } catch (error: any) {
+        logger.error('Error handling chat read:', error);
+      }
     });
 
     // Handle booking status updates

@@ -6,6 +6,42 @@ export interface Chat {
   updated_at: Date;
   is_active: boolean;
   metadata?: Record<string, any>;
+  // Enhanced fields
+  product_id?: string;
+  booking_id?: string;
+  subject?: string;
+  last_message_preview?: string;
+  last_message_at?: Date;
+  unread_count_user_1?: number;
+  unread_count_user_2?: number;
+  is_archived_user_1?: boolean;
+  is_archived_user_2?: boolean;
+  is_blocked?: boolean;
+  blocked_by?: string;
+  blocked_at?: Date;
+  // User role in this conversation (determined based on product/booking ownership)
+  userRole?: 'owner' | 'renter';
+}
+
+export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageType = 'text' | 'image' | 'file' | 'system' | 'audio' | 'video';
+export type MessagePriority = 'low' | 'normal' | 'high' | 'urgent';
+
+export interface MessageAttachment {
+  id?: string;
+  file_name: string;
+  file_type: string;
+  mime_type?: string;
+  file_size: number;
+  file_url: string;
+  thumbnail_url?: string;
+  storage_provider?: string;
+}
+
+export interface MessageReaction {
+  user_id: string;
+  emoji: string;
+  created_at: Date;
 }
 
 export interface Message {
@@ -13,11 +49,31 @@ export interface Message {
   chat_id: string;
   sender_id: string;
   content: string;
-  message_type: 'text' | 'image' | 'file' | 'system';
+  message_type: MessageType;
   is_read: boolean;
   created_at: Date;
   updated_at: Date;
   metadata?: Record<string, any>;
+  // Enhanced fields
+  message_status?: MessageStatus;
+  delivered_at?: Date;
+  read_at?: Date;
+  read_by?: string;
+  attachments?: MessageAttachment[];
+  reactions?: MessageReaction[];
+  is_edited?: boolean;
+  edited_content?: string;
+  edited_at?: Date;
+  is_deleted?: boolean;
+  deleted_at?: Date;
+  deleted_by?: string;
+  translations?: Record<string, string>;
+  original_language?: string;
+  reply_to_message_id?: string;
+  is_forwarded?: boolean;
+  forwarded_from_chat_id?: string;
+  forwarded_from_message_id?: string;
+  priority?: MessagePriority;
 }
 
 export interface MessageTemplate {
@@ -100,8 +156,11 @@ export interface ScheduledNotification {
 // Request types
 export interface CreateMessageRequest {
   content: string;
-  message_type?: 'text' | 'image' | 'file' | 'system';
+  message_type?: MessageType;
   metadata?: Record<string, any>;
+  reply_to_message_id?: string;
+  attachments?: MessageAttachment[];
+  priority?: MessagePriority;
 }
 
 export interface UpdateMessageRequest {

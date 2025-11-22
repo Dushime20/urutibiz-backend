@@ -698,6 +698,34 @@ export class PaymentTransactionService {
     if (!request.transaction_type) {
       throw new PaymentTransactionError('Transaction type is required', 'VALIDATION_ERROR');
     }
+
+    // For booking payments, check if owner has confirmed the booking
+    if (request.booking_id && request.transaction_type === 'booking_payment') {
+      const BookingService = (await import('./BookingService')).default;
+      const bookingResult = await BookingService.getById(request.booking_id);
+      
+      if (!bookingResult.success || !bookingResult.data) {
+        throw new PaymentTransactionError('Booking not found', 'BOOKING_NOT_FOUND');
+      }
+
+      const booking = bookingResult.data;
+
+      // Check if booking was rejected first
+      if (booking.owner_confirmation_status === 'rejected') {
+        throw new PaymentTransactionError(
+          'Payment cannot be processed. The product owner has rejected this booking.',
+          'BOOKING_REJECTED'
+        );
+      }
+
+      // Check if owner has confirmed the booking
+      if (!booking.owner_confirmed || booking.owner_confirmation_status !== 'confirmed') {
+        throw new PaymentTransactionError(
+          'Payment cannot be processed. The product owner must confirm the booking first to ensure the product is available and accessible.',
+          'OWNER_CONFIRMATION_REQUIRED'
+        );
+      }
+    }
   }
 
   /**

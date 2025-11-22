@@ -108,6 +108,13 @@ export interface BookingData {
   refund_amount?: number;
   cancellation_fee?: number;
   
+  // Owner confirmation fields
+  owner_confirmed?: boolean;
+  owner_confirmation_status?: 'pending' | 'confirmed' | 'rejected';
+  owner_confirmed_at?: string;
+  owner_rejection_reason?: string;
+  owner_confirmation_notes?: string;
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -163,6 +170,11 @@ export interface UpdateBookingData {
   completed_at?: string;
   cancelled_at?: string;
   metadata?: Record<string, any>;
+  // Owner confirmation fields
+  owner_confirmed?: boolean;
+  owner_confirmation_status?: 'pending' | 'confirmed' | 'rejected';
+  owner_rejection_reason?: string;
+  owner_confirmation_notes?: string;
 }
 
 export interface BookingFilters {

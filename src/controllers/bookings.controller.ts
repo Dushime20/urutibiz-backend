@@ -1435,6 +1435,9 @@ export class BookingsController extends BaseController {
       parent_booking_id,
       created_by: renter_id,
       last_modified_by: renter_id,
+      // Owner confirmation fields - default to pending
+      owner_confirmed: false,
+      owner_confirmation_status: 'pending',
       user // Attach the authenticated user object for business rules
     };
 
@@ -2223,6 +2226,199 @@ export class BookingsController extends BaseController {
       platformFee: platformFee,
       reason: 'No refund applicable'
     };
+  }
+
+  /**
+   * Owner confirms booking - confirms product availability and accessibility
+   * POST /api/v1/bookings/:id/confirm
+   */
+  public confirmBookingByOwner = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const ownerId = req.user.id;
+    const { notes } = req.body;
+
+    // Get booking
+    const bookingResult = await BookingService.getById(id);
+    if (!bookingResult.success || !bookingResult.data) {
+      return ResponseHelper.notFound(res, 'Booking not found');
+    }
+
+    const booking = bookingResult.data;
+
+    // Verify user is the owner
+    if (booking.owner_id !== ownerId) {
+      return ResponseHelper.forbidden(res, 'Only the product owner can confirm this booking');
+    }
+
+    // Check if already confirmed
+    if (booking.owner_confirmed === true) {
+      return ResponseHelper.badRequest(res, 'Booking is already confirmed by owner');
+    }
+
+    // Check if already rejected
+    if (booking.owner_confirmation_status === 'rejected') {
+      return ResponseHelper.badRequest(res, 'Booking has already been rejected');
+    }
+
+    // Update booking with owner confirmation
+    const updateData: any = {
+      owner_confirmed: true,
+      owner_confirmation_status: 'confirmed',
+      owner_confirmed_at: new Date().toISOString(),
+      last_modified_by: ownerId
+    };
+
+    if (notes) {
+      updateData.owner_confirmation_notes = notes;
+    }
+
+    const updateResult = await BookingService.update(id, updateData);
+    if (!updateResult.success || !updateResult.data) {
+      return ResponseHelper.error(res, 'Failed to confirm booking', updateResult.error, 500);
+    }
+
+    // Record status change
+    await this.recordStatusChange(
+      id,
+      booking.owner_confirmation_status || 'pending',
+      'confirmed',
+      ownerId,
+      undefined,
+      'Owner confirmed booking - product is available and accessible'
+    );
+
+    // Send notifications
+    await this.sendOwnerConfirmationNotifications(id, 'confirmed');
+
+    // Invalidate cache
+    this.invalidateBookingCaches(booking.renter_id, ownerId);
+
+    return ResponseHelper.success(res, 'Booking confirmed successfully. Renter can now proceed with payment.', updateResult.data);
+  });
+
+  /**
+   * Owner rejects booking - product unavailable or damaged
+   * POST /api/v1/bookings/:id/reject
+   */
+  public rejectBookingByOwner = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const ownerId = req.user.id;
+    const { reason, notes } = req.body;
+
+    if (!reason || reason.trim().length === 0) {
+      return ResponseHelper.badRequest(res, 'Rejection reason is required');
+    }
+
+    // Get booking
+    const bookingResult = await BookingService.getById(id);
+    if (!bookingResult.success || !bookingResult.data) {
+      return ResponseHelper.notFound(res, 'Booking not found');
+    }
+
+    const booking = bookingResult.data;
+
+    // Verify user is the owner
+    if (booking.owner_id !== ownerId) {
+      return ResponseHelper.forbidden(res, 'Only the product owner can reject this booking');
+    }
+
+    // Check if already confirmed
+    if (booking.owner_confirmed === true) {
+      return ResponseHelper.badRequest(res, 'Cannot reject an already confirmed booking');
+    }
+
+    // Check if already rejected
+    if (booking.owner_confirmation_status === 'rejected') {
+      return ResponseHelper.badRequest(res, 'Booking has already been rejected');
+    }
+
+    // Update booking with owner rejection
+    const updateData: any = {
+      owner_confirmed: false,
+      owner_confirmation_status: 'rejected',
+      owner_rejection_reason: reason,
+      last_modified_by: ownerId,
+      status: 'cancelled' // Auto-cancel the booking when rejected
+    };
+
+    if (notes) {
+      updateData.owner_confirmation_notes = notes;
+    }
+
+    const updateResult = await BookingService.update(id, updateData);
+    if (!updateResult.success || !updateResult.data) {
+      return ResponseHelper.error(res, 'Failed to reject booking', updateResult.error, 500);
+    }
+
+    // Record status change
+    await this.recordStatusChange(
+      id,
+      booking.status,
+      'cancelled',
+      ownerId,
+      undefined,
+      `Owner rejected booking: ${reason}`
+    );
+
+    // Send notifications
+    await this.sendOwnerConfirmationNotifications(id, 'rejected', reason);
+
+    // Invalidate cache
+    this.invalidateBookingCaches(booking.renter_id, ownerId);
+
+    return ResponseHelper.success(res, 'Booking rejected successfully', updateResult.data);
+  });
+
+  /**
+   * Send notifications for owner confirmation/rejection
+   */
+  private async sendOwnerConfirmationNotifications(
+    bookingId: string,
+    action: 'confirmed' | 'rejected',
+    reason?: string
+  ): Promise<void> {
+    try {
+      const booking = await this.getBookingNotificationContext(bookingId);
+      if (!booking) {
+        console.warn(`[OwnerConfirmation] Booking context not found for ${bookingId}`);
+        return;
+      }
+
+      // Import notification engine
+      const NotificationEngine = (await import('../services/notification/NotificationEngine')).default;
+      const { NotificationType } = await import('../services/notification/types');
+
+      if (action === 'confirmed') {
+        // Notify renter that booking is confirmed
+        await NotificationEngine.sendNotification({
+          type: NotificationType.BOOKING_CONFIRMED,
+          recipientId: booking.renter_id,
+          title: 'Booking Confirmed by Owner',
+          message: `The owner has confirmed your booking for "${booking.product_title}". You can now proceed with payment.`,
+          data: {
+            booking_id: bookingId,
+            product_id: booking.product_id,
+            action: 'confirmed'
+          }
+        });
+      } else if (action === 'rejected') {
+        // Notify renter that booking is rejected
+        await NotificationEngine.sendNotification({
+          type: NotificationType.BOOKING_CANCELLED,
+          recipientId: booking.renter_id,
+          title: 'Booking Rejected by Owner',
+          message: `The owner has rejected your booking for "${booking.product_title}". ${reason ? `Reason: ${reason}` : ''}`,
+          data: {
+            booking_id: bookingId,
+            product_id: booking.product_id,
+            action: 'rejected',
+            reason: reason
+          }
+        });
+      }
+    } catch (error) {
+      console.error('[OwnerConfirmation] Error sending notifications:', error);
+    }
   }
 }
 

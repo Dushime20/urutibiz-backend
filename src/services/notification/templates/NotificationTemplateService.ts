@@ -291,11 +291,10 @@ Payer: {{payerName}}.`,
           title: 'Payment Confirmed - {{productName}}',
           message: `Hello {{recipientName}},
 
-{{payerName}} paid {{amount}} {{currency}} for booking {{bookingNumber}} ({{productName}}).
-Status: {{paymentStatus}}.`,
+Your payment of {{amount}} {{currency}} to booking {{bookingNumber}} on {{productName}} was completed.`,
           channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH, NotificationChannel.IN_APP],
           priority: NotificationPriority.NORMAL,
-          variables: ['recipientName', 'payerName', 'amount', 'currency', 'bookingNumber', 'productName', 'paymentStatus'],
+          variables: ['recipientName', 'amount', 'currency', 'bookingNumber', 'productName'],
           isActive: true
         },
         {

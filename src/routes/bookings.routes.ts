@@ -718,7 +718,7 @@ router.post('/:id/process-refund', requireAuth, controller.processRefund);
  *       500:
  *         description: Server error
  */
-router.post('/:id/confirm', requireAuth, controller.confirmBooking);
+router.post('/:id/confirm', requireAuth, controller.confirmBookingByOwner);
 
 /**
  * @swagger

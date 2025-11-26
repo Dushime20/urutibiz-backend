@@ -80,6 +80,11 @@ export class Booking {
   public metadata?: Record<string, any>;
   public is_repeat_booking?: boolean;
   public parent_booking_id?: string;
+  public owner_confirmed?: boolean;
+  public owner_confirmation_status?: 'pending' | 'confirmed' | 'rejected';
+  public owner_confirmed_at?: Date;
+  public owner_rejection_reason?: string;
+  public owner_confirmation_notes?: string;
 
   // In-memory storage for demo
   private static bookings: Booking[] = [];
@@ -108,6 +113,18 @@ export class Booking {
     this.total_amount = data.pricing?.total_amount || (data as any).total_amount || 0;
     this.security_deposit = data.security_deposit || (data as any).security_deposit || 0;
     this.metadata = data.metadata;
+    this.owner_confirmed = (data as any).owner_confirmed ?? (data as any).ownerConfirmed ?? false;
+    this.owner_confirmation_status =
+      (data as any).owner_confirmation_status ||
+      (data as any).ownerConfirmationStatus ||
+      'pending';
+    this.owner_confirmed_at = (data as any).owner_confirmed_at
+      ? new Date((data as any).owner_confirmed_at)
+      : undefined;
+    this.owner_rejection_reason =
+      (data as any).owner_rejection_reason || (data as any).ownerRejectionReason;
+    this.owner_confirmation_notes =
+      (data as any).owner_confirmation_notes || (data as any).ownerConfirmationNotes;
     this.timeline = [];
     this.messages = [];
     this.status_history = [];
@@ -408,6 +425,11 @@ export class Booking {
       metadata: this.metadata,
       is_repeat_booking: this.is_repeat_booking,
       parent_booking_id: this.parent_booking_id,
+      owner_confirmed: this.owner_confirmed,
+      owner_confirmation_status: this.owner_confirmation_status,
+      owner_confirmed_at: this.owner_confirmed_at,
+      owner_rejection_reason: this.owner_rejection_reason,
+      owner_confirmation_notes: this.owner_confirmation_notes,
       createdAt: this.created_at instanceof Date ? this.created_at : new Date(this.created_at),
       updatedAt: this.updated_at instanceof Date ? this.updated_at : new Date(this.updated_at)
     };

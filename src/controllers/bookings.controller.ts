@@ -903,12 +903,19 @@ export class BookingsController extends BaseController {
       'Booking confirmed by owner'
     );
 
+    // Notify renter that they can proceed with payment
+    await this.sendOwnerConfirmationNotifications(id, 'confirmed');
+
     // Performance: Invalidate related caches
     this.invalidateBookingCaches(booking.renter_id, booking.owner_id, id);
 
     this.logAction('CONFIRM_BOOKING', user_id, id);
 
-    return ResponseHelper.success(res, 'Booking confirmed successfully', confirmedBooking.toJSON());
+    return ResponseHelper.success(
+      res,
+      'Booking confirmed successfully. Renter has been notified to proceed with payment.',
+      confirmedBooking.toJSON()
+    );
   });
 
   /**

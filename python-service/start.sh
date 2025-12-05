@@ -1,0 +1,14 @@
+#!/bin/bash
+# Start Python Image Service
+
+echo "🚀 Starting Python Image Service..."
+echo "📦 Installing dependencies..."
+
+pip install -r requirements.txt
+
+echo "✅ Dependencies installed"
+echo "🔄 Starting service on http://localhost:8001"
+echo ""
+
+python main.py
+

@@ -190,6 +190,8 @@ import { FavoriteEnhancer } from '@/utils/favoriteEnhancer.util';
 import { getDatabase } from '@/config/database';
 import { v4 as uuidv4 } from 'uuid';
 import ProductAvailabilityService from '@/services/productAvailability.service';
+import imageSimilarityService from '@/services/imageSimilarity.service';
+import ProductImageRepository from '@/repositories/ProductImageRepository';
 
 // Performance: Cache configuration
 const CACHE_TTL = {
@@ -721,6 +723,143 @@ export class ProductsController extends BaseController {
 
     return this.formatPaginatedResponse(res, 'Search completed successfully', results);
   });
+
+  /**
+   * AI-powered image search - Find similar products by image
+   * POST /api/v1/products/search-by-image
+   * Similar to Alibaba.com's image search functionality
+   */
+  public searchByImage = this.asyncHandler(async (req: OptionalAuthRequest, res: Response): Promise<Response | void> => {
+    const { page = 1, limit = 20, threshold = 0.3, category_id, category_boost } = req.query;
+    const pageNum = parseInt(page as string, 10);
+    const limitNum = Math.min(parseInt(limit as string, 10), 50); // Max 50 results
+    // Lower default threshold (0.3 instead of 0.5) to find more similar products
+    // This ensures exact matches and very similar products are returned
+    const similarityThreshold = parseFloat(threshold as string) || 0.3;
+    
+    // Category filtering options
+    // category_boost: Boost products in same category (default: true)
+    // category_id: Optional filter to specific category
+    const enableCategoryBoost = category_boost !== 'false'; // Default: true
+    const categoryFilter = category_id as string | undefined;
+
+    // Get image from request (either file upload or URL)
+    let imageUrl: string | undefined;
+    let imageBuffer: Buffer | undefined;
+
+    const filesReq = req as any;
+    const crypto = require('crypto');
+    
+    if (filesReq.file) {
+      // Image uploaded as file
+      const fs = require('fs');
+      const filePath = filesReq.file.path;
+      console.log(`📤 Image upload received:`);
+      console.log(`   - File path: ${filePath}`);
+      console.log(`   - Original name: ${filesReq.file.originalname}`);
+      console.log(`   - File size: ${filesReq.file.size} bytes`);
+      
+      // Read the file
+      const buffer = fs.readFileSync(filePath);
+      
+      // Verify buffer is not empty
+      if (!buffer || buffer.length === 0) {
+        return this.handleBadRequest(res, 'Uploaded image file is empty or invalid');
+      }
+      
+      imageBuffer = buffer;
+      
+      // Calculate hash to verify each image is unique
+      const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
+      console.log(`   - Image hash: ${imageHash.substring(0, 32)}...`);
+      console.log(`   - Buffer size: ${buffer.length} bytes`);
+      
+      // Clean up uploaded file after reading (optional, to save disk space)
+      try {
+        fs.unlinkSync(filePath);
+        console.log(`   - Temporary file cleaned up: ${filePath}`);
+      } catch (cleanupError) {
+        // Ignore cleanup errors
+      }
+    } else if (req.body.image_url) {
+      // Image provided as URL
+      imageUrl = req.body.image_url;
+      console.log(`📤 Image URL received: ${imageUrl}`);
+      
+      // Calculate hash of URL for logging
+      const urlHash = crypto.createHash('sha256').update(imageUrl).digest('hex');
+      console.log(`   - URL hash: ${urlHash.substring(0, 32)}...`);
+    } else {
+      return this.handleBadRequest(res, 'Please provide an image file or image_url');
+    }
+
+    try {
+      // Use production-grade image search service (Alibaba.com approach)
+      const imageSearchService = (await import('../services/imageSearch.service')).default;
+      
+      console.log(`🔍 Starting image search with:`);
+      console.log(`   - Image type: ${imageBuffer ? 'Buffer' : 'URL'}`);
+      console.log(`   - Threshold: ${similarityThreshold}`);
+      console.log(`   - Page: ${pageNum}, Limit: ${limitNum}`);
+      
+      // DISABLE CACHING to ensure fresh results for each image
+      if (!imageBuffer && !imageUrl) {
+        return this.handleBadRequest(res, 'No image provided');
+      }
+      
+      const searchResults = await imageSearchService.searchByImage(
+        imageBuffer || imageUrl!,
+        {
+          threshold: similarityThreshold,
+          page: pageNum,
+          limit: limitNum,
+          enableCaching: false, // DISABLED: Force fresh search for each image
+          cacheTTL: 3600,
+          categoryBoost: enableCategoryBoost,
+          categoryFilter: categoryFilter
+        }
+      );
+      
+      console.log(`✅ Image search completed:`);
+      console.log(`   - Results found: ${searchResults.items.length}`);
+      console.log(`   - Cache hit: ${searchResults.metadata.cache_hit}`);
+      console.log(`   - Processing time: ${searchResults.metadata.processing_time_ms}ms`);
+
+      this.logAction('SEARCH_BY_IMAGE', req.user?.id || 'anonymous', undefined, {
+        results_count: searchResults.items.length,
+        threshold: similarityThreshold,
+        processing_time_ms: searchResults.metadata.processing_time_ms,
+        cache_hit: searchResults.metadata.cache_hit,
+        match_distribution: searchResults.metadata.match_distribution
+      });
+
+      // Format response to match frontend expectations
+      // Frontend expects: { success: true, data: { items: [...], pagination: {...}, search_metadata: {...} } }
+      return ResponseHelper.success(res, 'Image search completed successfully', {
+        items: searchResults.items, // Frontend expects 'items' not 'data'
+        pagination: {
+          page: searchResults.pagination.page,
+          limit: searchResults.pagination.limit,
+          total: searchResults.pagination.total,
+          totalPages: searchResults.pagination.totalPages,
+          hasNext: searchResults.pagination.page < searchResults.pagination.totalPages,
+          hasPrev: searchResults.pagination.page > 1
+        },
+        search_metadata: {
+          threshold: similarityThreshold,
+          processing_time_ms: searchResults.metadata.processing_time_ms,
+          cache_hit: searchResults.metadata.cache_hit,
+          match_distribution: searchResults.metadata.match_distribution,
+          query_features_dimension: searchResults.metadata.query_features_dimension
+        }
+      });
+    } catch (error) {
+      console.error('Image search error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return ResponseHelper.error(res, `Image search failed: ${errorMessage}`, 500);
+    }
+  });
+
 
   /**
    * Optimized product reviews retrieval

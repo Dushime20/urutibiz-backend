@@ -51,7 +51,7 @@ async function startServer(): Promise<void> {
     // Start the server
     const server = app.getServer();
     
-    server.listen(config.port, () => {
+    server.listen(config.port, async () => {
       logger.info(`🚀 UrutiBiz API server running on port ${config.port}`);
       logger.info(`📱 Environment: ${config.nodeEnv}`);
       logger.info(`🔗 API Base URL: http://localhost:${config.port}${config.apiPrefix}`);
@@ -62,6 +62,33 @@ async function startServer(): Promise<void> {
       
       logger.info(`💚 Health Check: http://localhost:${config.port}/health`);
       logger.info(`🌐 Frontend URL: ${config.frontendUrl}`);
+
+      // Load AI model and precompute embeddings in background (non-blocking)
+      setTimeout(async () => {
+        try {
+          const embeddingService = (await import('./services/embeddingPrecomputation.service')).default;
+          
+          // Load model first
+          logger.info('🔄 Loading AI model for image search...');
+          await embeddingService.loadModel();
+          
+          // Precompute embeddings for all product images
+          logger.info('🔄 Precomputing embeddings for product images...');
+          const result = await embeddingService.precomputeEmbeddings();
+          
+          if (result.success) {
+            logger.info(`✅ Embedding precomputation complete: ${result.processed} images processed`);
+            if (result.failed > 0) {
+              logger.warn(`⚠️ ${result.failed} images failed to process`);
+            }
+          } else {
+            logger.warn('⚠️ Embedding precomputation completed with errors');
+          }
+        } catch (error) {
+          logger.error('❌ Failed to precompute embeddings:', error);
+          // Don't block server startup - embeddings will be computed on-demand
+        }
+      }, 2000); // Wait 2 seconds after server starts
     });
 
     // Graceful shutdown function

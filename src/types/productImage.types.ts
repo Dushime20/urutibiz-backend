@@ -11,6 +11,7 @@ export interface ProductImageData {
   sortOrder: number;
   isPrimary: boolean;
   aiAnalysis?: Record<string, any>;
+  image_embedding?: number[]; // Vector embedding for similarity search
   createdAt: Date;
   updatedAt: Date; // <-- Change this to Date for BaseModel compatibility
 }
@@ -23,6 +24,7 @@ export interface CreateProductImageData {
   sortOrder?: number;
   isPrimary?: boolean;
   aiAnalysis?: Record<string, any>;
+  image_embedding?: number[]; // Vector embedding for similarity search
 }
 
 export interface UpdateProductImageData {
@@ -32,4 +34,5 @@ export interface UpdateProductImageData {
   sortOrder?: number;
   isPrimary?: boolean;
   aiAnalysis?: Record<string, any>;
+  image_embedding?: number[]; // Vector embedding for similarity search
 }

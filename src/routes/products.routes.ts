@@ -22,6 +22,7 @@ import UserVerificationService from '@/services/userVerification.service';
 import { requireAuth } from '../middleware/auth.middleware';
 import { cacheMiddleware, cacheInvalidationMiddleware } from '../middleware/cache.middleware';
 import trackProductView from '../middleware/viewTracking.middleware';
+import multer from 'multer';
 
 const router = Router();
 const controller = new ProductsController();
@@ -146,6 +147,160 @@ router.get('/', cacheMiddleware(productCacheOptions), controller.getProducts);
  *         description: Server error
  */
 router.get('/search', cacheMiddleware({ ...productCacheOptions, duration: 180 }), controller.searchProducts);
+
+/**
+ * @swagger
+ * /products/search-by-image:
+ *   post:
+ *     summary: Search products by image (AI-powered)
+ *     description: |
+ *       Find similar products by uploading an image or providing an image URL.
+ *       Uses AI (MobileNet) to extract image features and compare with product images in the database.
+ *       Similar to Alibaba.com's image search functionality.
+ *       **Features:**
+ *       - Accepts image file upload or image URL
+ *       - Uses TensorFlow.js MobileNet for feature extraction
+ *       - Returns products sorted by similarity score
+ *       - Configurable similarity threshold
+ *     tags: [Products]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Image file to search with
+ *               image_url:
+ *                 type: string
+ *                 format: uri
+ *                 description: URL of image to search with (alternative to file upload)
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               image_url:
+ *                 type: string
+ *                 format: uri
+ *                 description: URL of image to search with
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 20
+ *         description: Maximum results per page
+ *       - in: query
+ *         name: threshold
+ *         schema:
+ *           type: number
+ *           minimum: 0
+ *           maximum: 1
+ *           default: 0.3
+ *         description: Minimum similarity threshold (0-1)
+ *       - in: query
+ *         name: category_id
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Optional - Filter results to specific category
+ *       - in: query
+ *         name: category_boost
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: "Boost products in the same category as detected from image (default: true). When uploading a car image, car products will be prioritized."
+ *     responses:
+ *       200:
+ *         description: Similar products found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     items:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           product:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                               title:
+ *                                 type: string
+ *                               description:
+ *                                 type: string
+ *                               base_price_per_day:
+ *                                 type: number
+ *                               currency:
+ *                                 type: string
+ *                           image:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                               url:
+ *                                 type: string
+ *                               thumbnail_url:
+ *                                 type: string
+ *                               is_primary:
+ *                                 type: boolean
+ *                           similarity:
+ *                             type: number
+ *                             description: Similarity score (0-1)
+ *                           similarity_percentage:
+ *                             type: integer
+ *                             description: Similarity as percentage
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *                     search_metadata:
+ *                       type: object
+ *                       properties:
+ *                         threshold:
+ *                           type: number
+ *                         query_features_dimension:
+ *                           type: integer
+ *       400:
+ *         description: Invalid request (no image provided)
+ *       500:
+ *         description: Server error
+ */
+// Configure multer for image uploads
+const upload = multer({ 
+  dest: 'uploads/temp/',
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB max
+});
+router.post('/search-by-image', upload.single('image'), controller.searchByImage);
 
 /**
  * @swagger

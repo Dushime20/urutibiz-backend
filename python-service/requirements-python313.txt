@@ -1,0 +1,14 @@
+# Alternative requirements for Python 3.13
+# If the main requirements.txt fails, try these versions
+# Or better: use Python 3.11 or 3.12 for better compatibility
+
+fastapi
+uvicorn[standard]
+pillow
+torch
+torchvision
+sentence-transformers
+numpy
+python-multipart
+aiofiles
+

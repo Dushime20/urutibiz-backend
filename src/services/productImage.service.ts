@@ -3,6 +3,9 @@ import { ProductImageData, CreateProductImageData, UpdateProductImageData } from
 import { ValidationError } from '@/types';
 import { runOnnxModel } from '@/utils/onnxRunner';
 import * as ort from 'onnxruntime-node';
+import imageSimilarityService from './imageSimilarity.service';
+import axios from 'axios';
+import crypto from 'crypto';
 
 class ProductImageService {
   async create(data: CreateProductImageData) {
@@ -11,6 +14,31 @@ class ProductImageService {
     if (!data.product_id) errors.push({ field: 'productId', message: 'Product ID is required' });
     if (!data.image_url) errors.push({ field: 'imageUrl', message: 'Image URL is required' });
     if (errors.length > 0) return { success: false, error: errors.map(e => e.message).join(', ') };
+
+    // Calculate image hash from actual content (Alibaba.com approach)
+    let imageHash: string | null = null;
+    let imageEmbedding: number[] | null = null;
+    
+    try {
+      // Download image to calculate hash from actual content
+      const response = await axios.get(data.image_url, {
+        responseType: 'arraybuffer',
+        timeout: 8000,
+        maxContentLength: 10 * 1024 * 1024
+      });
+      const imageBuffer = Buffer.from(response.data);
+      
+      // Calculate SHA-256 hash from actual image content (not URL)
+      imageHash = crypto.createHash('sha256').update(imageBuffer).digest('hex');
+      console.log(`✅ Calculated image hash: ${imageHash.substring(0, 16)}...`);
+      
+      // Generate image embedding for similarity search
+      imageEmbedding = await imageSimilarityService.extractFeaturesFromBuffer(imageBuffer);
+      console.log(`✅ Generated image embedding (${imageEmbedding.length} dimensions)`);
+    } catch (err) {
+      console.warn('Failed to process image (hash/embedding):', err);
+      // Continue without hash/embedding - can be generated later
+    }
 
     // AI scoring for product image (optional, if model available)
     let aiAnalysis = undefined;
@@ -28,7 +56,13 @@ class ProductImageService {
     } catch (err) {
       aiAnalysis = { error: 'AI analysis failed' };
     }
-    return ProductImageRepository.create({ ...data, aiAnalysis });
+    
+    return ProductImageRepository.create({ 
+      ...data, 
+      aiAnalysis,
+      image_embedding: imageEmbedding || undefined, // Convert null to undefined for type compatibility
+      image_hash: imageHash || undefined // Store image content hash for exact matching
+    } as any); // Type assertion needed for image_hash field
   }
 
   async getByProduct(product_id: string) {

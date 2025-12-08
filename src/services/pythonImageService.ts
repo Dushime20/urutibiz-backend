@@ -13,6 +13,8 @@
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import FormData from 'form-data';
+import http from 'http';
+import https from 'https';
 import logger from '../utils/logger';
 
 interface PythonServiceConfig {
@@ -57,12 +59,33 @@ class PythonImageService {
       state: 'closed'
     };
 
+    // Optimize: Use HTTP keep-alive and connection pooling for better performance
+    // Create keep-alive agents for connection pooling
+    const httpAgent = new http.Agent({
+      keepAlive: true,
+      keepAliveMsecs: 30000,
+      maxSockets: 50, // Max concurrent connections
+      maxFreeSockets: 10 // Keep connections alive for reuse
+    });
+    
+    const httpsAgent = new https.Agent({
+      keepAlive: true,
+      keepAliveMsecs: 30000,
+      maxSockets: 50,
+      maxFreeSockets: 10
+    });
+
     this.client = axios.create({
       baseURL: this.config.baseUrl,
       timeout: this.config.timeout,
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+        'Content-Type': 'multipart/form-data',
+        'Connection': 'keep-alive' // Enable HTTP keep-alive
+      },
+      httpAgent: this.config.baseUrl.startsWith('https') ? httpsAgent : httpAgent,
+      httpsAgent: httpsAgent,
+      maxRedirects: 3,
+      validateStatus: (status) => status < 500 // Don't throw on 4xx errors
     });
 
     // Test connection on initialization

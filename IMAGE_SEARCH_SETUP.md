@@ -119,6 +119,7 @@ If CLIP model download fails:
 - Can be cached for offline use
 
 ## Testing
+   npm run python:service
 
 1. Start Python service: `python python-service/main.py`
 2. Start Node.js server: `npm run dev`

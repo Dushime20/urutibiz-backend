@@ -140,7 +140,8 @@ class EmbeddingPrecomputationService {
       logger.info(`📊 Found ${totalImages} product images without embeddings (out of ${totalImagesInDb} total)`);
 
       // Process images in batches to avoid memory issues
-      const batchSize = 5;
+      // Optimized: Increased batch size for better performance
+      const batchSize = 10; // Increased from 5 for better throughput
       for (let i = 0; i < totalImages; i += batchSize) {
         const batch = imagesArray.slice(i, i + batchSize);
         

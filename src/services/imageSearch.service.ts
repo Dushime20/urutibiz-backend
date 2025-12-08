@@ -324,8 +324,8 @@ class ImageSearchService {
 
       // Step 2: Check cache (Alibaba approach: Aggressive caching)
       // IMPORTANT: Cache is keyed by image hash, so different images get different results
-      // TEMPORARILY DISABLE CACHE to ensure fresh results for debugging
-      const USE_CACHE = false; // Set to true to re-enable caching
+      // Re-enabled for performance optimization
+      const USE_CACHE = true; // Cache enabled for better performance
       
       if (USE_CACHE && enableCaching && this.cacheManager && typeof this.cacheManager.get === 'function') {
         try {
@@ -455,6 +455,7 @@ class ImageSearchService {
       // Use pgvector cosine similarity search (industry standard approach)
       // This is much more efficient than loading all embeddings
       let productImages: any[];
+      let usedPgvector = false;
       
       try {
         // Try pgvector similarity search first (if pgvector is enabled)
@@ -463,6 +464,10 @@ class ImageSearchService {
           ? `AND p.category_id = '${options.categoryFilter}'` 
           : '';
         
+        // Optimize: Fetch reasonable number of results, filter by threshold later
+        // pgvector already returns sorted results with similarity scores
+        // Only fetch necessary columns (exclude image_embedding to reduce data transfer)
+        const fetchLimit = Math.min(limit * 20, 1000); // Reasonable limit for initial fetch
         const vectorSearchQuery = `
           SELECT 
             pi.id,
@@ -471,7 +476,6 @@ class ImageSearchService {
             pi.thumbnail_url,
             pi.is_primary,
             pi.image_hash,
-            pi.image_embedding,
             p.id as product_id,
             p.title,
             p.description,
@@ -484,20 +488,22 @@ class ImageSearchService {
             AND pi.image_embedding IS NOT NULL
             ${categoryFilterClause}
           ORDER BY pi.image_embedding <=> ?::vector
-          LIMIT ${limit * 10}
+          LIMIT ${fetchLimit}
         `;
         
         // Knex raw query with parameters - pass queryVector twice (once for each ?)
         const vectorResults = await db.raw(vectorSearchQuery, [queryVector, queryVector]);
         productImages = vectorResults.rows || [];
+        usedPgvector = true;
         
         console.log(`✅ Used pgvector similarity search (fast & efficient)`);
+        console.log(`   - Results already sorted by similarity (no redundant calculation needed)`);
       } catch (vectorError) {
         // Fallback to traditional approach if pgvector not available
         console.warn('⚠️ pgvector not available, using traditional similarity search');
         console.warn(`   Error: ${vectorError instanceof Error ? vectorError.message : String(vectorError)}`);
         
-        // Traditional approach: Load all embeddings
+        // Traditional approach: Load all embeddings (will calculate similarity in memory)
         productImages = await db('product_images')
           .select(
             'product_images.id',
@@ -639,104 +645,95 @@ class ImageSearchService {
         }
       });
 
-      // Step 7: AI-based similarity calculation (Alibaba.com approach)
-      // Uses deep learning feature vectors for intelligent image comparison
+      // Step 7: AI-based similarity calculation (OPTIMIZED)
+      // If pgvector was used, similarity scores are already calculated and sorted by the database
+      // Only calculate similarity in memory if pgvector is not available
       const similarityStartTime = Date.now();
-      const imageEmbeddings = productImages
-        .map((img: any) => {
-          let embedding = img.image_embedding;
-          if (typeof embedding === 'string') {
-            try {
-              embedding = JSON.parse(embedding);
-            } catch {
-              return null;
-            }
-          }
-          if (!embedding || !Array.isArray(embedding)) return null;
-          
-          return {
-            id: img.id,
-            embedding,
-            ...img
-          };
-        })
-        .filter((item: any) => item !== null);
-
-      console.log(`🧠 AI Feature Vectors: Query=${queryFeatures.length}D, Database=${imageEmbeddings.length} images`);
+      let similarities: any[] = [];
       
-      // CRITICAL: Verify embeddings dimension matches query features
-      if (imageEmbeddings.length > 0) {
-        const firstEmb = imageEmbeddings[0].embedding;
-        if (firstEmb.length !== queryFeatures.length) {
-          console.error(`❌ CRITICAL: Dimension mismatch!`);
-          console.error(`   - Query features: ${queryFeatures.length} dimensions`);
-          console.error(`   - Database embeddings: ${firstEmb.length} dimensions`);
-          console.error(`   - This will cause incorrect similarity calculations!`);
-          throw new Error(`Feature dimension mismatch: Query has ${queryFeatures.length}D but database has ${firstEmb.length}D. Please regenerate embeddings.`);
-        }
-        console.log(`✅ Dimension match verified: ${queryFeatures.length}D`);
+      if (usedPgvector) {
+        // OPTIMIZATION: pgvector already calculated similarity and sorted results
+        // Just filter by threshold and use the similarity scores from database
+        console.log(`⚡ Using pgvector similarity scores (no redundant calculation needed)`);
         
-        // Check if embeddings are unique (not all identical)
-        const sampleEmbs = imageEmbeddings.slice(0, Math.min(10, imageEmbeddings.length));
-        const firstEmbStr = JSON.stringify(firstEmb.slice(0, 10));
-        const allSame = sampleEmbs.every((item: any) => 
-          JSON.stringify(item.embedding.slice(0, 10)) === firstEmbStr
+        similarities = productImages
+          .filter((img: any) => {
+            // Filter by threshold - similarity is already calculated by pgvector
+            const sim = parseFloat(img.similarity) || 0;
+            return sim >= threshold;
+          })
+          .map((img: any) => ({
+            ...img,
+            similarity: parseFloat(img.similarity) || 0,
+            _isExactMatch: false,
+            _matchMethod: 'ai'
+          }));
+        
+        console.log(`🎯 Found ${similarities.length} similar images (similarity >= ${threshold}) from pgvector`);
+      } else {
+        // Fallback: Calculate similarity in memory (when pgvector not available)
+        console.log(`🤖 Calculating similarity in memory (fallback mode)`);
+        
+        const imageEmbeddings = productImages
+          .map((img: any) => {
+            let embedding = img.image_embedding;
+            if (typeof embedding === 'string') {
+              try {
+                embedding = JSON.parse(embedding);
+              } catch {
+                return null;
+              }
+            }
+            if (!embedding || !Array.isArray(embedding)) return null;
+            
+            return {
+              id: img.id,
+              embedding,
+              ...img
+            };
+          })
+          .filter((item: any) => item !== null);
+
+        console.log(`🧠 AI Feature Vectors: Query=${queryFeatures.length}D, Database=${imageEmbeddings.length} images`);
+        
+        // CRITICAL: Verify embeddings dimension matches query features
+        if (imageEmbeddings.length > 0) {
+          const firstEmb = imageEmbeddings[0].embedding;
+          if (firstEmb.length !== queryFeatures.length) {
+            console.error(`❌ CRITICAL: Dimension mismatch!`);
+            console.error(`   - Query features: ${queryFeatures.length} dimensions`);
+            console.error(`   - Database embeddings: ${firstEmb.length} dimensions`);
+            throw new Error(`Feature dimension mismatch: Query has ${queryFeatures.length}D but database has ${firstEmb.length}D. Please regenerate embeddings.`);
+          }
+        }
+        
+        // Use AI-powered similarity search (cosine similarity on feature vectors)
+        similarities = imageSimilarityService.findSimilarImages(
+          queryFeatures,
+          imageEmbeddings,
+          threshold,
+          limit * 20 // Reasonable limit
         );
         
-        if (allSame && imageEmbeddings.length > 1) {
-          console.error(`⚠️ WARNING: All product embeddings appear identical!`);
-          console.error(`   - This means all products will have the same similarity score`);
-          console.error(`   - Solution: Regenerate embeddings for all product images`);
-        } else {
-          console.log(`✅ Verified: Product embeddings are unique (checked ${sampleEmbs.length} samples)`);
-        }
-      }
-      
-      console.log(`🤖 Comparing query image with ${imageEmbeddings.length} database images using AI...`);
-
-      // Use AI-powered similarity search (cosine similarity on feature vectors)
-      // This searches ALL images in database - no limit on comparison
-      // Alibaba.com approach: Compare with entire catalog for best results
-      const similarities = imageSimilarityService.findSimilarImages(
-        queryFeatures, // AI-extracted features from query image
-        imageEmbeddings, // AI-extracted features from ALL database images
-        threshold, // Minimum similarity threshold
-        10000 // Get top 10000 matches (search entire database)
-      );
-      
-      console.log(`🎯 Found ${similarities.length} similar images (similarity >= ${threshold})`);
-      
-      // Log top 5 similarities for debugging
-      if (similarities.length > 0) {
-        console.log(`   Top 5 matches:`);
-        similarities.slice(0, 5).forEach((item: any, idx: number) => {
-          console.log(`   ${idx + 1}. Product ${item.product_id || item.id}: similarity=${item.similarity.toFixed(4)} (${(item.similarity * 100).toFixed(1)}%)`);
-        });
-      } else {
-        console.warn(`⚠️ No similar images found with threshold ${threshold}. Try lowering threshold.`);
-      }
-      
-      console.log(`🤖 AI comparison complete: ${similarities.length} similar images found (threshold: ${threshold})`);
-      console.log(`   - Searched: ${imageEmbeddings.length} images`);
-      console.log(`   - Matches found: ${similarities.length} images`);
-      console.log(`   - Match rate: ${((similarities.length / imageEmbeddings.length) * 100).toFixed(2)}%`);
-      
-      // Log top 5 results with their similarity scores and categories for debugging
-      if (similarities.length > 0) {
-        console.log(`📊 Top ${Math.min(5, similarities.length)} results with categories:`);
-        similarities.slice(0, 5).forEach((item: any, idx: number) => {
-          console.log(`   ${idx + 1}. Product: ${item.title || item.product_id}, Category: ${item.category_id || 'NO CATEGORY'}, Image: ${item.id}, Similarity: ${item.similarity.toFixed(4)} (${Math.round(item.similarity * 100)}%)`);
-        });
+        console.log(`🎯 Found ${similarities.length} similar images (similarity >= ${threshold})`);
       }
 
       const similarityTime = Date.now() - similarityStartTime;
-      console.log(`⚡ Similarity calculation: ${similarityTime}ms (${similarities.length} matches)`);
+      console.log(`⚡ Similarity processing: ${similarityTime}ms (${similarities.length} matches, method: ${usedPgvector ? 'pgvector' : 'in-memory'})`);
+      
+      // Log top 5 results for debugging
+      if (similarities.length > 0) {
+        console.log(`📊 Top ${Math.min(5, similarities.length)} results:`);
+        similarities.slice(0, 5).forEach((item: any, idx: number) => {
+          console.log(`   ${idx + 1}. Product: ${item.title || item.product_id}, Category: ${item.category_id || 'NO CATEGORY'}, Similarity: ${item.similarity.toFixed(4)} (${Math.round(item.similarity * 100)}%)`);
+        });
+      }
 
       // Step 8: Combine exact matches (hash) with AI similarity results
-      // CRITICAL: Use product_id as key to prevent duplicates (one product can have multiple images)
+      // OPTIMIZED: Use Map for O(1) lookups and efficient deduplication
       const allResults = new Map<string, any>();
       
-      // Add exact matches first (from hash comparison)
+      // Add exact matches first (from hash comparison) - these have highest priority
       exactMatches.forEach((imageId) => {
         const img = productImages.find((p: any) => p.id === imageId);
         if (img) {
@@ -754,7 +751,7 @@ class ImageSearchService {
       });
       
       // Add AI similarity results (for non-exact matches)
-      // Deduplicate by product_id - keep highest similarity per product
+      // OPTIMIZED: Only add if not already in map or if similarity is higher
       similarities.forEach((item: any) => {
         const key = item.product_id; // Use product_id as key
         const existing = allResults.get(key);

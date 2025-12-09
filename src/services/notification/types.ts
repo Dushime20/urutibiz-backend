@@ -40,7 +40,15 @@ export enum NotificationType {
   RISK_COMPLIANCE_REQUIRED = 'risk_compliance_required',
   RISK_ESCALATION = 'risk_escalation',
   RISK_VIOLATION_DETECTED = 'risk_violation_detected',
-  RISK_VIOLATION_RESOLVED = 'risk_violation_resolved'
+  RISK_VIOLATION_RESOLVED = 'risk_violation_resolved',
+  
+  // Product related
+  PRODUCT_CREATED = 'product_created',
+  PRODUCT_MODERATED = 'product_moderated',
+  PRODUCT_APPROVED = 'product_approved',
+  PRODUCT_REJECTED = 'product_rejected',
+  PRODUCT_FLAGGED = 'product_flagged',
+  PRODUCT_QUARANTINED = 'product_quarantined'
 }
 
 export enum NotificationChannel {

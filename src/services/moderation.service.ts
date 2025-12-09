@@ -2,6 +2,9 @@ import { ModerationRule, ModerationConfig, ModerationQueue, ModerationMetrics, M
 import { getDatabase } from '@/config/database';
 import { ModerationActionModel } from '@/models/ModerationAction.model';
 import AutoModerationService from './autoModeration.service';
+import NotificationEngine from './notification/NotificationEngine';
+import { NotificationType, NotificationPriority } from './notification/types';
+import UserRepository from '@/repositories/UserRepository';
 
 export default class ModerationService {
   private static moderationActionModel = new ModerationActionModel();
@@ -190,6 +193,84 @@ export default class ModerationService {
         newStatus: newStatus
       }
     });
+
+    // Send notification to product owner about moderation action
+    try {
+      const ownerId = product.owner_id;
+      if (ownerId) {
+        // Get owner info
+        const ownerResult = await UserRepository.findById(ownerId);
+        const owner = ownerResult?.success && ownerResult?.data ? ownerResult.data : null;
+        
+        // Get admin info
+        const adminResult = await UserRepository.findById(adminId);
+        const admin = adminResult?.success && adminResult?.data ? adminResult.data : null;
+        const adminName = admin?.firstName 
+          ? `${admin.firstName}${admin.lastName ? ' ' + admin.lastName : ''}` 
+          : 'Admin';
+        
+        // Map action to user-friendly message
+        const actionMessages: Record<string, { title: string; message: string }> = {
+          approve: {
+            title: 'Product Approved',
+            message: `Your product "${product.title || product.name || 'Product'}" has been approved and is now live.`
+          },
+          reject: {
+            title: 'Product Rejected',
+            message: `Your product "${product.title || product.name || 'Product'}" has been rejected.${reason ? ` Reason: ${reason}` : ''}`
+          },
+          flag: {
+            title: 'Product Flagged',
+            message: `Your product "${product.title || product.name || 'Product'}" has been flagged for review.${reason ? ` Reason: ${reason}` : ''}`
+          },
+          quarantine: {
+            title: 'Product Quarantined',
+            message: `Your product "${product.title || product.name || 'Product'}" has been quarantined for review.${reason ? ` Reason: ${reason}` : ''}`
+          },
+          delete: {
+            title: 'Product Deleted',
+            message: `Your product "${product.title || product.name || 'Product'}" has been deleted.${reason ? ` Reason: ${reason}` : ''}`
+          },
+          draft: {
+            title: 'Product Set to Draft',
+            message: `Your product "${product.title || product.name || 'Product'}" has been set to draft status.${reason ? ` Reason: ${reason}` : ''}`
+          }
+        };
+
+        const actionMessage = actionMessages[action] || {
+          title: 'Product Status Changed',
+          message: `Your product "${product.title || product.name || 'Product'}" status has been changed.`
+        };
+
+        await NotificationEngine.sendNotification({
+          type: NotificationType.PRODUCT_MODERATED,
+          recipientId: ownerId,
+          title: actionMessage.title,
+          message: actionMessage.message,
+          data: {
+            productId: productId,
+            productTitle: product.title || product.name || 'Product',
+            action: action,
+            newStatus: newStatus,
+            reason: reason || null,
+            moderatorId: adminId,
+            moderatorName: adminName
+          },
+          priority: action === 'approve' ? NotificationPriority.NORMAL : NotificationPriority.HIGH,
+          metadata: {
+            source: 'moderation_service',
+            event: 'product_moderated',
+            productId: productId,
+            action: action
+          }
+        }).catch((error: any) => {
+          console.error(`Failed to send notification to product owner ${ownerId}:`, error);
+        });
+      }
+    } catch (notificationError) {
+      // Don't fail moderation if notification fails
+      console.error('Failed to send notification to product owner:', notificationError);
+    }
 
     return {
       id: productId,

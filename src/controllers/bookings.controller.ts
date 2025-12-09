@@ -1375,18 +1375,67 @@ export class BookingsController extends BaseController {
         throw new Error('Date string is required');
       }
       
-      // If no time provided, use midnight UTC
-      const time = timeStr || '00:00';
+      // Parse the date string to ensure it's valid
+      // Handle both ISO format and YYYY-MM-DD format
+      let dateOnly = dateStr;
+      if (dateStr.includes('T')) {
+        // If already in ISO format, extract just the date part
+        dateOnly = dateStr.split('T')[0];
+      }
+      
+      // Validate date format (YYYY-MM-DD)
+      const dateMatch = dateOnly.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!dateMatch) {
+        throw new Error(`Invalid date format: ${dateStr}. Expected YYYY-MM-DD format.`);
+      }
+      
+      // If no time provided or time is empty/null/undefined, use default times
+      // Default: pickup at 09:00, return at 17:00
+      let time = timeStr;
+      if (!time || time.trim() === '' || time === 'null' || time === 'undefined') {
+        time = '09:00'; // Default pickup time
+      }
+      
+      // Clean up the time string - remove any extra spaces or invalid characters
+      time = time.trim();
       
       // Ensure time format is HH:MM (add seconds if needed)
       const timeParts = time.split(':');
-      const hours = timeParts[0] || '00';
+      if (timeParts.length < 2) {
+        time = '09:00'; // Default if invalid format
+      }
+      
+      const hours = timeParts[0] || '09';
       const minutes = timeParts[1] || '00';
       const seconds = timeParts[2] || '00';
       
+      // Validate time components
+      const hoursNum = parseInt(hours, 10);
+      const minutesNum = parseInt(minutes, 10);
+      const secondsNum = parseInt(seconds, 10);
+      
+      if (isNaN(hoursNum) || isNaN(minutesNum) || isNaN(secondsNum) ||
+          hoursNum < 0 || hoursNum > 23 ||
+          minutesNum < 0 || minutesNum > 59 ||
+          secondsNum < 0 || secondsNum > 59) {
+        // Invalid time, use default
+        time = '09:00';
+        const defaultParts = time.split(':');
+        const defaultHours = defaultParts[0];
+        const defaultMinutes = defaultParts[1];
+        
+        // Combine date and time as UTC timestamp
+        const combinedDateTime = `${dateOnly}T${defaultHours}:${defaultMinutes}:00.000Z`;
+        const date = new Date(combinedDateTime);
+        if (isNaN(date.getTime())) {
+          throw new Error(`Invalid date/time combination: ${dateStr} ${time}`);
+        }
+        return date.toISOString();
+      }
+      
       // Combine date and time as UTC timestamp
       // This ensures consistent storage regardless of server timezone
-      const combinedDateTime = `${dateStr}T${hours}:${minutes}:${seconds}.000Z`;
+      const combinedDateTime = `${dateOnly}T${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:${seconds.padStart(2, '0')}.000Z`;
       
       // Validate the date
       const date = new Date(combinedDateTime);

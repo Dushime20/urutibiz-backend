@@ -350,6 +350,67 @@ export class ProductsController extends BaseController {
 
       this.invalidateProductCaches(owner_id);
       this.logAction('CREATE_PRODUCT', owner_id, created.data?.id, product_data);
+
+      // Send notification to all admins about new product listing
+      try {
+        const NotificationEngine = (await import('../services/notification/NotificationEngine')).default;
+        const UserRepository = (await import('../repositories/UserRepository')).default;
+        const { NotificationType, NotificationPriority } = await import('../services/notification/types');
+        
+        // Get all admin users
+        const admins = await UserRepository.findByRole('admin', 100);
+        
+        if (!admins || admins.length === 0) {
+          console.log('No admin users found to notify');
+          return;
+        }
+        
+        // Get owner info for notification
+        const ownerResult = await UserRepository.findById(owner_id);
+        const owner = ownerResult?.success && ownerResult?.data ? ownerResult.data : null;
+        const ownerName = owner?.firstName 
+          ? `${owner.firstName}${owner.lastName ? ' ' + owner.lastName : ''}` 
+          : 'A user';
+        const productTitle = created.data?.title || 'New product';
+        
+        // Send notification to each admin
+        const notificationPromises = admins.map((admin: any) => {
+          const adminId = admin.id || admin.data?.id;
+          if (!adminId) return Promise.resolve();
+          
+          return NotificationEngine.sendNotification({
+            type: NotificationType.PRODUCT_CREATED,
+            recipientId: adminId,
+            title: 'New Product Listing',
+            message: `${ownerName} has created a new product listing: "${productTitle}"`,
+            data: {
+              productId: created.data?.id,
+              productTitle: productTitle,
+              ownerId: owner_id,
+              ownerName: ownerName,
+              action: 'review_required'
+            },
+            priority: NotificationPriority.NORMAL,
+            metadata: {
+              source: 'products_controller',
+              event: 'product_created',
+              productId: created.data?.id
+            }
+          }).catch((error: any) => {
+            console.error(`Failed to send notification to admin ${adminId}:`, error);
+            return null;
+          });
+        });
+        
+        // Send notifications in parallel (don't wait for all to complete)
+        Promise.all(notificationPromises).catch((error) => {
+          console.error('Error sending notifications to admins:', error);
+        });
+      } catch (notificationError) {
+        // Don't fail product creation if notification fails
+        console.error('Failed to send notifications to admins:', notificationError);
+      }
+
       return ResponseHelper.success(res, 'Product created successfully', created.data, 201);
     } catch (error) {
       console.error('[DEBUG] Error in createProduct:', error);

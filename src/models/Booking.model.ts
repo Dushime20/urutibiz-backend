@@ -427,7 +427,9 @@ export class Booking {
       parent_booking_id: this.parent_booking_id,
       owner_confirmed: this.owner_confirmed,
       owner_confirmation_status: this.owner_confirmation_status,
-      owner_confirmed_at: this.owner_confirmed_at,
+      owner_confirmed_at: this.owner_confirmed_at instanceof Date 
+        ? this.owner_confirmed_at.toISOString() 
+        : this.owner_confirmed_at,
       owner_rejection_reason: this.owner_rejection_reason,
       owner_confirmation_notes: this.owner_confirmation_notes,
       createdAt: this.created_at instanceof Date ? this.created_at : new Date(this.created_at),

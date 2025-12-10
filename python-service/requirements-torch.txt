@@ -1,0 +1,5 @@
+# Heavy dependencies (torch and torchvision)
+# These are large (~2GB) and should be pre-downloaded or cached
+torch>=2.1.0
+torchvision>=0.16.0
+

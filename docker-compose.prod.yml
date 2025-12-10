@@ -1,0 +1,156 @@
+services:
+  # Python Image Service
+  python-service:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    image: urutibiz-python-service:prod
+    container_name: urutibiz-python-service-prod
+    restart: always
+    ports:
+      - "8001:8001"
+    networks:
+      - urutibiz-network
+    volumes:
+      # Persist HuggingFace model cache between restarts
+      - python-model-cache:/app/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Set environment variables for model cache
+    environment:
+      - HF_HOME=/app/.cache/huggingface
+      - PYTHONUNBUFFERED=1
+
+  # Backend Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: urutibiz-backend:prod
+    container_name: urutibiz-backend-prod
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=10000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-urutibiz_dev}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      # Python Image Service URL (use service name for Docker internal communication)
+      - PYTHON_IMAGE_SERVICE_URL=http://python-service:8001
+    ports:
+      - "10000:10000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      python-service:
+        condition: service_healthy
+    networks:
+      - urutibiz-network
+    volumes:
+      - backend-uploads:/app/uploads
+      - backend-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Database Service (with PostGIS and pgvector)
+  postgres:
+    build:
+      context: ./docker
+      dockerfile: postgres-pgvector.Dockerfile
+    image: urutibiz-postgres-pgvector:prod
+    container_name: urutibiz-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-urutibiz_dev}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-urutibiz_dev}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - urutibiz-network
+    # Security: Don't expose database port in production
+    # ports:
+    #   - "5432:5432"
+
+  # Cache Service
+  redis:
+    image: redis:7-alpine
+    container_name: urutibiz-redis-prod
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - urutibiz-network
+    # Security: Don't expose Redis port in production
+    # ports:
+    #   - "6379:6379"
+
+  # Nginx Reverse Proxy (Optional - for production)
+  nginx:
+    image: nginx:alpine
+    container_name: urutibiz-nginx-prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    networks:
+      - urutibiz-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend-uploads:
+    driver: local
+  backend-logs:
+    driver: local
+  python-model-cache:
+    driver: local
+
+networks:
+  urutibiz-network:
+    driver: bridge
+

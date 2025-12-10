@@ -1,18 +1,16 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database for Development
   postgres-dev:
     image: postgres:15-alpine
     container_name: urutibiz-postgres-dev
     environment:
-      POSTGRES_DB: urutibiz_dev
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${DB_NAME:-urutibiz_dev}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     restart: unless-stopped
     networks:
       - urutibiz-dev-network

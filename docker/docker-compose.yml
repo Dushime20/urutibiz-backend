@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Redis Cache
   redis:
@@ -23,14 +21,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DB_HOST: ep-wandering-dew-a8rs9ep6-pooler.eastus2.azure.neon.tech
-      DB_PORT: 5432
-      DB_NAME: urutibizdb
-      DB_USER: neondb_owner
-      DB_PASSWORD: npg_vKmLiNQ1O5wh
-      DB_SSL: true
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-urutibiz_dev}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SSL: ${DB_SSL:-false}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
     volumes:

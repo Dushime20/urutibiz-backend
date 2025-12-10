@@ -131,7 +131,41 @@ If CLIP model download fails:
 
 ## Production Deployment
 
-1. **Python Service**: Deploy as separate service (Docker recommended)
+### Docker Deployment (Recommended)
+
+The project includes complete Docker setup for production deployment:
+
+```bash
+# Build and start all services (Backend, Python Service, PostgreSQL, Redis)
+docker-compose -f docker-compose.prod.yml up -d --build
+
+# View logs
+docker-compose -f docker-compose.prod.yml logs -f python-service
+
+# Check service health
+curl http://localhost:8001/health
+```
+
+**Docker Configuration**:
+- ✅ Python service Dockerfile with CLIP model support
+- ✅ Automatic model cache persistence
+- ✅ Health checks and graceful shutdown
+- ✅ Non-root user execution for security
+- ✅ Integrated with backend via Docker network
+
+**Environment Variables**:
+- Set `PYTHON_IMAGE_SERVICE_URL=http://python-service:8001` in `.env`
+- Services communicate via Docker service names
+
+See `DOCKER_DEPLOYMENT_GUIDE.md` for complete deployment instructions.
+
+### Manual Deployment
+
+1. **Python Service**: Deploy as separate service
+   ```bash
+   cd python-service
+   uvicorn main:app --host 0.0.0.0 --port 8001
+   ```
 2. **Environment**: Set `PYTHON_IMAGE_SERVICE_URL` to production URL
 3. **Database**: Ensure pgvector extension is installed
 4. **Monitoring**: Monitor Python service health and response times

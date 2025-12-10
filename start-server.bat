@@ -2,10 +2,10 @@
 
 REM Set environment variables for UrutiBiz Backend
 set DB_HOST=localhost
-set DB_PORT=5433
+set DB_PORT=5434
 set DB_NAME=urutibiz_db
 set DB_USER=postgres
-set DB_PASSWORD=dushimimana20
+set DB_PASSWORD=dushime20
 set DB_SSL=false
 
 REM JWT Configuration

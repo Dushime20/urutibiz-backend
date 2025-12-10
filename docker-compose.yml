@@ -1,24 +1,51 @@
-version: '3.8'
 services:
+  python-service:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    container_name: urutibiz-python-service
+    ports:
+      - "8001:8001"
+    networks:
+      - urutibiz-network
+    volumes:
+      # Persist HuggingFace model cache
+      - python-model-cache:/app/.cache/huggingface
+    environment:
+      - HF_HOME=/app/.cache/huggingface
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   postgres:
-    image: postgis/postgis:15-3.3-alpine
+    build:
+      context: ./docker
+      dockerfile: postgres-pgvector.Dockerfile
+    image: urutibiz-postgres-pgvector:dev
     container_name: urutibiz-postgres
     environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 12345
+      POSTGRES_DB: ${DB_NAME:-urutibiz_dev}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
     ports:
-      - "5434:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-urutibiz_dev}"]
       interval: 30s
       timeout: 10s
       retries: 3
     restart: unless-stopped
+    networks:
+      - urutibiz-network
 
   redis:
     image: redis:7-alpine
@@ -28,6 +55,8 @@ services:
     volumes:
       - redis_data:/data
     restart: unless-stopped
+    networks:
+      - urutibiz-network
 
   adminer:
     image: adminer:4.8.1
@@ -37,7 +66,14 @@ services:
     restart: unless-stopped
     depends_on:
       - postgres
+    networks:
+      - urutibiz-network
 
 volumes:
   postgres_data:
   redis_data:
+  python-model-cache:
+
+networks:
+  urutibiz-network:
+    driver: bridge

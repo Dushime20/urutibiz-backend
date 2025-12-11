@@ -2,28 +2,48 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   // Ensure payment_status enum exists with all required values
-  await knex.raw(`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_status') THEN
-        CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded', 'cancelled');
-      END IF;
-    END$$;
+  // First check if enum exists
+  const enumExists = await knex.raw(`
+    SELECT EXISTS (
+      SELECT 1 FROM pg_type WHERE typname = 'payment_status'
+    ) as exists;
   `);
-
-  // Add 'cancelled' value if it doesn't exist (separate transaction)
-  await knex.raw(`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
+  
+  const hasEnum = enumExists.rows[0]?.exists || false;
+  
+  if (!hasEnum) {
+    // Create enum with all values including 'cancelled'
+    await knex.raw(`
+      CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded', 'cancelled');
+    `);
+  } else {
+    // Enum exists, check if 'cancelled' needs to be added
+    const cancelledExists = await knex.raw(`
+      SELECT EXISTS (
         SELECT 1 FROM pg_enum 
         WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'payment_status') 
         AND enumlabel = 'cancelled'
-      ) THEN
-        ALTER TYPE payment_status ADD VALUE 'cancelled';
-      END IF;
-    END$$;
-  `);
+      ) as exists;
+    `);
+    
+    const hasCancelledValue = cancelledExists.rows[0]?.exists || false;
+    
+    if (!hasCancelledValue) {
+      // Add 'cancelled' value - this must be in a separate statement
+      // Note: PostgreSQL requires a commit after adding enum values before they can be used
+      // We'll handle this by checking if it exists first, then adding if needed
+      try {
+        await knex.raw(`
+          ALTER TYPE payment_status ADD VALUE 'cancelled';
+        `);
+      } catch (error: any) {
+        // Ignore error if value already exists (race condition)
+        if (!error.message?.includes('already exists')) {
+          throw error;
+        }
+      }
+    }
+  }
 
   // Check if table already exists
   const hasTable = await knex.schema.hasTable('payment_transactions');
@@ -37,7 +57,7 @@ export async function up(knex: Knex): Promise<void> {
       table.uuid('payment_method_id').comment('Payment method used for transaction');
     
     // Transaction details
-    table.enu('transaction_type', ['booking_payment', 'security_deposit', 'refund', 'partial_refund', 'platform_fee', 'insurance_payment', 'delivery_fee']).notNullable().comment('Type of transaction');
+    table.enu('transaction_type', ['booking_payment', 'security_deposit', 'refund', 'partial_refund', 'platform_fee', 'insurance_payment', 'delivery_fee', 'inspection_fee']).notNullable().comment('Type of transaction');
     table.decimal('amount', 12, 2).notNullable().comment('Transaction amount in the specified currency');
     table.string('currency', 3).defaultTo('RWF').comment('Currency code (ISO 4217)');
     
@@ -130,12 +150,14 @@ export async function up(knex: Knex): Promise<void> {
     `);
 
     // Add constraint to ensure processed_at is set when status is completed/failed
+    // Use a more flexible constraint that doesn't hardcode enum values
+    // This avoids issues with newly added enum values in the same transaction
     await knex.raw(`
       ALTER TABLE payment_transactions 
       ADD CONSTRAINT check_processed_at_for_final_status 
       CHECK (
-        (status IN ('completed', 'failed', 'refunded', 'partially_refunded', 'cancelled') AND processed_at IS NOT NULL) OR 
-        (status IN ('pending', 'processing'))
+        (status::text NOT IN ('pending', 'processing') AND processed_at IS NOT NULL) OR 
+        (status::text IN ('pending', 'processing'))
       );
     `);
 

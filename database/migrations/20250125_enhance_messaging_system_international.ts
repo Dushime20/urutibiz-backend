@@ -22,9 +22,21 @@ export async function up(knex: Knex): Promise<void> {
     // Add conversation context fields
     const hasProductId = await knex.schema.hasColumn('chats', 'product_id');
     if (!hasProductId) {
+      const hasProductsTable = await knex.schema.hasTable('products');
+      const hasBookingsTable = await knex.schema.hasTable('bookings');
+      const hasUsersTable = await knex.schema.hasTable('users');
+      
       await knex.schema.alterTable('chats', (table) => {
-        table.uuid('product_id').references('id').inTable('products').onDelete('SET NULL');
-        table.uuid('booking_id').references('id').inTable('bookings').onDelete('SET NULL');
+        if (hasProductsTable) {
+          table.uuid('product_id').references('id').inTable('products').onDelete('SET NULL');
+        } else {
+          table.uuid('product_id');
+        }
+        if (hasBookingsTable) {
+          table.uuid('booking_id').references('id').inTable('bookings').onDelete('SET NULL');
+        } else {
+          table.uuid('booking_id');
+        }
         table.string('subject', 255);
         table.string('last_message_preview', 500);
         table.timestamp('last_message_at', { useTz: true });
@@ -33,7 +45,11 @@ export async function up(knex: Knex): Promise<void> {
         table.boolean('is_archived_user_1').defaultTo(false);
         table.boolean('is_archived_user_2').defaultTo(false);
         table.boolean('is_blocked').defaultTo(false);
-        table.uuid('blocked_by').references('id').inTable('users').onDelete('SET NULL');
+        if (hasUsersTable) {
+          table.uuid('blocked_by').references('id').inTable('users').onDelete('SET NULL');
+        } else {
+          table.uuid('blocked_by');
+        }
         table.timestamp('blocked_at', { useTz: true });
       });
       
@@ -81,8 +97,8 @@ export async function up(knex: Knex): Promise<void> {
         table.jsonb('translations').comment('Translations: {language_code: translated_content}');
         table.string('original_language', 10).defaultTo('en');
         
-        // Reply to message
-        table.uuid('reply_to_message_id').references('id').inTable('messages').onDelete('SET NULL');
+        // Reply to message (will add FK later if messages table exists)
+        table.uuid('reply_to_message_id');
         
         // Forwarded message
         table.boolean('is_forwarded').defaultTo(false);
@@ -128,7 +144,9 @@ export async function up(knex: Knex): Promise<void> {
 
   // Create typing_indicators table
   const hasTypingIndicators = await knex.schema.hasTable('typing_indicators');
-  if (!hasTypingIndicators) {
+  const hasUsersTableForTyping = await knex.schema.hasTable('users');
+  
+  if (!hasTypingIndicators && hasChatsTable && hasUsersTableForTyping) {
     await knex.schema.createTable('typing_indicators', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
       table.uuid('chat_id').notNullable().references('id').inTable('chats').onDelete('CASCADE');
@@ -143,11 +161,14 @@ export async function up(knex: Knex): Promise<void> {
       table.unique(['chat_id', 'user_id']);
     });
     console.log('✅ Created typing_indicators table');
+  } else if (!hasChatsTable || !hasUsersTableForTyping) {
+    console.log('⚠️ chats or users table does not exist, skipping typing_indicators table creation');
   }
 
   // Create message_attachments table for better file management
   const hasMessageAttachments = await knex.schema.hasTable('message_attachments');
-  if (!hasMessageAttachments) {
+  
+  if (!hasMessageAttachments && hasMessagesTable) {
     await knex.schema.createTable('message_attachments', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
       table.uuid('message_id').notNullable().references('id').inTable('messages').onDelete('CASCADE');
@@ -165,11 +186,15 @@ export async function up(knex: Knex): Promise<void> {
       table.index(['file_type']);
     });
     console.log('✅ Created message_attachments table');
+  } else if (!hasMessagesTable) {
+    console.log('⚠️ messages table does not exist, skipping message_attachments table creation');
   }
 
   // Create blocked_users table
   const hasBlockedUsers = await knex.schema.hasTable('blocked_users');
-  if (!hasBlockedUsers) {
+  const hasUsersTableForBlocked = await knex.schema.hasTable('users');
+  
+  if (!hasBlockedUsers && hasUsersTableForBlocked) {
     await knex.schema.createTable('blocked_users', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
       table.uuid('blocker_id').notNullable().references('id').inTable('users').onDelete('CASCADE');
@@ -184,11 +209,16 @@ export async function up(knex: Knex): Promise<void> {
       table.unique(['blocker_id', 'blocked_id']);
     });
     console.log('✅ Created blocked_users table');
+  } else if (!hasUsersTableForBlocked) {
+    console.log('⚠️ users table does not exist, skipping blocked_users table creation');
   }
 
   // Create conversation_participants table for better participant management
   const hasConversationParticipants = await knex.schema.hasTable('conversation_participants');
-  if (!hasConversationParticipants) {
+  const hasChatsTableForParticipants = await knex.schema.hasTable('chats');
+  const hasUsersTableForParticipants = await knex.schema.hasTable('users');
+  
+  if (!hasConversationParticipants && hasChatsTableForParticipants && hasUsersTableForParticipants) {
     await knex.schema.createTable('conversation_participants', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
       table.uuid('chat_id').notNullable().references('id').inTable('chats').onDelete('CASCADE');
@@ -210,6 +240,8 @@ export async function up(knex: Knex): Promise<void> {
       table.unique(['chat_id', 'user_id']);
     });
     console.log('✅ Created conversation_participants table');
+  } else if (!hasChatsTableForParticipants || !hasUsersTableForParticipants) {
+    console.log('⚠️ chats or users table does not exist, skipping conversation_participants table creation');
   }
 
   console.log('✅ International messaging system enhancement completed');

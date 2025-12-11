@@ -1,7 +1,15 @@
 import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
-  // Drop the existing check constraint
+  // Check if payment_transactions table exists
+  const tableExists = await knex.schema.hasTable('payment_transactions');
+  
+  if (!tableExists) {
+    console.log('payment_transactions table does not exist, skipping migration');
+    return;
+  }
+
+  // Drop the existing check constraint if it exists
   await knex.raw(`
     ALTER TABLE payment_transactions 
     DROP CONSTRAINT IF EXISTS payment_transactions_transaction_type_check;
@@ -25,6 +33,14 @@ export async function up(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  // Check if payment_transactions table exists
+  const tableExists = await knex.schema.hasTable('payment_transactions');
+  
+  if (!tableExists) {
+    console.log('payment_transactions table does not exist, skipping rollback');
+    return;
+  }
+
   // Drop the constraint
   await knex.raw(`
     ALTER TABLE payment_transactions 

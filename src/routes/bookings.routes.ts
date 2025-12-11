@@ -1045,6 +1045,214 @@ router.post('/:id/owner-confirm', requireAuth, controller.confirmBookingByOwner)
 
 /**
  * @swagger
+ * /bookings/delivery/calculate-fee:
+ *   post:
+ *     summary: Calculate delivery fee
+ *     description: Calculate delivery fee based on product, distance, and delivery options
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [product_id, delivery_method]
+ *             properties:
+ *               product_id:
+ *                 type: string
+ *                 format: uuid
+ *               delivery_method:
+ *                 type: string
+ *                 enum: [pickup, delivery, meet_public]
+ *               delivery_address:
+ *                 type: string
+ *               delivery_coordinates:
+ *                 type: object
+ *                 properties:
+ *                   lat:
+ *                     type: number
+ *                   lng:
+ *                     type: number
+ *               delivery_time_window:
+ *                 type: string
+ *                 enum: [morning, afternoon, evening, flexible]
+ *               meet_public_location:
+ *                 type: string
+ *               meet_public_coordinates:
+ *                 type: object
+ *                 properties:
+ *                   lat:
+ *                     type: number
+ *                   lng:
+ *                     type: number
+ *     responses:
+ *       200:
+ *         description: Delivery fee calculated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     baseFee:
+ *                       type: number
+ *                     distanceFee:
+ *                       type: number
+ *                     timeWindowFee:
+ *                       type: number
+ *                     urgencyFee:
+ *                       type: number
+ *                     totalFee:
+ *                       type: number
+ *                     currency:
+ *                       type: string
+ *                     breakdown:
+ *                       type: array
+ *       400:
+ *         description: Invalid delivery options
+ *       404:
+ *         description: Product not found
+ */
+router.post('/delivery/calculate-fee', requireAuth, controller.calculateDeliveryFee);
+
+/**
+ * @swagger
+ * /bookings/{id}/delivery/update-status:
+ *   post:
+ *     summary: Update delivery status
+ *     description: Update the delivery status and tracking information for a booking
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [scheduled, confirmed, out_for_delivery, in_transit, delivered, failed, cancelled]
+ *               location:
+ *                 type: object
+ *                 properties:
+ *                   lat:
+ *                     type: number
+ *                   lng:
+ *                     type: number
+ *               tracking_number:
+ *                 type: string
+ *               eta:
+ *                 type: string
+ *               driver_contact:
+ *                 type: string
+ *               notes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Delivery status updated successfully
+ *       404:
+ *         description: Booking not found
+ *       403:
+ *         description: Not authorized to update this booking
+ */
+router.post('/:id/delivery/update-status', requireAuth, controller.updateDeliveryStatus);
+
+/**
+ * @swagger
+ * /bookings/{id}/delivery/tracking:
+ *   get:
+ *     summary: Get delivery tracking information
+ *     description: Get real-time delivery tracking information for a booking
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Delivery tracking information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     status:
+ *                       type: string
+ *                     currentLocation:
+ *                       type: object
+ *                     eta:
+ *                       type: string
+ *                     trackingNumber:
+ *                       type: string
+ *                     updates:
+ *                       type: array
+ *       404:
+ *         description: Booking not found
+ */
+router.get('/:id/delivery/tracking', requireAuth, controller.getDeliveryTracking);
+
+/**
+ * @swagger
+ * /bookings/delivery/available-time-windows:
+ *   get:
+ *     summary: Get available delivery time windows
+ *     description: Get available delivery time windows for a given date
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Available time windows
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                     enum: [morning, afternoon, evening, flexible]
+ */
+router.get('/delivery/available-time-windows', requireAuth, controller.getAvailableTimeWindows);
+
+/**
+ * @swagger
  * /bookings/{id}/owner-reject:
  *   post:
  *     summary: Owner rejects booking

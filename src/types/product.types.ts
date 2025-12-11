@@ -4,7 +4,12 @@
 
 export type ProductStatus = 'draft' | 'active' | 'inactive' | 'suspended' | 'deleted';
 export type ProductCondition = 'new' | 'like_new' | 'good' | 'fair' | 'poor';
-export type PickupMethod = 'pickup' | 'delivery' | 'both';
+export type PickupMethod = 'pickup' | 'delivery' | 'both' | 'meet_public';
+
+// Enhanced delivery method types
+export type DeliveryMethod = 'pickup' | 'delivery' | 'meet_public';
+export type DeliveryTimeWindow = 'morning' | 'afternoon' | 'evening' | 'flexible';
+export type DeliveryStatus = 'scheduled' | 'confirmed' | 'out_for_delivery' | 'in_transit' | 'delivered' | 'failed' | 'cancelled';
 
 export interface ProductLocation {
   latitude: number;

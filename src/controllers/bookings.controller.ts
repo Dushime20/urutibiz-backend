@@ -26,6 +26,8 @@ import {
   BookingData
 } from '@/types';
 import { InsuranceType } from '@/types/booking.types';
+import { DeliveryService } from '@/services/delivery.service';
+import type { DeliveryMethod, DeliveryTimeWindow, DeliveryStatus } from '@/types/product.types';
 import { ResponseHelper } from '@/utils/response';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '@/config/database';
@@ -148,10 +150,15 @@ export class BookingsController extends BaseController {
       pickup_time,
       return_time,
       pickup_method,
+      delivery_method,
       pickup_address,
       delivery_address,
+      meet_public_location,
       pickup_coordinates,
       delivery_coordinates,
+      meet_public_coordinates,
+      delivery_time_window,
+      delivery_instructions,
       special_instructions,
       renter_notes,
       insurance_type,
@@ -183,10 +190,15 @@ export class BookingsController extends BaseController {
       pickup_time,
       return_time,
       pickup_method,
+      delivery_method,
       pickup_address,
       delivery_address,
+      meet_public_location,
       pickup_coordinates,
       delivery_coordinates,
+      meet_public_coordinates,
+      delivery_time_window,
+      delivery_instructions,
       special_instructions,
       renter_notes,
       insurance_type,
@@ -1306,10 +1318,15 @@ export class BookingsController extends BaseController {
       pickup_time,
       return_time,
       pickup_method,
+      delivery_method,
       pickup_address,
       delivery_address,
+      meet_public_location,
       pickup_coordinates,
       delivery_coordinates,
+      meet_public_coordinates,
+      delivery_time_window,
+      delivery_instructions,
       special_instructions,
       renter_notes,
       insurance_type,
@@ -1462,10 +1479,15 @@ export class BookingsController extends BaseController {
       pickup_time,
       return_time,
       pickup_method,
+      delivery_method,
       pickup_address,
       delivery_address,
+      meet_public_location,
       pickup_coordinates,
       delivery_coordinates,
+      meet_public_coordinates,
+      delivery_time_window,
+      delivery_instructions,
       special_instructions,
       renter_notes,
       // Only include insurance_type if provided, no hardcoded default
@@ -2476,6 +2498,234 @@ export class BookingsController extends BaseController {
       console.error('[OwnerConfirmation] Error sending notifications:', error);
     }
   }
+
+  /**
+   * Calculate delivery fee
+   * POST /api/v1/bookings/delivery/calculate-fee
+   */
+  public calculateDeliveryFee = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const {
+        product_id,
+        delivery_method,
+        delivery_address,
+        delivery_coordinates,
+        delivery_time_window,
+        meet_public_location,
+        meet_public_coordinates
+      } = req.body;
+
+      if (!product_id || !delivery_method) {
+        return ResponseHelper.badRequest(res, 'Product ID and delivery method are required');
+      }
+
+      // Validate delivery method
+      const validMethods: DeliveryMethod[] = ['pickup', 'delivery', 'meet_public'];
+      if (!validMethods.includes(delivery_method)) {
+        return ResponseHelper.badRequest(res, 'Invalid delivery method');
+      }
+
+      // Prepare delivery options
+      const deliveryOptions = {
+        method: delivery_method as DeliveryMethod,
+        timeWindow: delivery_time_window as DeliveryTimeWindow | undefined,
+        address: delivery_address,
+        coordinates: delivery_coordinates,
+        meetPublicLocation: meet_public_location,
+        meetPublicCoordinates: meet_public_coordinates
+      };
+
+      // Validate delivery options
+      const validation = DeliveryService.validateDeliveryOptions(deliveryOptions);
+      if (!validation.valid) {
+        return ResponseHelper.badRequest(res, validation.error || 'Invalid delivery options');
+      }
+
+      // Calculate delivery fee
+      const feeCalculation = await DeliveryService.calculateDeliveryFee(
+        product_id,
+        deliveryOptions,
+        delivery_coordinates
+      );
+
+      return ResponseHelper.success(res, feeCalculation, 'Delivery fee calculated successfully');
+    } catch (error: any) {
+      console.error('[CalculateDeliveryFee] Error:', error);
+      return ResponseHelper.error(res, error.message || 'Failed to calculate delivery fee', 500);
+    }
+  });
+
+  /**
+   * Update delivery status
+   * POST /api/v1/bookings/:id/delivery/update-status
+   */
+  public updateDeliveryStatus = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const {
+        status,
+        location,
+        tracking_number,
+        eta,
+        driver_contact,
+        notes
+      } = req.body;
+
+      if (!status) {
+        return ResponseHelper.badRequest(res, 'Delivery status is required');
+      }
+
+      // Validate status
+      const validStatuses: DeliveryStatus[] = [
+        'scheduled', 'confirmed', 'out_for_delivery', 'in_transit',
+        'delivered', 'failed', 'cancelled'
+      ];
+      if (!validStatuses.includes(status)) {
+        return ResponseHelper.badRequest(res, 'Invalid delivery status');
+      }
+
+      // Get booking
+      const bookingResult = await BookingService.getById(id);
+      if (!bookingResult.success || !bookingResult.data) {
+        return ResponseHelper.notFound(res, 'Booking not found');
+      }
+
+      const booking = bookingResult.data;
+
+      // Check authorization (owner or renter can update)
+      if (booking.owner_id !== req.user.id && booking.renter_id !== req.user.id) {
+        return ResponseHelper.forbidden(res, 'Not authorized to update this booking');
+      }
+
+      // Update delivery status
+      const tracking = await DeliveryService.updateDeliveryStatus(
+        id,
+        status as DeliveryStatus,
+        location,
+        notes
+      );
+
+      // Update booking with delivery information
+      const updateData: any = {
+        delivery_status: status,
+        metadata: {
+          ...(booking.metadata || {}),
+          delivery_tracking: tracking,
+          delivery_tracking_number: tracking_number,
+          delivery_eta: eta,
+          delivery_driver_contact: driver_contact
+        }
+      };
+
+      await BookingService.update(id, updateData);
+
+      // Send notification
+      try {
+        const recipientId = booking.owner_id === req.user.id ? booking.renter_id : booking.owner_id;
+        await NotificationEngine.sendNotification({
+          type: NotificationType.BOOKING_UPDATE,
+          recipientId,
+          title: 'Delivery Status Updated',
+          message: `Delivery status updated to: ${status}`,
+          data: {
+            booking_id: id,
+            delivery_status: status,
+            action: 'delivery_status_updated'
+          }
+        });
+      } catch (notifError) {
+        console.error('[UpdateDeliveryStatus] Error sending notification:', notifError);
+      }
+
+      // Emit real-time update via Socket.IO
+      try {
+        const { getSocketServer } = await import('../socket/index');
+        const io = getSocketServer();
+        if (io) {
+          io.to(`booking-${id}`).emit('delivery-status-changed', {
+            bookingId: id,
+            status,
+            location,
+            trackingNumber,
+            eta,
+            driverContact,
+            notes,
+            updatedBy: req.user.id,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch (socketError) {
+        console.error('[UpdateDeliveryStatus] Error emitting socket event:', socketError);
+      }
+
+      return ResponseHelper.success(res, tracking, 'Delivery status updated successfully');
+    } catch (error: any) {
+      console.error('[UpdateDeliveryStatus] Error:', error);
+      return ResponseHelper.error(res, error.message || 'Failed to update delivery status', 500);
+    }
+  });
+
+  /**
+   * Get delivery tracking information
+   * GET /api/v1/bookings/:id/delivery/tracking
+   */
+  public getDeliveryTracking = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      // Get booking
+      const bookingResult = await BookingService.getById(id);
+      if (!bookingResult.success || !bookingResult.data) {
+        return ResponseHelper.notFound(res, 'Booking not found');
+      }
+
+      const booking = bookingResult.data;
+
+      // Check authorization
+      if (booking.owner_id !== req.user.id && booking.renter_id !== req.user.id) {
+        return ResponseHelper.forbidden(res, 'Not authorized to view this booking');
+      }
+
+      // Get tracking from metadata
+      const tracking = (booking.metadata as any)?.delivery_tracking || {
+        status: booking.delivery_status || 'scheduled',
+        updates: []
+      };
+
+      return ResponseHelper.success(res, tracking, 'Delivery tracking retrieved successfully');
+    } catch (error: any) {
+      console.error('[GetDeliveryTracking] Error:', error);
+      return ResponseHelper.error(res, error.message || 'Failed to get delivery tracking', 500);
+    }
+  });
+
+  /**
+   * Get available delivery time windows
+   * GET /api/v1/bookings/delivery/available-time-windows
+   */
+  public getAvailableTimeWindows = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { date } = req.query;
+
+      if (!date || typeof date !== 'string') {
+        return ResponseHelper.badRequest(res, 'Date parameter is required');
+      }
+
+      // Validate date format
+      const deliveryDate = new Date(date);
+      if (isNaN(deliveryDate.getTime())) {
+        return ResponseHelper.badRequest(res, 'Invalid date format');
+      }
+
+      // Get available time windows
+      const windows = DeliveryService.getAvailableTimeWindows(date);
+
+      return ResponseHelper.success(res, windows, 'Available time windows retrieved successfully');
+    } catch (error: any) {
+      console.error('[GetAvailableTimeWindows] Error:', error);
+      return ResponseHelper.error(res, error.message || 'Failed to get available time windows', 500);
+    }
+  });
 }
 
 export default new BookingsController();

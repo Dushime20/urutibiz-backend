@@ -2,7 +2,7 @@
 // BOOKING TYPES
 // =====================================================
 
-import type { PickupMethod, ProductPricing } from './product.types';
+import type { PickupMethod, ProductPricing, DeliveryMethod, DeliveryTimeWindow, DeliveryStatus } from './product.types';
 
 export type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'disputed' | 'cancellation_requested';
 export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded' | 'partially_refunded';
@@ -38,10 +38,21 @@ export interface BookingData {
   
   // Pickup and delivery information
   pickup_method: PickupMethod;
+  delivery_method?: DeliveryMethod; // Enhanced: pickup, delivery, meet_public
   pickup_address?: string;
   delivery_address?: string;
+  meet_public_location?: string; // For meet_public method
   pickup_coordinates?: { lat: number; lng: number };
   delivery_coordinates?: { lat: number; lng: number };
+  meet_public_coordinates?: { lat: number; lng: number }; // For meet_public method
+  
+  // Enhanced delivery options
+  delivery_time_window?: DeliveryTimeWindow; // morning, afternoon, evening, flexible
+  delivery_instructions?: string; // Gate codes, special notes, preferred location
+  delivery_status?: DeliveryStatus; // scheduled, confirmed, out_for_delivery, etc.
+  delivery_tracking_number?: string; // For courier services
+  delivery_eta?: string; // Estimated time of arrival
+  delivery_driver_contact?: string; // Driver/courier contact info
   
   // Pricing breakdown (matching database schema)
   base_amount?: number;
@@ -128,10 +139,15 @@ export interface CreateBookingData {
   pickup_time: string;
   return_time: string;
   pickup_method: PickupMethod;
+  delivery_method?: DeliveryMethod; // Enhanced: pickup, delivery, meet_public
   pickup_address?: string;
   delivery_address?: string;
+  meet_public_location?: string; // For meet_public method
   pickup_coordinates?: { lat: number; lng: number };
   delivery_coordinates?: { lat: number; lng: number };
+  meet_public_coordinates?: { lat: number; lng: number }; // For meet_public method
+  delivery_time_window?: DeliveryTimeWindow; // morning, afternoon, evening, flexible
+  delivery_instructions?: string; // Gate codes, special notes, preferred location
   check_in_time?: string;
   check_out_time?: string;
   special_instructions?: string;
@@ -151,6 +167,17 @@ export interface UpdateBookingData {
   check_out_time?: string;
   pickup_time?: string;
   return_time?: string;
+  delivery_method?: DeliveryMethod; // Enhanced delivery method
+  delivery_address?: string;
+  meet_public_location?: string;
+  delivery_coordinates?: { lat: number; lng: number };
+  meet_public_coordinates?: { lat: number; lng: number };
+  delivery_time_window?: DeliveryTimeWindow; // Change delivery time window
+  delivery_instructions?: string; // Update delivery instructions
+  delivery_status?: DeliveryStatus; // Update delivery status
+  delivery_tracking_number?: string;
+  delivery_eta?: string;
+  delivery_driver_contact?: string;
   special_instructions?: string;
   renter_notes?: string;
   owner_notes?: string;

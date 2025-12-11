@@ -34,10 +34,21 @@ export class Booking {
   
   // Pickup and delivery information
   public pickup_method: PickupMethod;
+  public delivery_method?: string; // Enhanced: pickup, delivery, meet_public
   public pickup_address?: string;
   public delivery_address?: string;
+  public meet_public_location?: string; // For meet_public method
   public pickup_coordinates?: { lat: number; lng: number };
   public delivery_coordinates?: { lat: number; lng: number };
+  public meet_public_coordinates?: { lat: number; lng: number }; // For meet_public method
+  
+  // Enhanced delivery options
+  public delivery_time_window?: string; // morning, afternoon, evening, flexible
+  public delivery_instructions?: string; // Gate codes, special notes, preferred location
+  public delivery_status?: string; // scheduled, confirmed, out_for_delivery, etc.
+  public delivery_tracking_number?: string; // For courier services
+  public delivery_eta?: string; // Estimated time of arrival
+  public delivery_driver_contact?: string; // Driver/courier contact info
   
   // Insurance information
   public insurance_policy_number?: string;
@@ -103,8 +114,19 @@ export class Booking {
     this.status = (data as any).status || 'pending';
     this.payment_status = (data as any).payment_status || 'pending';
     this.pickup_method = data.pickup_method;
+    this.delivery_method = (data as any).delivery_method;
     this.pickup_address = data.pickup_address;
     this.delivery_address = data.delivery_address;
+    this.meet_public_location = (data as any).meet_public_location;
+    this.pickup_coordinates = data.pickup_coordinates;
+    this.delivery_coordinates = data.delivery_coordinates;
+    this.meet_public_coordinates = (data as any).meet_public_coordinates;
+    this.delivery_time_window = (data as any).delivery_time_window;
+    this.delivery_instructions = (data as any).delivery_instructions;
+    this.delivery_status = (data as any).delivery_status;
+    this.delivery_tracking_number = (data as any).delivery_tracking_number;
+    this.delivery_eta = (data as any).delivery_eta;
+    this.delivery_driver_contact = (data as any).delivery_driver_contact;
     this.special_instructions = data.special_instructions;
     this.renter_notes = data.renter_notes;
     this.insurance_type = data.insurance_type || 'none';

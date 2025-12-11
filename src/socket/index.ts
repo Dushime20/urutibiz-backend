@@ -287,6 +287,69 @@ export const initializeSocket = (io: SocketServer): void => {
       logger.info(`Booking update from socket ${socket.id} for booking: ${bookingId}`);
     });
 
+    // Handle delivery status updates
+    socket.on('delivery-status-update', async (data) => {
+      const { bookingId, status, location, trackingNumber, eta, driverContact, notes } = data;
+      
+      if (!bookingId || !status) {
+        socket.emit('error', { message: 'Invalid delivery update data' });
+        return;
+      }
+
+      // Broadcast to all users in the booking room
+      io.to(`booking-${bookingId}`).emit('delivery-status-changed', {
+        bookingId,
+        status,
+        location,
+        trackingNumber,
+        eta,
+        driverContact,
+        notes,
+        updatedBy: userId,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Send notification to relevant users
+      const { BookingService } = await import('../services/BookingService');
+      const bookingResult = await BookingService.getById(bookingId);
+      if (bookingResult.success && bookingResult.data) {
+        const booking = bookingResult.data;
+        const recipientId = booking.owner_id === userId ? booking.renter_id : booking.owner_id;
+        
+        io.to(`user-${recipientId}`).emit('notification', {
+          type: 'delivery-update',
+          bookingId,
+          status,
+          message: `Delivery status updated to: ${status}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      logger.info(`Delivery status update from socket ${socket.id} for booking: ${bookingId}`);
+    });
+
+    // Handle GPS location updates for delivery tracking
+    socket.on('delivery-location-update', async (data) => {
+      const { bookingId, location } = data;
+      
+      if (!bookingId || !location || !location.lat || !location.lng) {
+        socket.emit('error', { message: 'Invalid location update data' });
+        return;
+      }
+
+      // Broadcast location update to all users in the booking room
+      io.to(`booking-${bookingId}`).emit('delivery-location-updated', {
+        bookingId,
+        location: {
+          lat: location.lat,
+          lng: location.lng,
+        },
+        timestamp: new Date().toISOString(),
+      });
+
+      logger.info(`Delivery location update from socket ${socket.id} for booking: ${bookingId}`);
+    });
+
     // Handle general notifications
     socket.on('send-notification', async (data) => {
       const { toUserId, type, message, data: notificationData } = data;

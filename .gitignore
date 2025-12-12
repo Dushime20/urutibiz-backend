@@ -138,3 +138,15 @@ build/
 
 # Docker
 .dockerignore
+
+# Python wheels and dependencies
+python-service/wheels/
+*.whl
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+ENV/

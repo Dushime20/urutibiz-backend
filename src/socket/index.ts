@@ -310,7 +310,7 @@ export const initializeSocket = (io: SocketServer): void => {
       });
 
       // Send notification to relevant users
-      const { BookingService } = await import('../services/BookingService');
+      const BookingService = (await import('../services/BookingService')).default;
       const bookingResult = await BookingService.getById(bookingId);
       if (bookingResult.success && bookingResult.data) {
         const booking = bookingResult.data;

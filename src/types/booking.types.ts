@@ -147,7 +147,6 @@ export interface CreateBookingData {
   delivery_coordinates?: { lat: number; lng: number };
   meet_public_coordinates?: { lat: number; lng: number }; // For meet_public method
   delivery_time_window?: DeliveryTimeWindow; // morning, afternoon, evening, flexible
-  delivery_instructions?: string; // Gate codes, special notes, preferred location
   check_in_time?: string;
   check_out_time?: string;
   special_instructions?: string;
@@ -173,7 +172,6 @@ export interface UpdateBookingData {
   delivery_coordinates?: { lat: number; lng: number };
   meet_public_coordinates?: { lat: number; lng: number };
   delivery_time_window?: DeliveryTimeWindow; // Change delivery time window
-  delivery_instructions?: string; // Update delivery instructions
   delivery_status?: DeliveryStatus; // Update delivery status
   delivery_tracking_number?: string;
   delivery_eta?: string;

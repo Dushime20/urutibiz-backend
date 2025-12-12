@@ -102,6 +102,23 @@ export class ReviewRepositoryKnex {
   }
 
   /**
+   * Get reviews for a specific product (via bookings)
+   */
+  async findByProductId(productId: string, filters?: { moderationStatus?: ModerationStatus }): Promise<ReviewData[]> {
+    let query = this.db('reviews')
+      .join('bookings', 'reviews.booking_id', 'bookings.id')
+      .where('bookings.product_id', productId)
+      .select('reviews.*');
+
+    if (filters?.moderationStatus) {
+      query = query.where('reviews.moderation_status', filters.moderationStatus);
+    }
+
+    const reviews = await query.orderBy('reviews.created_at', 'desc');
+    return reviews.map(review => this.mapDatabaseToReviewData(review));
+  }
+
+  /**
    * Find reviews with pagination
    */
   async findWithPagination(params: ReviewSearchParams): Promise<{

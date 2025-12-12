@@ -19,10 +19,15 @@ class BookingRepository extends OptimizedBaseRepository<BookingData, CreateBooki
     this.cacheKeyPrefix = 'booking';
   }
 
-  // Override create to remove features from payload if present
+  // Override create to remove features, delivery_instructions, and map delivery_method to pickup_method
   async create(data: CreateBookingData) {
-    const { features, ...safeData } = data as any;
-    return await super.create(safeData);
+    const { features, delivery_instructions, delivery_method, pickup_method, ...safeData } = data as any;
+    // Use delivery_method for pickup_method if pickup_method is not set (database only has pickup_method column)
+    const finalData = {
+      ...safeData,
+      pickup_method: pickup_method || delivery_method || 'pickup'
+    };
+    return await super.create(finalData);
   }
 
   /**

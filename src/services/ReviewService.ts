@@ -12,7 +12,8 @@ import {
   ReviewStats,
   ModerationQueueItem,
   ModerationAction,
-  AIAnalysisResult
+  AIAnalysisResult,
+  ModerationStatus
 } from '../types/review.types';
 import { ReviewRepositoryKnex } from '../repositories/ReviewRepository.knex';
 
@@ -175,6 +176,13 @@ export class ReviewService {
   async getReviewsForUser(reviewedUserId: string, params?: ReviewSearchParams): Promise<ReviewData[]> {
     const filters = { ...params, reviewedUserId };
     return await this.reviewRepository.findAll(filters);
+  }
+
+  /**
+   * Get reviews for a specific product
+   */
+  async getReviewsByProduct(productId: string, filters?: { moderationStatus?: ModerationStatus }): Promise<ReviewData[]> {
+    return await this.reviewRepository.findByProductId(productId, filters);
   }
 
   /**

@@ -323,8 +323,12 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
   @performanceTrack('BaseRepository.create')
   async create(data: CreateData): Promise<ServiceResponse<T>> {
     try {
-      // Remove 'user' property if present
-      const { user, ...dbData } = data as any;
+      // Remove 'user' property, 'delivery_instructions', and 'delivery_method' (columns don't exist) if present
+      const { user, delivery_instructions, delivery_method, ...dbData } = data as any;
+      // Map delivery_method to pickup_method if pickup_method is not set (database only has pickup_method column)
+      if (delivery_method && !dbData.pickup_method) {
+        dbData.pickup_method = delivery_method;
+      }
       // Handle geometry location (POINT)
       let dbLocation = null;
       const location = (dbData as any)?.location;
@@ -332,12 +336,28 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
         dbLocation = `SRID=4326;POINT(${location.longitude} ${location.latitude})`;
       }
       const formattedData = this.formatDatabaseFields(dbData);
+      // Remove columns that don't exist in database (will be added via migration 20251210_add_delivery_fields_to_bookings)
+      // TODO: After running migration, remove these filters to allow inserting into the new columns
+      const { 
+        delivery_instructions: _, 
+        delivery_method: __, 
+        delivery_time_window: ___,
+        meet_public_location: ____,
+        meet_public_coordinates: _____,
+        ...cleanFormattedData 
+      } = formattedData;
+      
+      // If delivery_method was provided, use it for pickup_method if pickup_method is not set
+      // (database only has pickup_method column, not delivery_method)
+      if (formattedData.delivery_method && !cleanFormattedData.pickup_method) {
+        cleanFormattedData.pickup_method = formattedData.delivery_method;
+      }
       const insertData = {
-        ...formattedData,
+        ...cleanFormattedData,
         // Do NOT stringify features (text[])
-        features: formattedData.features, // pass as array
-        pickup_methods: formattedData.pickup_methods ? JSON.stringify(formattedData.pickup_methods) : undefined,
-        specifications: formattedData.specifications ? JSON.stringify(formattedData.specifications) : undefined,
+        features: cleanFormattedData.features, // pass as array
+        pickup_methods: cleanFormattedData.pickup_methods ? JSON.stringify(cleanFormattedData.pickup_methods) : undefined,
+        specifications: cleanFormattedData.specifications ? JSON.stringify(cleanFormattedData.specifications) : undefined,
         location: dbLocation ? getDatabase().raw('ST_GeomFromText(?)', [dbLocation]) : null,
         created_at: getDatabase().fn.now(),
         updated_at: getDatabase().fn.now()

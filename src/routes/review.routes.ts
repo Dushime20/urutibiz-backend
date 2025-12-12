@@ -16,6 +16,9 @@ router.get('/mine/received', requireAuth, reviewController.getMyReceivedReviews)
 // Create a new review (requires authentication)
 router.post('/', requireAuth, reviewController.createReview);
 
+// Get reviews for a specific product (must be before /:id route to avoid conflicts)
+router.get('/product/:productId', reviewController.getReviewsByProduct);
+
 // Get review by ID
 router.get('/:id', requireAuth, reviewController.getReviewById);
 

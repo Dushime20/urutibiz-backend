@@ -158,7 +158,6 @@ export class BookingsController extends BaseController {
       delivery_coordinates,
       meet_public_coordinates,
       delivery_time_window,
-      delivery_instructions,
       special_instructions,
       renter_notes,
       insurance_type,
@@ -198,7 +197,6 @@ export class BookingsController extends BaseController {
       delivery_coordinates,
       meet_public_coordinates,
       delivery_time_window,
-      delivery_instructions,
       special_instructions,
       renter_notes,
       insurance_type,
@@ -1326,7 +1324,6 @@ export class BookingsController extends BaseController {
       delivery_coordinates,
       meet_public_coordinates,
       delivery_time_window,
-      delivery_instructions,
       special_instructions,
       renter_notes,
       insurance_type,
@@ -1478,8 +1475,7 @@ export class BookingsController extends BaseController {
       check_out_time: check_out_time ? new Date(check_out_time).toISOString() : undefined,
       pickup_time,
       return_time,
-      pickup_method,
-      delivery_method,
+      pickup_method: pickup_method || delivery_method, // Use pickup_method (database column), fallback to delivery_method if not set
       pickup_address,
       delivery_address,
       meet_public_location,
@@ -1487,7 +1483,6 @@ export class BookingsController extends BaseController {
       delivery_coordinates,
       meet_public_coordinates,
       delivery_time_window,
-      delivery_instructions,
       special_instructions,
       renter_notes,
       // Only include insurance_type if provided, no hardcoded default
@@ -1641,7 +1636,9 @@ export class BookingsController extends BaseController {
 
       const notifications: Promise<any>[] = [];
 
+      // Send notification to renter
       if (booking.renter_id) {
+        console.log(`[BookingNotifications] Sending notification to renter: ${booking.renter_id} for booking: ${bookingNumber}`);
         notifications.push(
           NotificationEngine.sendTemplatedNotification(
             'booking_created_renter',
@@ -1664,11 +1661,21 @@ export class BookingsController extends BaseController {
                 event: 'booking_created'
               }
             }
-          )
+          ).then(result => {
+            console.log(`[BookingNotifications] Renter notification sent successfully for booking: ${bookingNumber}`);
+            return result;
+          }).catch(error => {
+            console.error(`[BookingNotifications] Failed to send renter notification for booking: ${bookingNumber}`, error);
+            throw error;
+          })
         );
+      } else {
+        console.warn(`[BookingNotifications] No renter_id found for booking: ${bookingNumber}`);
       }
 
+      // Send notification to owner
       if (booking.owner_id) {
+        console.log(`[BookingNotifications] Sending notification to owner: ${booking.owner_id} for booking: ${bookingNumber}`);
         notifications.push(
           NotificationEngine.sendTemplatedNotification(
             'booking_created_owner',
@@ -1692,12 +1699,26 @@ export class BookingsController extends BaseController {
                 event: 'booking_created'
               }
             }
-          )
+          ).then(result => {
+            console.log(`[BookingNotifications] Owner notification sent successfully for booking: ${bookingNumber}`);
+            return result;
+          }).catch(error => {
+            console.error(`[BookingNotifications] Failed to send owner notification for booking: ${bookingNumber}`, error);
+            throw error;
+          })
         );
+      } else {
+        console.warn(`[BookingNotifications] No owner_id found for booking: ${bookingNumber}`);
       }
 
+      // Send all notifications in parallel
       if (notifications.length > 0) {
-        await Promise.allSettled(notifications);
+        const results = await Promise.allSettled(notifications);
+        const successful = results.filter(r => r.status === 'fulfilled').length;
+        const failed = results.filter(r => r.status === 'rejected').length;
+        console.log(`[BookingNotifications] Completed: ${successful} successful, ${failed} failed for booking: ${bookingNumber}`);
+      } else {
+        console.warn(`[BookingNotifications] No notifications to send for booking: ${bookingNumber}`);
       }
     } catch (error) {
       console.error('[BookingNotifications] Failed to send booking notifications', error);
@@ -1714,7 +1735,7 @@ export class BookingsController extends BaseController {
         'bookings.end_date',
         'bookings.product_id',
         'bookings.renter_id',
-        'products.owner_id',
+        db.raw('COALESCE(bookings.owner_id, products.owner_id) as owner_id'), // Use bookings.owner_id first, fallback to products.owner_id
         'products.title as product_title',
         'renter.first_name as renter_first_name',
         'renter.email as renter_email',
@@ -1723,7 +1744,7 @@ export class BookingsController extends BaseController {
       )
       .leftJoin('products', 'products.id', 'bookings.product_id')
       .leftJoin({ renter: 'users' }, 'renter.id', 'bookings.renter_id')
-      .leftJoin({ owner: 'users' }, 'owner.id', 'products.owner_id')
+      .leftJoin({ owner: 'users' }, 'owner.id', db.raw('COALESCE(bookings.owner_id, products.owner_id)'))
       .where('bookings.id', bookingId)
       .first();
   }
@@ -2548,7 +2569,7 @@ export class BookingsController extends BaseController {
         delivery_coordinates
       );
 
-      return ResponseHelper.success(res, feeCalculation, 'Delivery fee calculated successfully');
+      return ResponseHelper.success(res, 'Delivery fee calculated successfully', feeCalculation);
     } catch (error: any) {
       console.error('[CalculateDeliveryFee] Error:', error);
       return ResponseHelper.error(res, error.message || 'Failed to calculate delivery fee', 500);
@@ -2623,7 +2644,7 @@ export class BookingsController extends BaseController {
       try {
         const recipientId = booking.owner_id === req.user.id ? booking.renter_id : booking.owner_id;
         await NotificationEngine.sendNotification({
-          type: NotificationType.BOOKING_UPDATE,
+          type: NotificationType.BOOKING_REMINDER, // Using BOOKING_REMINDER as BOOKING_UPDATE doesn't exist
           recipientId,
           title: 'Delivery Status Updated',
           message: `Delivery status updated to: ${status}`,
@@ -2639,16 +2660,16 @@ export class BookingsController extends BaseController {
 
       // Emit real-time update via Socket.IO
       try {
-        const { getSocketServer } = await import('../socket/index');
+        const { getSocketServer } = await import('../socket/socketManager');
         const io = getSocketServer();
         if (io) {
           io.to(`booking-${id}`).emit('delivery-status-changed', {
             bookingId: id,
             status,
             location,
-            trackingNumber,
+            tracking_number,
             eta,
-            driverContact,
+            driver_contact,
             notes,
             updatedBy: req.user.id,
             timestamp: new Date().toISOString(),
@@ -2658,7 +2679,7 @@ export class BookingsController extends BaseController {
         console.error('[UpdateDeliveryStatus] Error emitting socket event:', socketError);
       }
 
-      return ResponseHelper.success(res, tracking, 'Delivery status updated successfully');
+      return ResponseHelper.success(res, 'Delivery status updated successfully', tracking);
     } catch (error: any) {
       console.error('[UpdateDeliveryStatus] Error:', error);
       return ResponseHelper.error(res, error.message || 'Failed to update delivery status', 500);
@@ -2720,7 +2741,7 @@ export class BookingsController extends BaseController {
       // Get available time windows
       const windows = DeliveryService.getAvailableTimeWindows(date);
 
-      return ResponseHelper.success(res, windows, 'Available time windows retrieved successfully');
+      return ResponseHelper.success(res, 'Available time windows retrieved successfully', windows);
     } catch (error: any) {
       console.error('[GetAvailableTimeWindows] Error:', error);
       return ResponseHelper.error(res, error.message || 'Failed to get available time windows', 500);

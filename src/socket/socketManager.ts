@@ -6,6 +6,10 @@ export const setSocketServer = (server: SocketServer): void => {
   io = server;
 };
 
+export const getSocketServer = (): SocketServer | null => {
+  return io;
+};
+
 export const emitNotificationToUser = (
   userId: string | undefined,
   payload: Record<string, any>

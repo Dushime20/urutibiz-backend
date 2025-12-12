@@ -7,7 +7,8 @@ import {
   CreateReviewData, 
   UpdateReviewData, 
   ReviewSearchParams,
-  ModerationAction 
+  ModerationAction,
+  ModerationStatus
 } from '../types/review.types';
 import { ReviewService } from '../services/ReviewService';
 
@@ -331,6 +332,66 @@ export class ReviewController {
   };
 
   /**
+   * Get reviews for a specific product
+   * GET /api/review/product/:productId
+   */
+  getReviewsByProduct = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { productId } = req.params;
+      const userId = (req as any).user?.id;
+      const moderationStatus = req.query.moderationStatus as string | undefined;
+      
+      // Check if user is the product owner
+      let isProductOwner = false;
+      if (userId) {
+        try {
+          const { getDatabase } = await import('@/config/database');
+          const db = getDatabase();
+          const product = await db('products')
+            .where({ id: productId })
+            .select('owner_id', 'user_id')
+            .first();
+          
+          // Check both owner_id and user_id fields (for backward compatibility)
+          isProductOwner = product && (product.owner_id === userId || product.user_id === userId);
+        } catch (error) {
+          console.error('Error checking product ownership:', error);
+          // Continue with public access if check fails
+        }
+      }
+      
+      // For product owners, show all reviews (including pending/rejected) unless explicitly filtered
+      // For public users, only show approved reviews
+      let filters: { moderationStatus?: ModerationStatus } | undefined;
+      
+      if (moderationStatus) {
+        // Explicit filter provided - validate it's a valid ModerationStatus
+        const validStatuses: ModerationStatus[] = ['pending', 'approved', 'rejected', 'flagged'];
+        if (validStatuses.includes(moderationStatus as ModerationStatus)) {
+          filters = { moderationStatus: moderationStatus as ModerationStatus };
+        }
+      } else if (!isProductOwner) {
+        // Public user - only show approved reviews
+        filters = { moderationStatus: 'approved' };
+      }
+      // If product owner and no filter, show all reviews (filters = undefined)
+      
+      const reviews = await this.reviewService.getReviewsByProduct(productId, filters);
+      
+      res.json({
+        success: true,
+        data: reviews
+      });
+    } catch (error) {
+      console.error('Error getting reviews by product:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get reviews for product'
+      });
+    }
+  };
+
+  /**
    * Get reviews written by the authenticated user
    * GET /api/v1/reviews/mine/written
    */
@@ -448,33 +509,68 @@ export class ReviewController {
 
   /**
    * Moderate a review
-   * POST /api/reviews/:id/moderate
+   * PUT /api/reviews/moderation/:id
+   * Allows moderators and product owners to moderate reviews
    */
   moderateReview = async (req: Request, res: Response): Promise<void> => {
     try {
-      // Check moderator permissions
-      if (!(req as any).user?.isModerator) {
-        res.status(403).json({
+      const { id } = req.params;
+      const { action, notes } = req.body;
+      const userId = (req as any).user?.id;
+      const isModerator = (req as any).user?.isModerator;
+
+      if (!userId) {
+        res.status(401).json({
           success: false,
-          error: 'Moderator access required'
+          error: 'Authentication required'
         });
         return;
       }
 
-      const { id } = req.params;
-      const { action, notes } = req.body;
-      const moderatedBy = (req as any).user.id;
+      // Get the review to check permissions
+      const review = await this.reviewService.getReviewById(id);
+      if (!review) {
+        res.status(404).json({
+          success: false,
+          error: 'Review not found'
+        });
+        return;
+      }
+
+      // Check if user is moderator OR product owner
+      let isAuthorized = isModerator;
+      
+      if (!isAuthorized && review.bookingId) {
+        // Check if user is the product owner
+        const { getDatabase } = await import('@/config/database');
+        const db = getDatabase();
+        const booking = await db('bookings')
+          .where({ id: review.bookingId })
+          .first();
+        
+        if (booking && booking.owner_id === userId) {
+          isAuthorized = true;
+        }
+      }
+
+      if (!isAuthorized) {
+        res.status(403).json({
+          success: false,
+          error: 'You do not have permission to moderate this review'
+        });
+        return;
+      }
 
       const moderationAction: ModerationAction = {
         reviewId: id,
         action,
         notes,
-        moderatedBy
+        moderatedBy: userId
       };
 
-      const review = await this.reviewService.moderateReview(moderationAction);
+      const moderatedReview = await this.reviewService.moderateReview(moderationAction);
       
-      if (!review) {
+      if (!moderatedReview) {
         res.status(404).json({
           success: false,
           error: 'Review not found'
@@ -484,7 +580,7 @@ export class ReviewController {
 
       res.json({
         success: true,
-        data: review,
+        data: moderatedReview,
         message: 'Review moderated successfully'
       });
     } catch (error) {

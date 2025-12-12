@@ -44,7 +44,7 @@ export class Booking {
   
   // Enhanced delivery options
   public delivery_time_window?: string; // morning, afternoon, evening, flexible
-  public delivery_instructions?: string; // Gate codes, special notes, preferred location
+  // delivery_instructions removed - use special_instructions instead
   public delivery_status?: string; // scheduled, confirmed, out_for_delivery, etc.
   public delivery_tracking_number?: string; // For courier services
   public delivery_eta?: string; // Estimated time of arrival
@@ -122,7 +122,7 @@ export class Booking {
     this.delivery_coordinates = data.delivery_coordinates;
     this.meet_public_coordinates = (data as any).meet_public_coordinates;
     this.delivery_time_window = (data as any).delivery_time_window;
-    this.delivery_instructions = (data as any).delivery_instructions;
+    // delivery_instructions removed - use special_instructions instead
     this.delivery_status = (data as any).delivery_status;
     this.delivery_tracking_number = (data as any).delivery_tracking_number;
     this.delivery_eta = (data as any).delivery_eta;

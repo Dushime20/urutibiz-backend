@@ -49,7 +49,7 @@ const dbConfig: Knex.Config = {
   pool: {
     // Dynamic pool sizing based on environment
     min: process.env.NODE_ENV === 'production' ? 5 : 2,
-    max: config.database.maxConnections || (process.env.NODE_ENV === 'production' ? 25 : 10),
+    max: config.database.maxConnections || (process.env.NODE_ENV === 'production' ? 25 : 20), // Increased from 10 to 20 for development
     
     // Connection timeouts
     createTimeoutMillis: config.database.connectionTimeoutMs || 5000,

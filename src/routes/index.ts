@@ -80,8 +80,10 @@ router.use('/verification-document-types', verificationDocumentTypeRoutes);
 router.use('/payment-providers', paymentProviderRoutes);
 router.use('/payment-methods', paymentMethodRoutes);
 router.use('/payment-transactions', paymentTransactionRoutes);
-// Mount review routes
+// Mount review routes (singular)
 router.use('/review', reviewRoutes);
+// Also mount at /reviews (plural) for backward compatibility
+router.use('/reviews', reviewRoutes);
 router.use('/product-prices', productPriceRoutes);
 router.use('/category-regulations', categoryRegulationRoutes);
 router.use('/insurance-providers', insuranceProviderRoutes);

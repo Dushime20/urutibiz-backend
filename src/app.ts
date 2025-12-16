@@ -137,6 +137,9 @@ class App {
   }
 
   private initializeRoutes(): void {
+    // Handle CORS preflight requests for all routes
+    this.app.options('*', corsMiddleware);
+
     // Health check
     this.app.get('/health', (_req, res) => {
       res.status(200).json({

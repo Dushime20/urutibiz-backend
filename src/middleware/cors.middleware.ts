@@ -29,3 +29,5 @@ export const corsMiddleware = cors({
   exposedHeaders: ['X-Total-Count'],
   maxAge: 86400, // 24 hours
 });
+
+

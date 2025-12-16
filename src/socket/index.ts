@@ -11,7 +11,7 @@ interface AuthenticatedSocket extends Socket {
 
 export const initializeSocket = (io: SocketServer): void => {
   setSocketServer(io);
-  const knex = getDatabase();
+  // Database will be accessed lazily when needed in socket handlers
   // JWT verification middleware
   io.use(async (socket: AuthenticatedSocket, next) => {
     const token = socket.handshake.auth.token;
@@ -142,6 +142,7 @@ export const initializeSocket = (io: SocketServer): void => {
         let productTitle = chat?.subject || null;
         if (chat?.product_id && !productTitle) {
           try {
+            const knex = getDatabase();
             const product = await knex('products')
               .where('id', chat.product_id)
               .select('title')

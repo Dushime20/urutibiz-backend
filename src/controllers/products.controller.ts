@@ -421,10 +421,18 @@ export class ProductsController extends BaseController {
   /**
    * Optimized product listing with intelligent caching and favorite status
    * GET /api/v1/products
+   * Public endpoint - no authentication required
+   * By default, only returns active/approved products for public access
    */
   public getProducts = this.asyncHandler(async (req: Request, res: Response) => {
     const { page, limit } = this.getPaginationParams(req);
     const filters = normalizeProductFilters(req.query);
+    
+    // For public access (no authentication), default to showing only active products
+    // This ensures unauthenticated users only see approved/active products
+    if (!filters.status && !(req as any).user?.id) {
+      filters.status = 'active';
+    }
     
     // Check if user is authenticated for favorite status
     const userId = (req as any).user?.id;

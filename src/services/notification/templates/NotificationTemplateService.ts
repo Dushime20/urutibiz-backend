@@ -93,38 +93,69 @@ export class NotificationTemplateService {
   }
 
   /**
-   * Create new template
+   * Create new template (with upsert support to prevent duplicate key errors)
    */
   async createTemplate(templateData: Omit<NotificationTemplate, 'id' | 'createdAt' | 'updatedAt'>): Promise<NotificationTemplate> {
     try {
-      // Check if template already exists by name (regardless of active status)
-      const existing = await this.getTemplateByNameIgnoreActive(templateData.name);
-      if (existing) {
-        // Template exists, update it instead
-        this.logger.info('Template already exists, updating instead of creating', { name: templateData.name });
-        return await this.updateTemplate(existing.id, templateData) || existing;
-      }
-
       // Map interface to database fields
       const dbTemplate = this.mapInterfaceToDb(templateData);
+      
+      // Add timestamps
+      const now = new Date();
+      dbTemplate.created_at = now;
+      dbTemplate.updated_at = now;
 
       const db = getDatabase();
-      const [newTemplate] = await db('notification_templates')
+      
+      // Use PostgreSQL's ON CONFLICT to handle duplicates atomically
+      // This prevents race conditions where multiple processes try to create the same template
+      const result = await db('notification_templates')
         .insert(dbTemplate)
+        .onConflict('name')
+        .merge({
+          type: dbTemplate.type,
+          subject_template: dbTemplate.subject_template,
+          body_template: dbTemplate.body_template,
+          channels: dbTemplate.channels,
+          priority: dbTemplate.priority,
+          variables: dbTemplate.variables,
+          is_active: dbTemplate.is_active,
+          updated_at: now
+        })
         .returning('*');
 
-      this.logger.info('Template created in database', { templateId: newTemplate.id, name: newTemplate.name });
-
-      return this.mapDbToInterface(newTemplate);
-    } catch (error: any) {
-      // Handle duplicate key error gracefully
-      if (error.message && error.message.includes('duplicate key value violates unique constraint')) {
-        this.logger.warn('Template already exists, attempting to retrieve existing template', { name: templateData.name });
+      const template = Array.isArray(result) ? result[0] : result;
+      
+      if (!template) {
+        // If onConflict merge didn't return a result, fetch the existing template
         const existing = await this.getTemplateByNameIgnoreActive(templateData.name);
         if (existing) {
+          this.logger.info('Template already exists, returning existing', { name: templateData.name });
           return existing;
         }
+        throw new Error('Failed to create or update template');
       }
+
+      this.logger.info('Template created/updated in database', { templateId: template.id, name: template.name });
+
+      return this.mapDbToInterface(template);
+    } catch (error: any) {
+      // Handle duplicate key error gracefully - this should rarely happen with onConflict
+      if (error.message && error.message.includes('duplicate key value violates unique constraint')) {
+        this.logger.warn('Duplicate key detected, retrieving existing template', { name: templateData.name });
+        
+        // Template already exists, fetch and return it
+        const existing = await this.getTemplateByNameIgnoreActive(templateData.name);
+        if (existing) {
+          this.logger.info('Template already exists, returning existing', { name: templateData.name });
+          return existing;
+        }
+        
+        // If we can't find it, log error but don't throw - this is a race condition edge case
+        this.logger.error('Template exists but could not be retrieved', { name: templateData.name, error: error.message });
+        throw new Error(`Template ${templateData.name} already exists but could not be retrieved`);
+      }
+      
       this.logger.error('Failed to create template in database', { error: error.message, templateData });
       throw new Error(`Failed to create template: ${error.message}`);
     }

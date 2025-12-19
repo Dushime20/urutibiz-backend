@@ -36,14 +36,21 @@ const REQUIRED_BOOKINGS_COLUMNS = [
   'pickup_methods'
 ];
 
+// Required columns for products table (from migrations)
+const REQUIRED_PRODUCTS_COLUMNS = [
+  'view_count',        // Added in 20250120_add_view_count_to_products.ts
+  'review_count',      // Added in 20250723_add_review_count_to_products.ts
+  'average_rating'     // Should exist for product ratings
+];
+
 async function checkColumnExists(tableName: string, columnName: string): Promise<boolean> {
   const db = getDatabase();
   const result = await db.raw(`
     SELECT column_name 
     FROM information_schema.columns 
-    WHERE table_name = ? AND column_name = ?
+    WHERE table_name = $1 AND column_name = $2
   `, [tableName, columnName]);
-  return result.rows.length > 0;
+  return result.rows ? result.rows.length > 0 : (result as any).length > 0;
 }
 
 async function verifyBookingsTable() {
@@ -61,6 +68,33 @@ async function verifyBookingsTable() {
   
   for (const column of REQUIRED_BOOKINGS_COLUMNS) {
     const exists = await checkColumnExists('bookings', column);
+    if (exists) {
+      existingColumns.push(column);
+      console.log(`   ✅ ${column}`);
+    } else {
+      missingColumns.push(column);
+      console.log(`   ❌ ${column} - MISSING`);
+    }
+  }
+  
+  return { missing: missingColumns, exists: true, existing: existingColumns };
+}
+
+async function verifyProductsTable() {
+  const db = getDatabase();
+  console.log('\n📋 Verifying products table structure...\n');
+  
+  const tableExists = await db.schema.hasTable('products');
+  if (!tableExists) {
+    console.log('⚠️  products table does not exist!');
+    return { missing: REQUIRED_PRODUCTS_COLUMNS, exists: false };
+  }
+  
+  const missingColumns: string[] = [];
+  const existingColumns: string[] = [];
+  
+  for (const column of REQUIRED_PRODUCTS_COLUMNS) {
+    const exists = await checkColumnExists('products', column);
     if (exists) {
       existingColumns.push(column);
       console.log(`   ✅ ${column}`);
@@ -136,12 +170,19 @@ async function main() {
       console.log('   No migration history found');
     }
     
-    // Step 3: Verify bookings table structure (before migrations)
-    console.log('\n🔍 Step 3: Checking bookings table structure (before migrations)...');
-    const beforeStatus = await verifyBookingsTable();
+    // Step 3: Verify table structures (before migrations)
+    console.log('\n🔍 Step 3: Checking table structures (before migrations)...');
     
-    if (beforeStatus.missing.length > 0) {
-      console.log(`\n⚠️  Found ${beforeStatus.missing.length} missing columns in bookings table`);
+    console.log('\n   📦 Checking bookings table...');
+    const beforeBookingsStatus = await verifyBookingsTable();
+    if (beforeBookingsStatus.missing.length > 0) {
+      console.log(`\n⚠️  Found ${beforeBookingsStatus.missing.length} missing columns in bookings table`);
+    }
+    
+    console.log('\n   📦 Checking products table...');
+    const beforeProductsStatus = await verifyProductsTable();
+    if (beforeProductsStatus.missing.length > 0) {
+      console.log(`\n⚠️  Found ${beforeProductsStatus.missing.length} missing columns in products table`);
     }
     
     // Step 4: Run migrations
@@ -153,44 +194,89 @@ async function main() {
       process.exit(1);
     }
     
-    // Step 5: Verify bookings table structure (after migrations)
-    console.log('\n🔍 Step 5: Verifying bookings table structure (after migrations)...');
-    const afterStatus = await verifyBookingsTable();
+    // Step 5: Verify table structures (after migrations)
+    console.log('\n🔍 Step 5: Verifying table structures (after migrations)...');
+    
+    console.log('\n   📦 Checking bookings table...');
+    const afterBookingsStatus = await verifyBookingsTable();
+    
+    console.log('\n   📦 Checking products table...');
+    const afterProductsStatus = await verifyProductsTable();
     
     // Step 6: Summary
     console.log('\n╔════════════════════════════════════════════════════════════╗');
     console.log('║                    MIGRATION SUMMARY                     ║');
     console.log('╚════════════════════════════════════════════════════════════╝\n');
     
-    if (afterStatus.missing.length === 0) {
+    // Bookings table summary
+    if (afterBookingsStatus.missing.length === 0) {
       console.log('✅ All required columns exist in bookings table!');
-      console.log(`   Total columns verified: ${afterStatus.existing.length}`);
+      console.log(`   Total columns verified: ${afterBookingsStatus.existing.length}`);
     } else {
-      console.log('⚠️  Some columns are still missing:');
-      afterStatus.missing.forEach(col => {
+      console.log('⚠️  Some columns are still missing in bookings table:');
+      afterBookingsStatus.missing.forEach(col => {
         console.log(`   ❌ ${col}`);
       });
       console.log('\n💡 If columns are still missing, the migration may have failed.');
       console.log('   Check the migration output above for errors.');
     }
     
-    // Check for critical owner_confirmation columns
-    const criticalColumns = ['owner_confirmed', 'owner_confirmation_status'];
-    const missingCritical = criticalColumns.filter(col => 
-      afterStatus.missing.includes(col)
+    // Products table summary
+    if (afterProductsStatus.missing.length === 0) {
+      console.log('\n✅ All required columns exist in products table!');
+      console.log(`   Total columns verified: ${afterProductsStatus.existing.length}`);
+    } else {
+      console.log('\n⚠️  Some columns are still missing in products table:');
+      afterProductsStatus.missing.forEach(col => {
+        console.log(`   ❌ ${col}`);
+      });
+      console.log('\n💡 Missing columns may cause errors in product queries.');
+      console.log('   Check if these migrations have run:');
+      console.log('   - 20250120_add_view_count_to_products.ts');
+      console.log('   - 20250723_add_review_count_to_products.ts');
+    }
+    
+    // Check for critical columns
+    const criticalBookingsColumns = ['owner_confirmed', 'owner_confirmation_status'];
+    const missingCriticalBookings = criticalBookingsColumns.filter(col => 
+      afterBookingsStatus.missing.includes(col)
     );
     
-    if (missingCritical.length > 0) {
-      console.log('\n❌ CRITICAL: Missing owner confirmation columns!');
+    const criticalProductsColumns = ['view_count'];
+    const missingCriticalProducts = criticalProductsColumns.filter(col => 
+      afterProductsStatus.missing.includes(col)
+    );
+    
+    let hasCriticalIssues = false;
+    
+    if (missingCriticalBookings.length > 0) {
+      console.log('\n❌ CRITICAL: Missing owner confirmation columns in bookings table!');
       console.log('   These are required for booking creation to work.');
-      console.log('   Missing:', missingCritical.join(', '));
+      console.log('   Missing:', missingCriticalBookings.join(', '));
       console.log('\n💡 Solution:');
       console.log('   1. Check if migration 20250125_add_owner_confirmation_to_bookings.ts exists');
       console.log('   2. Manually run: npx knex migrate:up 20250125_add_owner_confirmation_to_bookings.ts');
       console.log('   3. Or check database permissions');
-      process.exit(1);
+      hasCriticalIssues = true;
     } else {
-      console.log('\n✅ All critical columns (owner_confirmed, owner_confirmation_status) exist!');
+      console.log('\n✅ All critical columns (owner_confirmed, owner_confirmation_status) exist in bookings!');
+    }
+    
+    if (missingCriticalProducts.length > 0) {
+      console.log('\n❌ CRITICAL: Missing view_count column in products table!');
+      console.log('   This will cause errors when fetching products.');
+      console.log('   Missing:', missingCriticalProducts.join(', '));
+      console.log('\n💡 Solution:');
+      console.log('   1. Check if migration 20250120_add_view_count_to_products.ts exists');
+      console.log('   2. Manually run: npx knex migrate:up 20250120_add_view_count_to_products.ts');
+      console.log('   3. Or check database permissions');
+      hasCriticalIssues = true;
+    } else {
+      console.log('\n✅ All critical columns (view_count) exist in products!');
+    }
+    
+    if (hasCriticalIssues) {
+      process.exit(1);
     }
     
     console.log('\n🎉 Migration process completed successfully!');

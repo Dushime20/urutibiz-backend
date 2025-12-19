@@ -13,7 +13,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { createHash } from 'crypto';
-import { redisGet, redisSet, isRedisConnected } from '../config/redis';
+import { redisGet, redisSet, isRedisConnected, getRedisClient } from '../config/redis';
 
 interface CacheOptions {
   duration?: number;

@@ -171,16 +171,21 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
       const offset = (page - 1) * limit;
       let query = getDatabase()(this.tableName).select('*');
       
-      // Apply criteria
+      // Apply criteria - skip objects and arrays as they can't be used in simple WHERE clauses
       Object.entries(criteria).forEach(([key, value]) => {
-        if (value !== undefined) {
+        if (value !== undefined && value !== null) {
+          // Skip objects and arrays - they need special handling
+          if (typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+            logger.warn(`Skipping complex object filter for ${key} in ${this.tableName}.findPaginated`);
+            return;
+          }
           const dbKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
           query = query.where(dbKey, value);
         }
       });
 
       // Get results and total count
-      const [results, [{ count }]] = await Promise.all([
+      const [results, countResult] = await Promise.all([
         query.clone()
           .orderBy(sortBy.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`), sortOrder)
           .limit(limit)
@@ -188,8 +193,15 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
         query.clone().count('* as count')
       ]);
 
+      // Handle count result safely - it might be empty or in different formats
+      let total = 0;
+      if (countResult && Array.isArray(countResult) && countResult.length > 0) {
+        total = parseInt(countResult[0].count as string || '0', 10);
+      } else if (countResult && typeof countResult === 'object' && 'count' in countResult) {
+        total = parseInt((countResult as any).count as string || '0', 10);
+      }
+
       const entities = results.map(result => new this.modelClass(result));
-      const total = parseInt(count as string);
 
       const paginationResult: PaginationResult<T> = {
         data: entities,

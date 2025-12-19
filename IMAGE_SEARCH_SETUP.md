@@ -65,6 +65,7 @@ PYTHON_IMAGE_SERVICE_URL=http://localhost:8001
 ### 6. Start Node.js Server
 
 ```bash
+npm run python:service
 npm run dev
 ```
 
@@ -120,7 +121,7 @@ If CLIP model download fails:
 
 ## Testing
    
-
+npm run python:service
 1. Start Python service: `python python-service/main.py`
 2. Start Node.js server: `npm run dev`
 3. Upload an image via API

@@ -11,6 +11,12 @@ export default class CategoryController {
     }
   }
 
+  /**
+   * Get category by ID
+   * Public endpoint - accessible to all users (authenticated and non-authenticated)
+   * Only returns active categories
+   * GET /api/v1/categories/:id
+   */
   static async getCategoryById(req: Request, res: Response): Promise<void> {
     const { id } = req.params;
     const category = await CategoryService.getCategoryById(id);
@@ -21,6 +27,12 @@ export default class CategoryController {
     res.json(category);
   }
 
+  /**
+   * List all categories
+   * Public endpoint - accessible to all users (authenticated and non-authenticated)
+   * Only returns active categories for public access
+   * GET /api/v1/categories
+   */
   static async listCategories(_req: Request, res: Response) {
     const categories = await CategoryService.listCategories();
     res.json(categories);

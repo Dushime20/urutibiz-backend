@@ -24,13 +24,19 @@ export default class CategoryService {
 
   static async getCategoryById(id: string): Promise<Category | null> {
     const db = getDatabase();
-    const row = await db('categories').where({ id }).first();
+    // Only return active categories for public access
+    const row = await db('categories')
+      .where({ id, is_active: true })
+      .first();
     return row ? CategoryService.fromDb(row) : null;
   }
 
   static async listCategories(): Promise<Category[]> {
     const db = getDatabase();
+    // Only return active categories for public access
+    // This ensures only approved/active categories are visible in the marketplace
     const rows = await db('categories')
+      .where({ is_active: true })
       .orderBy('sort_order', 'asc');
     return rows.map(CategoryService.fromDb);
   }

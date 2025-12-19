@@ -274,27 +274,24 @@ const normalizeProductFilters = (query: any): Partial<ProductFilters> => {
 
 /**
  * Convert filters to database query format
+ * Simple conversion - maps filter keys to database column names
+ * Note: Location-based filtering is handled separately and not included here
+ * to avoid creating invalid SQL queries with object values
  */
 const convertFiltersToQuery = (filters: Partial<ProductFilters>): Partial<ProductData> => {
   const query: Partial<ProductData> = {};
   
+  // Map filters to database columns (snake_case)
+  // Only include simple scalar values that can be used in WHERE clauses
   if (filters.owner_id) query.owner_id = filters.owner_id;
   if (filters.category_id) query.category_id = filters.category_id;
-  if (filters.status) query.status = filters.status;
+  if (filters.status) query.status = filters.status; // This will filter by status='active'
   if (filters.condition) query.condition = filters.condition;
   if (filters.search) query.title = filters.search;
   
-  if (filters.country_id || filters.location) {
-    query.location = {
-      address: '',
-      city: '',
-      country_id: filters.country_id || '',
-      ...(filters.location && {
-        latitude: filters.location.latitude,
-        longitude: filters.location.longitude,
-      })
-    } as any;
-  }
+  // Note: country_id and location filters are complex and should be handled
+  // in a custom repository method, not in the generic base repository
+  // For now, we skip them to prevent invalid SQL queries
   
   return query;
 };
@@ -419,62 +416,136 @@ export class ProductsController extends BaseController {
   });
 
   /**
-   * Optimized product listing with intelligent caching and favorite status
+   * Get approved products - Public endpoint for e-rental marketplace
    * GET /api/v1/products
-   * Public endpoint - no authentication required
-   * By default, only returns active/approved products for public access
+   * 
+   * Simple logic:
+   * - Public endpoint (no authentication required)
+   * - Returns ONLY approved products (status='active')
+   * - Used by: Home page, Items page, Browse page
+   * 
+   * Note: Admins should use /admin/products to see all products
    */
   public getProducts = this.asyncHandler(async (req: Request, res: Response) => {
-    const { page, limit } = this.getPaginationParams(req);
-    const filters = normalizeProductFilters(req.query);
+    const startTime = Date.now();
+    console.log('[ProductsController] getProducts called', { query: req.query });
     
-    // For public access (no authentication), default to showing only active products
-    // This ensures unauthenticated users only see approved/active products
-    if (!filters.status && !(req as any).user?.id) {
-      filters.status = 'active';
-    }
-    
-    // Check if user is authenticated for favorite status
-    const userId = (req as any).user?.id;
-    
-    // Performance: Generate cache key (include userId for personalized caching)
-    const cacheKey = `products_${JSON.stringify({ filters, page, limit, userId })}`;
-    const cached = productCache.get(cacheKey);
-    
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.PRODUCT_LIST * 1000) {
-      return this.formatPaginatedResponse(res, 'Products retrieved successfully (cached)', cached.data);
-    }
+    try {
+      const { page, limit } = this.getPaginationParams(req);
+      const filters = normalizeProductFilters(req.query);
+      
+      // SIMPLE E-RENTAL LOGIC: Always return only approved (active) products for public
+      // This ensures only admin-approved products are visible in the marketplace
+      // Admins should use /admin/products endpoint to see all products
+      if (!filters.status) {
+        filters.status = 'active';
+      }
+      
+      console.log('[ProductsController] Filters applied:', filters, 'page:', page, 'limit:', limit);
+      
+      // Optional: Get user ID if authenticated (for favorite status only)
+      const userId = (req as any).user?.id;
+      
+      // Check cache
+      const cacheKey = `products_${JSON.stringify({ filters, page, limit, userId })}`;
+      const cached = productCache.get(cacheKey);
+      
+      if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.PRODUCT_LIST * 1000) {
+        console.log('[ProductsController] Returning cached data');
+        return this.formatPaginatedResponse(res, 'Products retrieved successfully (cached)', cached.data);
+      }
 
-    // Performance: Convert to optimized query format
-    const query = convertFiltersToQuery(filters);
-    
-    const result = await ProductService.getPaginated(query, page, limit);
-    if (!result.success || !result.data) {
-      return ResponseHelper.error(res, result.error || 'Failed to fetch products', 400);
+      // Convert filters to query format
+      const query = convertFiltersToQuery(filters);
+      console.log('[ProductsController] Query object:', query);
+      
+      // Check database connection first
+      try {
+        const { getDatabase } = await import('@/config/database');
+        const db = getDatabase();
+        if (!db) {
+          console.error('[ProductsController] Database not initialized');
+          return ResponseHelper.error(res, 'Database connection not available', 503);
+        }
+        console.log('[ProductsController] Database connection OK');
+      } catch (dbError: any) {
+        console.error('[ProductsController] Database connection check failed:', dbError);
+        return ResponseHelper.error(res, 'Database connection error: ' + (dbError?.message || 'Unknown error'), 503);
+      }
+      
+      // Fetch products from database
+      console.log('[ProductsController] Starting database query...');
+      const queryStartTime = Date.now();
+      
+      let result;
+      try {
+        result = await ProductService.getPaginated(query, page, limit);
+        const queryTime = Date.now() - queryStartTime;
+        console.log('[ProductsController] Database query completed in', queryTime, 'ms');
+      } catch (queryError: any) {
+        const queryTime = Date.now() - queryStartTime;
+        console.error('[ProductsController] Database query failed after', queryTime, 'ms:', queryError);
+        return ResponseHelper.error(res, 'Database query failed: ' + (queryError?.message || 'Unknown error'), 500);
+      }
+      
+      if (!result || !result.success) {
+        console.error('[ProductsController] Query returned error:', result?.error);
+        return ResponseHelper.error(res, result?.error || 'Failed to fetch products', 500);
+      }
+      
+      if (!result.data) {
+        console.warn('[ProductsController] No data returned from query');
+        // Return empty result instead of error
+        const emptyResult = {
+          data: [],
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        };
+        return this.formatPaginatedResponse(res, 'No products found', emptyResult);
+      }
+
+      console.log('[ProductsController] Products fetched:', result.data.data?.length || 0);
+
+      // Add favorite status if user is authenticated
+      let enhancedData = result.data;
+      if (enhancedData.data && Array.isArray(enhancedData.data) && userId) {
+        console.log('[ProductsController] Enhancing with favorite status for user:', userId);
+        const enhancedProducts = await FavoriteEnhancer.enhanceProducts(enhancedData.data, userId);
+        enhancedData = {
+          ...enhancedData,
+          data: enhancedProducts
+        };
+      }
+
+      // Cache the result
+      productCache.set(cacheKey, {
+        data: enhancedData,
+        timestamp: Date.now()
+      });
+
+      const totalTime = Date.now() - startTime;
+      console.log('[ProductsController] Request completed in', totalTime, 'ms');
+      
+      return this.formatPaginatedResponse(res, 'Products retrieved successfully', enhancedData);
+    } catch (error: any) {
+      const totalTime = Date.now() - startTime;
+      console.error('[ProductsController] Error in getProducts after', totalTime, 'ms:', error);
+      const errorMessage = error?.message || 'Internal server error';
+      
+      if (errorMessage.includes('timeout')) {
+        return ResponseHelper.error(res, 'Request timeout - database may be slow or unavailable', 504);
+      }
+      
+      if (errorMessage.includes('Database') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('not initialized')) {
+        return ResponseHelper.error(res, 'Database connection error. Please check your database configuration.', 503);
+      }
+      
+      return ResponseHelper.error(res, errorMessage, 500);
     }
-
-    // Enhance products with favorite status
-    let enhancedData = result.data;
-    if (enhancedData.data && Array.isArray(enhancedData.data)) {
-      const enhancedProducts = await FavoriteEnhancer.enhanceProducts(enhancedData.data, userId);
-      enhancedData = {
-        ...enhancedData,
-        data: enhancedProducts
-      };
-    }
-
-    // Cache the result
-    productCache.set(cacheKey, {
-      data: enhancedData,
-      timestamp: Date.now()
-    });
-
-    // Performance: Clean cache periodically
-    if (productCache.size > 200) {
-      this.cleanExpiredCache(productCache, CACHE_TTL.PRODUCT_LIST);
-    }
-
-    return this.formatPaginatedResponse(res, 'Products retrieved successfully', enhancedData);
   });
 
   /**

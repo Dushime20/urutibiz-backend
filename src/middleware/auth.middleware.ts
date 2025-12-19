@@ -104,5 +104,49 @@ export const requireRole = (roles: string[]): RequestHandler => {
   };
 };
 
+/**
+ * Optional authentication middleware
+ * Sets req.user if token is present, but doesn't throw error if token is missing
+ * Use this for public endpoints that can work with or without authentication
+ */
+export const optionalAuth: RequestHandler = async (req, _res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    // If no authorization header, continue without authentication
+    if (!authHeader) {
+      return next();
+    }
+    
+    // Try to extract and verify token
+    try {
+      const parts = authHeader.split(' ');
+      if (parts.length !== 2 || parts[0] !== 'Bearer') {
+        // Invalid format, but don't throw - just continue without auth
+        return next();
+      }
+      
+      const token = parts[1];
+      const payload = verifyToken(token);
+      
+      // Fetch the full user from DB
+      const user = await User.findById(payload.id);
+      
+      if (user) {
+        // Set user on request if found
+        req.user = user;
+      }
+    } catch (error) {
+      // Token is invalid or user not found, but don't throw - just continue without auth
+      // This allows public endpoints to work even with invalid tokens
+    }
+    
+    next();
+  } catch (error) {
+    // Any unexpected error - continue without auth
+    next();
+  }
+};
+
 export const requireAuth = authenticateToken;
 export const requireAdmin = requireRole(['admin']);

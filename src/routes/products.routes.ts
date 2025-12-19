@@ -19,7 +19,7 @@
 import { Router } from 'express';
 import { ProductsController } from '../controllers/products.controller';
 import UserVerificationService from '@/services/userVerification.service';
-import { requireAuth } from '../middleware/auth.middleware';
+import { requireAuth, optionalAuth } from '../middleware/auth.middleware';
 import { cacheMiddleware, cacheInvalidationMiddleware } from '../middleware/cache.middleware';
 import trackProductView from '../middleware/viewTracking.middleware';
 import multer from 'multer';
@@ -95,7 +95,8 @@ const productCacheOptions = {
  *       500:
  *         description: Server error
  */
-router.get('/', cacheMiddleware(productCacheOptions), controller.getProducts);
+// Public route - no authentication required, but optional auth for favorite status
+router.get('/', optionalAuth, cacheMiddleware(productCacheOptions), controller.getProducts);
 
 /**
  * @swagger
@@ -332,7 +333,8 @@ router.post('/search-by-image', upload.single('image'), controller.searchByImage
  *       500:
  *         description: Server error
  */
-router.get('/:id', trackProductView, cacheMiddleware({ ...productCacheOptions, duration: 300 }), controller.getProduct);
+// Public route - no authentication required, but optional auth for favorite status
+router.get('/:id', optionalAuth, trackProductView, cacheMiddleware({ ...productCacheOptions, duration: 300 }), controller.getProduct);
 
 /**
  * @swagger

@@ -13,7 +13,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { createHash } from 'crypto';
-import { redisGet, redisSet, getRedisClient } from '../config/redis';
+import { redisGet, redisSet, isRedisConnected } from '../config/redis';
 
 interface CacheOptions {
   duration?: number;
@@ -127,8 +127,24 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
       const cacheKey = generateCacheKey(req, options);
       const smartDuration = getSmartDuration(req, duration);
       
-      // Try to get cached response
-      const cachedData = await redisGet(cacheKey);
+      // Try to get cached response - skip if Redis is not connected
+      let cachedData: string | null = null;
+      if (isRedisConnected()) {
+        try {
+          // Add timeout wrapper to prevent hanging on Redis operations
+          const cachePromise = redisGet(cacheKey);
+          const timeoutPromise = new Promise<null>((resolve) => {
+            setTimeout(() => resolve(null), 100); // 100ms timeout for cache lookup
+          });
+          
+          cachedData = await Promise.race([cachePromise, timeoutPromise]) as string | null;
+        } catch (cacheError: any) {
+          // If Redis fails, just continue without cache (fail open)
+          console.warn('[CacheMiddleware] Redis cache lookup failed, continuing without cache:', cacheError?.message || 'Unknown error');
+          cachedData = null;
+        }
+      }
+      
       if (cachedData) {
         cacheMetrics.hits++;
         
@@ -160,14 +176,23 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
         res.set('X-Cache', 'MISS');
         res.set('X-Cache-Key', cacheKey);
         
-        // Store in Redis asynchronously (don't block response)
-        setImmediate(async () => {
-          try {
-            await redisSet(cacheKey, responseData, smartDuration);
-          } catch (error: any) {
-            console.warn('Cache storage failed:', error.message);
-          }
-        });
+        // Store in Redis asynchronously (don't block response) - only if Redis is connected
+        if (isRedisConnected()) {
+          setImmediate(async () => {
+            try {
+              // Add timeout to prevent hanging on Redis write
+              const setPromise = redisSet(cacheKey, responseData, smartDuration);
+              const timeoutPromise = new Promise<void>((resolve) => {
+                setTimeout(() => resolve(), 200); // 200ms timeout for cache write
+              });
+              
+              await Promise.race([setPromise, timeoutPromise]);
+            } catch (error: any) {
+              // Fail silently - cache write errors shouldn't affect the response
+              console.warn('[CacheMiddleware] Cache storage failed:', error?.message || 'Unknown error');
+            }
+          });
+        }
         
         // Update metrics
         const responseTime = Date.now() - startTime;

@@ -66,13 +66,43 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
         return { success: true, data: cached.data };
       }
 
-      // Single query with window function for count
-      let query = getDatabase()(this.tableName)
-        .select('*', getDatabase().raw('COUNT(*) OVER() as total_count'));
+      // Check database connection before querying
+      let db;
+      try {
+        db = getDatabase();
+        if (!db) {
+          throw new Error('Database connection not available');
+        }
+      } catch (dbError: any) {
+        logger.error(`Database connection error in ${this.tableName}.findPaginated:`, dbError);
+        return {
+          success: false,
+          error: `Database connection error: ${dbError?.message || 'Database not initialized'}. Please check your database configuration.`
+        };
+      }
       
-      // Apply criteria efficiently
-      Object.entries(criteria).forEach(([key, value]) => {
-        if (value !== undefined) {
+      // Build query with filters
+      let query = db(this.tableName);
+      
+      // Apply criteria efficiently - prioritize indexed columns
+      // For products table, status should be first to use index
+      const criteriaEntries = Object.entries(criteria);
+      
+      // Sort criteria to put indexed columns first (status, category_id, etc.)
+      if (this.tableName === 'products') {
+        const indexedColumns = ['status', 'category_id', 'owner_id', 'condition'];
+        criteriaEntries.sort(([a], [b]) => {
+          const aIndex = indexedColumns.indexOf(a);
+          const bIndex = indexedColumns.indexOf(b);
+          if (aIndex === -1 && bIndex === -1) return 0;
+          if (aIndex === -1) return 1;
+          if (bIndex === -1) return -1;
+          return aIndex - bIndex;
+        });
+      }
+      
+      criteriaEntries.forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
           if (key === 'search') {
             // Handle search specially - search across multiple fields
             const searchTerm = `%${value}%`;
@@ -87,44 +117,80 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
           }
         }
       });
+      
+      // Log the query for debugging (only in development)
+      if (process.env.NODE_ENV === 'development' && this.tableName === 'products') {
+        const querySQL = query.clone().toSQL();
+        logger.debug(`[${this.tableName}.findPaginated] Query:`, {
+          sql: querySQL.sql,
+          bindings: querySQL.bindings
+        });
+      }
 
+      // Get total count first (simpler query) - use index-only scan if possible
+      const countStartTime = Date.now();
+      const countResult = await query.clone().count('* as count').first();
+      const countTime = Date.now() - countStartTime;
+      const total = parseInt((countResult as any)?.count || '0', 10);
+      
+      if (countTime > 1000) {
+        logger.warn(`Slow count query in ${this.tableName}.findPaginated: ${countTime}ms. Consider adding indexes.`);
+      }
+
+      // Optimize column selection for products table - exclude heavy columns for list views
+      let selectColumns: string[] | string = '*';
+      if (this.tableName === 'products') {
+        // Only select columns that actually exist in the products table
+        // Based on actual database schema check
+        // Note: location is included as frontend needs it for geocoding and map display
+        selectColumns = [
+          'id', 'owner_id', 'category_id', 'title', 'name', 'slug',
+          'brand', 'model', 'year_manufactured', 'condition',
+          'address_line', 'delivery_fee', 'status', 'view_count',
+          'created_at', 'updated_at',
+          'features', 'included_accessories', 'country_id',
+          'price', 'is_active', 'stock', 'image_url',
+          'weekly_price', 'monthly_price', 'review_count', 'average_rating',
+          'pickup_methods', 'location'  // location included for frontend geocoding
+          // Excluded heavy columns for performance:
+          // - description (TEXT - large)
+          // - specifications (JSONB - large) 
+          // Note: Some columns from migrations don't exist in actual table:
+          // - serial_number, district, sector, pickup_available, delivery_available,
+          // - delivery_radius_km, is_featured, published_at, last_booked_at,
+          // - tags, ai_category_confidence, quality_score
+        ];
+      }
+
+      // Then get paginated results
+      const queryStartTime = Date.now();
       const results = await query
+        .select(selectColumns)
         .orderBy(this.toSnakeCase(sortBy), sortOrder)
         .limit(limit)
         .offset(offset);
-
-      if (results.length === 0) {
-        const emptyResult: PaginationResult<T> = {
-          data: [],
-          page,
-          limit,
-          total: 0,
-          totalPages: 0,
-          hasNext: false,
-          hasPrev: false
-        };
-        return { success: true, data: emptyResult };
+      const queryTime = Date.now() - queryStartTime;
+      
+      if (queryTime > 1000) {
+        logger.warn(`Slow data query in ${this.tableName}.findPaginated: ${queryTime}ms. Consider adding indexes on ${sortBy}.`);
       }
 
-      const total = parseInt(results[0].total_count as string);
+      // Map results to entities
       const entities = results.map(result => {
-        // Remove total_count before creating entity
-        const { total_count, ...entityData } = result;
-        
         // Console log raw database data before model instantiation (for bookings debugging)
         if (this.tableName === 'bookings') {
           console.log('🔍 [BaseRepository.findPaginated] Raw booking data from database:', {
-            id: entityData.id,
-            booking_number: entityData.booking_number,
-            status: entityData.status,
-            payment_status: entityData.payment_status,
-            renter_id: entityData.renter_id,
-            owner_id: entityData.owner_id,
-            fullRawData: entityData
+            id: result.id,
+            booking_number: result.booking_number,
+            status: result.status,
+            payment_status: result.payment_status,
+            renter_id: result.renter_id,
+            owner_id: result.owner_id,
+            fullRawData: result
           });
         }
         
-        return (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(entityData) : new this.modelClass(entityData);
+        return (this.modelClass as any).fromDb ? (this.modelClass as any).fromDb(result) : new this.modelClass(result);
       });
       
       // Console log entities after model instantiation (for bookings debugging)

@@ -45,12 +45,7 @@ const REQUIRED_PRODUCTS_COLUMNS = [
 
 async function checkColumnExists(tableName: string, columnName: string): Promise<boolean> {
   const db = getDatabase();
-  const result = await db.raw(`
-    SELECT column_name 
-    FROM information_schema.columns 
-    WHERE table_name = $1 AND column_name = $2
-  `, [tableName, columnName]);
-  return result.rows ? result.rows.length > 0 : (result as any).length > 0;
+  return await db.schema.hasColumn(tableName, columnName);
 }
 
 async function verifyBookingsTable() {
@@ -60,7 +55,7 @@ async function verifyBookingsTable() {
   const tableExists = await db.schema.hasTable('bookings');
   if (!tableExists) {
     console.log('⚠️  bookings table does not exist!');
-    return { missing: REQUIRED_BOOKINGS_COLUMNS, exists: false };
+    return { missing: REQUIRED_BOOKINGS_COLUMNS, exists: false, existing: [] };
   }
   
   const missingColumns: string[] = [];
@@ -87,7 +82,7 @@ async function verifyProductsTable() {
   const tableExists = await db.schema.hasTable('products');
   if (!tableExists) {
     console.log('⚠️  products table does not exist!');
-    return { missing: REQUIRED_PRODUCTS_COLUMNS, exists: false };
+    return { missing: REQUIRED_PRODUCTS_COLUMNS, exists: false, existing: [] };
   }
   
   const missingColumns: string[] = [];

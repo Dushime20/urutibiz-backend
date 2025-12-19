@@ -2,7 +2,7 @@ module.exports = {
   apps: [{
     name: 'urutibiz-backend',
     script: 'dist/server.js',
-    cwd: '/root/urutibz/urutibiz-backend',
+    cwd: '/root/urutibz',
     instances: 1,
     exec_mode: 'fork',
     autorestart: true,

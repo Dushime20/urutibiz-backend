@@ -72,10 +72,39 @@ export class NotificationTemplateService {
   }
 
   /**
+   * Get template by name regardless of active status (for initialization checks)
+   */
+  async getTemplateByNameIgnoreActive(templateName: string): Promise<NotificationTemplate | null> {
+    try {
+      const db = getDatabase();
+      const dbTemplate = await db('notification_templates')
+        .where('name', templateName)
+        .first();
+
+      if (!dbTemplate) {
+        return null;
+      }
+
+      return this.mapDbToInterface(dbTemplate);
+    } catch (error: any) {
+      this.logger.error('Failed to get template by name from database', { error: error.message, templateName });
+      return null;
+    }
+  }
+
+  /**
    * Create new template
    */
   async createTemplate(templateData: Omit<NotificationTemplate, 'id' | 'createdAt' | 'updatedAt'>): Promise<NotificationTemplate> {
     try {
+      // Check if template already exists by name (regardless of active status)
+      const existing = await this.getTemplateByNameIgnoreActive(templateData.name);
+      if (existing) {
+        // Template exists, update it instead
+        this.logger.info('Template already exists, updating instead of creating', { name: templateData.name });
+        return await this.updateTemplate(existing.id, templateData) || existing;
+      }
+
       // Map interface to database fields
       const dbTemplate = this.mapInterfaceToDb(templateData);
 
@@ -88,6 +117,14 @@ export class NotificationTemplateService {
 
       return this.mapDbToInterface(newTemplate);
     } catch (error: any) {
+      // Handle duplicate key error gracefully
+      if (error.message && error.message.includes('duplicate key value violates unique constraint')) {
+        this.logger.warn('Template already exists, attempting to retrieve existing template', { name: templateData.name });
+        const existing = await this.getTemplateByNameIgnoreActive(templateData.name);
+        if (existing) {
+          return existing;
+        }
+      }
       this.logger.error('Failed to create template in database', { error: error.message, templateData });
       throw new Error(`Failed to create template: ${error.message}`);
     }
@@ -192,6 +229,15 @@ export class NotificationTemplateService {
    */
   async initializeDefaultTemplates(): Promise<void> {
     try {
+      // Check database connection first
+      const db = getDatabase();
+      if (!db) {
+        this.logger.error('Database is not initialized! Please check your database connection.');
+        return;
+      }
+
+      // Get all templates regardless of active status to avoid duplicate key violations
+      // We need to check by name to see if template exists, even if inactive
       const existingTemplates = await this.getAllTemplates();
       const existingMap = new Map(existingTemplates.map(template => [template.name, template]));
 
@@ -313,31 +359,58 @@ Please try again or update your payment method.`,
       ];
 
       for (const template of defaultTemplates) {
-        const existing = existingMap.get(template.name);
-        if (!existing) {
-          await this.createTemplate(template);
-          this.logger.info('Default template created', { name: template.name });
-          continue;
-        }
+        try {
+          // First check in the active templates map
+          let existing = existingMap.get(template.name);
+          
+          // If not found in active templates, check if it exists at all (even if inactive)
+          if (!existing) {
+            const foundTemplate = await this.getTemplateByNameIgnoreActive(template.name);
+            existing = foundTemplate ?? undefined;
+            if (existing) {
+              // Template exists but is inactive, add it to the map for update logic
+              existingMap.set(template.name, existing);
+            }
+          }
 
-        const needsUpdate =
-          (existing.title || '') !== (template.title || '') ||
-          (existing.message || '') !== (template.message || '') ||
-          JSON.stringify(existing.channels || []) !== JSON.stringify(template.channels || []) ||
-          (existing.priority || '') !== template.priority ||
-          JSON.stringify(existing.variables || []) !== JSON.stringify(template.variables || []);
+          if (!existing) {
+            // Template doesn't exist, create it
+            await this.createTemplate(template);
+            this.logger.info('Default template created', { name: template.name });
+            continue;
+          }
 
-        if (needsUpdate) {
-          await this.updateTemplate(existing.id, {
-            title: template.title,
-            message: template.message,
-            channels: template.channels,
-            priority: template.priority,
-            variables: template.variables,
-            type: template.type,
-            isActive: template.isActive
+          // Template exists, check if it needs updating
+          const needsUpdate =
+            (existing.title || '') !== (template.title || '') ||
+            (existing.message || '') !== (template.message || '') ||
+            JSON.stringify(existing.channels || []) !== JSON.stringify(template.channels || []) ||
+            (existing.priority || '') !== template.priority ||
+            JSON.stringify(existing.variables || []) !== JSON.stringify(template.variables || []) ||
+            existing.isActive !== template.isActive;
+
+          if (needsUpdate) {
+            await this.updateTemplate(existing.id, {
+              title: template.title,
+              message: template.message,
+              channels: template.channels,
+              priority: template.priority,
+              variables: template.variables,
+              type: template.type,
+              isActive: template.isActive
+            });
+            this.logger.info('Default template updated', { name: template.name });
+          }
+        } catch (error: any) {
+          // Log error for this specific template but continue with others
+          this.logger.error(`Failed to initialize template: ${template.name}`, { 
+            error: error.message,
+            templateName: template.name
           });
-          this.logger.info('Default template updated', { name: template.name });
+          // Check if it's a duplicate key error - if so, template already exists, which is fine
+          if (error.message && error.message.includes('duplicate key value violates unique constraint')) {
+            this.logger.warn(`Template ${template.name} already exists, skipping creation`);
+          }
         }
       }
     } catch (error: any) {

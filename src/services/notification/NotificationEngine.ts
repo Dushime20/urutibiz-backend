@@ -71,14 +71,43 @@ export class NotificationEngine extends EventEmitter {
   }
 
   /**
-   * Initialize default templates
+   * Initialize default templates with retry logic for database connection
    */
   private async initializeTemplates(): Promise<void> {
-    try {
-      await this.templateService.initializeDefaultTemplates();
-      this.logger.info('Default templates initialized successfully');
-    } catch (error: any) {
-      this.logger.error('Failed to initialize default templates', { error: error.message });
+    const maxRetries = 5;
+    const retryDelay = 2000; // 2 seconds
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Check if database is initialized before attempting
+        const db = getDatabase();
+        if (!db) {
+          throw new Error('Database is not initialized');
+        }
+        
+        await this.templateService.initializeDefaultTemplates();
+        this.logger.info('Default templates initialized successfully');
+        return; // Success, exit retry loop
+      } catch (error: any) {
+        const isDbNotInitialized = error.message && (
+          error.message.includes('Database is not initialized') ||
+          error.message.includes('database') && error.message.includes('not initialized')
+        );
+        
+        if (isDbNotInitialized && attempt < maxRetries) {
+          this.logger.warn(`Database not ready, retrying template initialization (attempt ${attempt}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+          continue;
+        }
+        
+        // Log error but don't throw - allow app to continue
+        this.logger.error('Failed to initialize default templates', { 
+          error: error.message,
+          attempt,
+          maxRetries
+        });
+        return; // Exit retry loop even on failure
+      }
     }
   }
 

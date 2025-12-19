@@ -36,6 +36,7 @@ The `run-all-migrations.ts` script will:
 | Command | Description |
 |---------|-------------|
 | `npm run db:migrate:all` | Run migrations + verify schema (comprehensive) |
+| `npm run db:fix-columns` | **Fix missing columns directly** (use when migrations show as run but columns are missing) |
 | `npm run db:migrate` | Run all pending migrations (simple) |
 | `npx knex migrate:status` | Check which migrations have run |
 | `npx knex migrate:latest` | Run all pending migrations |
@@ -80,6 +81,21 @@ After running successfully, you should see:
 
 ## 🆘 Troubleshooting
 
+### If migrations show "Already up to date" but columns are missing:
+
+This happens when migrations were marked as "run" but the columns weren't actually created (e.g., migration failed silently, database was restored, etc.).
+
+**Solution: Run the fix script:**
+```bash
+npm run db:fix-columns
+```
+
+This script will:
+- ✅ Check which columns are missing
+- ✅ Add them directly to the database
+- ✅ Create necessary indexes
+- ✅ Skip columns that already exist
+
 ### If migrations fail:
 
 1. **Check database connection:**
@@ -96,6 +112,11 @@ After running successfully, you should see:
 4. **Manually run specific migration:**
    ```bash
    npx knex migrate:up 20250120_add_view_count_to_products.ts
+   ```
+
+5. **Use the fix script (recommended):**
+   ```bash
+   npm run db:fix-columns
    ```
 
 ### If columns are still missing after migration:

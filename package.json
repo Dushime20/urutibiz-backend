@@ -18,6 +18,7 @@
     "type-check": "tsc --noEmit",
     "db:migrate": "knex migrate:latest",
     "db:migrate:all": "ts-node -r tsconfig-paths/register scripts/run-all-migrations.ts",
+    "db:fix-columns": "ts-node -r tsconfig-paths/register scripts/fix-missing-columns.ts",
     "db:rollback": "knex migrate:rollback",
     "db:seed": "knex seed:run",
     "seed:inspector": "ts-node -r tsconfig-paths/register seed-inspector.ts",

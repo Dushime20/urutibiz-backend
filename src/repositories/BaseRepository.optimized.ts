@@ -402,15 +402,12 @@ export abstract class BaseRepository<T extends BaseModel, CreateData = Partial<T
         dbLocation = `SRID=4326;POINT(${location.longitude} ${location.latitude})`;
       }
       const formattedData = this.formatDatabaseFields(dbData);
-      // Remove columns that don't exist in database (will be added via migration 20251210_add_delivery_fields_to_bookings)
-      // TODO: After running migration, remove these filters to allow inserting into the new columns
+      // Remove columns that don't exist in database
+      // Note: meet_public_location and meet_public_coordinates are now in database (migration 20251210_add_delivery_fields_to_bookings)
       // Also temporarily filter out owner_confirmation fields if migration 20250125_add_owner_confirmation_to_bookings hasn't been run
       const { 
         delivery_instructions: _, 
         delivery_method: __, 
-        delivery_time_window: ___,
-        meet_public_location: ____,
-        meet_public_coordinates: _____,
         owner_confirmed: ______,
         owner_confirmation_status: _______,
         owner_confirmed_at: ________,

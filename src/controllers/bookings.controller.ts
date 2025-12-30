@@ -2541,7 +2541,7 @@ export class BookingsController extends BaseController {
       }
 
       // Validate delivery method
-      const validMethods: DeliveryMethod[] = ['pickup', 'delivery', 'meet_public'];
+      const validMethods: DeliveryMethod[] = ['pickup', 'delivery', 'meet_public', 'visit'];
       if (!validMethods.includes(delivery_method)) {
         return ResponseHelper.badRequest(res, 'Invalid delivery method');
       }

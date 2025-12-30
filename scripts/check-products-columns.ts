@@ -32,3 +32,4 @@ async function checkProductsColumns() {
 
 checkProductsColumns();
 
+

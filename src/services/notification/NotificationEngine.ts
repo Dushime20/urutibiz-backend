@@ -80,9 +80,38 @@ export class NotificationEngine extends EventEmitter {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         // Check if database is initialized before attempting
-        const db = getDatabase();
+        // getDatabase() throws if not initialized, so we catch that
+        let db;
+        try {
+          db = getDatabase();
+        } catch (dbError: any) {
+          // Database not initialized yet, retry
+          if (attempt < maxRetries) {
+            this.logger.warn(`Database not ready, retrying template initialization (attempt ${attempt}/${maxRetries})...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+            continue;
+          } else {
+            this.logger.error('Database not initialized after all retries, skipping template initialization');
+            return;
+          }
+        }
+        
         if (!db) {
           throw new Error('Database is not initialized');
+        }
+        
+        // Test database connection with a simple query
+        try {
+          await db.raw('SELECT 1');
+        } catch (testError: any) {
+          if (attempt < maxRetries) {
+            this.logger.warn(`Database connection test failed, retrying (attempt ${attempt}/${maxRetries})...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+            continue;
+          } else {
+            this.logger.error('Database connection test failed after all retries');
+            return;
+          }
         }
         
         await this.templateService.initializeDefaultTemplates();
@@ -91,7 +120,8 @@ export class NotificationEngine extends EventEmitter {
       } catch (error: any) {
         const isDbNotInitialized = error.message && (
           error.message.includes('Database is not initialized') ||
-          error.message.includes('database') && error.message.includes('not initialized')
+          error.message.includes('database') && error.message.includes('not initialized') ||
+          error.message.includes('connection') && error.message.includes('refused')
         );
         
         if (isDbNotInitialized && attempt < maxRetries) {
@@ -101,11 +131,14 @@ export class NotificationEngine extends EventEmitter {
         }
         
         // Log error but don't throw - allow app to continue
-        this.logger.error('Failed to initialize default templates', { 
-          error: error.message,
-          attempt,
-          maxRetries
-        });
+        // Only log as error on final attempt, otherwise it's expected
+        if (attempt === maxRetries) {
+          this.logger.error('Failed to initialize default templates after all retries', { 
+            error: error.message,
+            attempt,
+            maxRetries
+          });
+        }
         return; // Exit retry loop even on failure
       }
     }

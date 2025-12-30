@@ -41,7 +41,7 @@ const timelineCache = new Map<string, { data: any; timestamp: number }>();
 // Performance: Optimized validation sets
 const VALID_BOOKING_STATUSES = new Set(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled']);
 const VALID_PAYMENT_STATUSES = new Set(['pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded']);
-const VALID_PICKUP_METHODS = new Set(['pickup', 'delivery', 'meet_halfway']);
+const VALID_PICKUP_METHODS = new Set(['pickup', 'delivery', 'meet_public', 'meet_halfway', 'visit']);
 
 // Performance: Concurrent booking management
 const bookingLocks = new Map<string, Promise<any>>();

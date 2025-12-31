@@ -37,12 +37,18 @@ async function fixMessagingTables() {
     const hasMessagesTable = await knex.schema.hasTable('messages');
     const hasUsersTable = await knex.schema.hasTable('users');
     const hasConversationParticipants = await knex.schema.hasTable('conversation_participants');
+    const hasMessageAttachments = await knex.schema.hasTable('message_attachments');
+    const hasTypingIndicators = await knex.schema.hasTable('typing_indicators');
+    const hasBlockedUsers = await knex.schema.hasTable('blocked_users');
     
     console.log('Current state:');
     console.log(`  chats table: ${hasChatsTable ? '✅' : '❌'}`);
     console.log(`  messages table: ${hasMessagesTable ? '✅' : '❌'}`);
     console.log(`  users table: ${hasUsersTable ? '✅' : '❌'}`);
-    console.log(`  conversation_participants table: ${hasConversationParticipants ? '✅' : '❌'}\n`);
+    console.log(`  conversation_participants table: ${hasConversationParticipants ? '✅' : '❌'}`);
+    console.log(`  message_attachments table: ${hasMessageAttachments ? '✅' : '❌'}`);
+    console.log(`  typing_indicators table: ${hasTypingIndicators ? '✅' : '❌'}`);
+    console.log(`  blocked_users table: ${hasBlockedUsers ? '✅' : '❌'}\n`);
     
     if (!hasChatsTable || !hasMessagesTable || !hasUsersTable) {
       console.log('❌ Required tables (chats, messages, users) must exist first!');
@@ -177,7 +183,79 @@ async function fixMessagingTables() {
       console.log('✅ conversation_participants table already exists\n');
     }
     
-    // Fix 2: Add is_deleted and other missing columns to messages table
+    // Fix 2: Create message_attachments table
+    if (!hasMessageAttachments && hasMessagesTable) {
+      console.log('🔧 Creating message_attachments table...');
+      await knex.schema.createTable('message_attachments', (table) => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+        table.uuid('message_id').notNullable().references('id').inTable('messages').onDelete('CASCADE');
+        table.string('file_name', 255).notNullable();
+        table.string('file_type', 100).notNullable();
+        table.string('mime_type', 100);
+        table.bigInteger('file_size').notNullable().comment('Size in bytes');
+        table.text('file_url').notNullable();
+        table.text('thumbnail_url');
+        table.string('storage_provider', 50).defaultTo('local').comment('local, s3, cloudinary, etc.');
+        table.jsonb('metadata').comment('Additional file metadata');
+        table.timestamp('uploaded_at', { useTz: true }).defaultTo(knex.fn.now());
+        
+        table.index(['message_id']);
+        table.index(['file_type']);
+      });
+      console.log('✅ message_attachments table created\n');
+    } else if (!hasMessageAttachments) {
+      console.log('⚠️  messages table does not exist, skipping message_attachments table creation\n');
+    } else {
+      console.log('✅ message_attachments table already exists\n');
+    }
+    
+    // Fix 3: Create typing_indicators table
+    if (!hasTypingIndicators && hasChatsTable && hasUsersTable) {
+      console.log('🔧 Creating typing_indicators table...');
+      await knex.schema.createTable('typing_indicators', (table) => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+        table.uuid('chat_id').notNullable().references('id').inTable('chats').onDelete('CASCADE');
+        table.uuid('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE');
+        table.timestamp('started_at', { useTz: true }).defaultTo(knex.fn.now());
+        table.timestamp('expires_at', { useTz: true }).notNullable();
+        
+        table.index(['chat_id', 'user_id']);
+        table.index(['expires_at']);
+        
+        // Unique constraint: one typing indicator per user per chat
+        table.unique(['chat_id', 'user_id']);
+      });
+      console.log('✅ typing_indicators table created\n');
+    } else if (!hasTypingIndicators) {
+      console.log('⚠️  chats or users table does not exist, skipping typing_indicators table creation\n');
+    } else {
+      console.log('✅ typing_indicators table already exists\n');
+    }
+    
+    // Fix 4: Create blocked_users table
+    if (!hasBlockedUsers && hasUsersTable) {
+      console.log('🔧 Creating blocked_users table...');
+      await knex.schema.createTable('blocked_users', (table) => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+        table.uuid('blocker_id').notNullable().references('id').inTable('users').onDelete('CASCADE');
+        table.uuid('blocked_id').notNullable().references('id').inTable('users').onDelete('CASCADE');
+        table.text('reason');
+        table.timestamp('blocked_at', { useTz: true }).defaultTo(knex.fn.now());
+        
+        table.index(['blocker_id']);
+        table.index(['blocked_id']);
+        
+        // Unique constraint: prevent duplicate blocks
+        table.unique(['blocker_id', 'blocked_id']);
+      });
+      console.log('✅ blocked_users table created\n');
+    } else if (!hasBlockedUsers) {
+      console.log('⚠️  users table does not exist, skipping blocked_users table creation\n');
+    } else {
+      console.log('✅ blocked_users table already exists\n');
+    }
+    
+    // Fix 5: Add is_deleted and other missing columns to messages table
     const hasIsDeleted = await knex.schema.hasColumn('messages', 'is_deleted');
     const hasMessageStatus = await knex.schema.hasColumn('messages', 'message_status');
     
@@ -286,6 +364,9 @@ async function fixMessagingTables() {
     // Verify
     console.log('🔍 Verifying fixes...\n');
     const finalHasConversationParticipants = await knex.schema.hasTable('conversation_participants');
+    const finalHasMessageAttachments = await knex.schema.hasTable('message_attachments');
+    const finalHasTypingIndicators = await knex.schema.hasTable('typing_indicators');
+    const finalHasBlockedUsers = await knex.schema.hasTable('blocked_users');
     const finalHasIsDeleted = await knex.schema.hasColumn('messages', 'is_deleted');
     const finalHasMessageStatus = await knex.schema.hasColumn('messages', 'message_status');
     const finalHasChatsBookingId = await knex.schema.hasColumn('chats', 'booking_id');
@@ -296,6 +377,9 @@ async function fixMessagingTables() {
     
     console.log('Final state:');
     console.log(`  conversation_participants table: ${finalHasConversationParticipants ? '✅ exists' : '❌ missing'}`);
+    console.log(`  message_attachments table: ${finalHasMessageAttachments ? '✅ exists' : '❌ missing'}`);
+    console.log(`  typing_indicators table: ${finalHasTypingIndicators ? '✅ exists' : '❌ missing'}`);
+    console.log(`  blocked_users table: ${finalHasBlockedUsers ? '✅ exists' : '❌ missing'}`);
     console.log(`  messages.is_deleted: ${finalHasIsDeleted ? '✅ exists' : '❌ missing'}`);
     console.log(`  messages.message_status: ${finalHasMessageStatus ? '✅ exists' : '❌ missing'}`);
     console.log(`  chats.booking_id: ${finalHasChatsBookingId ? '✅ exists' : '❌ missing'}`);
@@ -305,6 +389,7 @@ async function fixMessagingTables() {
     console.log(`  chats.last_message_at: ${finalHasLastMessageAt ? '✅ exists' : '❌ missing'}`);
     
     const allFixed = finalHasConversationParticipants && 
+                     finalHasMessageAttachments &&
                      finalHasIsDeleted && 
                      finalHasMessageStatus &&
                      finalHasChatsBookingId &&

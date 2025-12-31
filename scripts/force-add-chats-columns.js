@@ -42,14 +42,26 @@ async function forceAddColumns() {
     const hasBookingId = await knex.schema.hasColumn('chats', 'booking_id');
     const hasProductId = await knex.schema.hasColumn('chats', 'product_id');
     const hasSubject = await knex.schema.hasColumn('chats', 'subject');
+    const hasLastMessagePreview = await knex.schema.hasColumn('chats', 'last_message_preview');
+    const hasLastMessageAt = await knex.schema.hasColumn('chats', 'last_message_at');
+    const hasUnreadCountUser1 = await knex.schema.hasColumn('chats', 'unread_count_user_1');
+    const hasUnreadCountUser2 = await knex.schema.hasColumn('chats', 'unread_count_user_2');
+    const hasIsArchivedUser1 = await knex.schema.hasColumn('chats', 'is_archived_user_1');
+    const hasIsArchivedUser2 = await knex.schema.hasColumn('chats', 'is_archived_user_2');
+    const hasIsBlocked = await knex.schema.hasColumn('chats', 'is_blocked');
+    const hasBlockedBy = await knex.schema.hasColumn('chats', 'blocked_by');
+    const hasBlockedAt = await knex.schema.hasColumn('chats', 'blocked_at');
     
     console.log('Current state:');
     console.log(`  booking_id: ${hasBookingId ? '✅ exists' : '❌ missing'}`);
     console.log(`  product_id: ${hasProductId ? '✅ exists' : '❌ missing'}`);
-    console.log(`  subject: ${hasSubject ? '✅ exists' : '❌ missing'}\n`);
+    console.log(`  subject: ${hasSubject ? '✅ exists' : '❌ missing'}`);
+    console.log(`  last_message_preview: ${hasLastMessagePreview ? '✅ exists' : '❌ missing'}`);
+    console.log(`  last_message_at: ${hasLastMessageAt ? '✅ exists' : '❌ missing'}\n`);
     
-    if (hasBookingId && hasProductId && hasSubject) {
-      console.log('✅ All columns already exist! No action needed.');
+    const allExist = hasBookingId && hasProductId && hasSubject && hasLastMessagePreview && hasLastMessageAt;
+    if (allExist) {
+      console.log('✅ All required columns already exist! No action needed.');
       return;
     }
     
@@ -58,54 +70,71 @@ async function forceAddColumns() {
     // Check if related tables exist for foreign keys
     const hasProductsTable = await knex.schema.hasTable('products');
     const hasBookingsTable = await knex.schema.hasTable('bookings');
+    const hasUsersTable = await knex.schema.hasTable('users');
     
-    // Add columns one by one
-    if (!hasProductId) {
-      console.log('Adding product_id column...');
-      await knex.schema.alterTable('chats', (table) => {
+    // Add all missing columns in one alterTable call
+    await knex.schema.alterTable('chats', (table) => {
+      if (!hasProductId) {
         if (hasProductsTable) {
           table.uuid('product_id').references('id').inTable('products').onDelete('SET NULL');
         } else {
           table.uuid('product_id');
         }
-      });
-      console.log('✅ product_id added');
-    }
-    
-    if (!hasBookingId) {
-      console.log('Adding booking_id column...');
-      await knex.schema.alterTable('chats', (table) => {
+      }
+      if (!hasBookingId) {
         if (hasBookingsTable) {
           table.uuid('booking_id').references('id').inTable('bookings').onDelete('SET NULL');
         } else {
           table.uuid('booking_id');
         }
-      });
-      console.log('✅ booking_id added');
-    }
-    
-    if (!hasSubject) {
-      console.log('Adding subject column...');
-      await knex.schema.alterTable('chats', (table) => {
+      }
+      if (!hasSubject) {
         table.string('subject', 255);
-      });
-      console.log('✅ subject added');
-    }
+      }
+      if (!hasLastMessagePreview) {
+        table.string('last_message_preview', 500);
+      }
+      if (!hasLastMessageAt) {
+        table.timestamp('last_message_at', { useTz: true });
+      }
+      if (!hasUnreadCountUser1) {
+        table.integer('unread_count_user_1').defaultTo(0);
+      }
+      if (!hasUnreadCountUser2) {
+        table.integer('unread_count_user_2').defaultTo(0);
+      }
+      if (!hasIsArchivedUser1) {
+        table.boolean('is_archived_user_1').defaultTo(false);
+      }
+      if (!hasIsArchivedUser2) {
+        table.boolean('is_archived_user_2').defaultTo(false);
+      }
+      if (!hasIsBlocked) {
+        table.boolean('is_blocked').defaultTo(false);
+      }
+      if (!hasBlockedBy) {
+        if (hasUsersTable) {
+          table.uuid('blocked_by').references('id').inTable('users').onDelete('SET NULL');
+        } else {
+          table.uuid('blocked_by');
+        }
+      }
+      if (!hasBlockedAt) {
+        table.timestamp('blocked_at', { useTz: true });
+      }
+    });
+    
+    console.log('✅ All missing columns added');
     
     // Create indexes
     console.log('\n🔧 Creating indexes...');
     try {
       await knex.raw('CREATE INDEX IF NOT EXISTS idx_chats_product_id ON chats(product_id)');
-      console.log('✅ Index on product_id created');
-    } catch (e) {
-      console.log('⚠️  Index on product_id already exists or failed');
-    }
-    
-    try {
       await knex.raw('CREATE INDEX IF NOT EXISTS idx_chats_booking_id ON chats(booking_id)');
-      console.log('✅ Index on booking_id created');
+      await knex.raw('CREATE INDEX IF NOT EXISTS idx_chats_last_message_at ON chats(last_message_at DESC)');
+      console.log('✅ Indexes created');
     } catch (e) {
-      console.log('⚠️  Index on booking_id already exists or failed');
+      console.log('⚠️  Some indexes may already exist');
     }
     
     // Verify
@@ -113,13 +142,17 @@ async function forceAddColumns() {
     const finalHasBookingId = await knex.schema.hasColumn('chats', 'booking_id');
     const finalHasProductId = await knex.schema.hasColumn('chats', 'product_id');
     const finalHasSubject = await knex.schema.hasColumn('chats', 'subject');
+    const finalHasLastMessagePreview = await knex.schema.hasColumn('chats', 'last_message_preview');
+    const finalHasLastMessageAt = await knex.schema.hasColumn('chats', 'last_message_at');
     
     console.log('\nFinal state:');
     console.log(`  booking_id: ${finalHasBookingId ? '✅ exists' : '❌ missing'}`);
     console.log(`  product_id: ${finalHasProductId ? '✅ exists' : '❌ missing'}`);
     console.log(`  subject: ${finalHasSubject ? '✅ exists' : '❌ missing'}`);
+    console.log(`  last_message_preview: ${finalHasLastMessagePreview ? '✅ exists' : '❌ missing'}`);
+    console.log(`  last_message_at: ${finalHasLastMessageAt ? '✅ exists' : '❌ missing'}`);
     
-    if (finalHasBookingId && finalHasProductId && finalHasSubject) {
+    if (finalHasBookingId && finalHasProductId && finalHasSubject && finalHasLastMessagePreview && finalHasLastMessageAt) {
       console.log('\n✅ All columns successfully added!');
     } else {
       console.log('\n⚠️  Some columns are still missing. Check the errors above.');

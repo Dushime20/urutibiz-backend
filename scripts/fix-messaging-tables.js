@@ -55,29 +55,84 @@ async function fixMessagingTables() {
     const hasChatsBookingId = await knex.schema.hasColumn('chats', 'booking_id');
     const hasChatsProductId = await knex.schema.hasColumn('chats', 'product_id');
     const hasChatsSubject = await knex.schema.hasColumn('chats', 'subject');
+    const hasLastMessagePreview = await knex.schema.hasColumn('chats', 'last_message_preview');
+    const hasLastMessageAt = await knex.schema.hasColumn('chats', 'last_message_at');
+    const hasUnreadCountUser1 = await knex.schema.hasColumn('chats', 'unread_count_user_1');
+    const hasUnreadCountUser2 = await knex.schema.hasColumn('chats', 'unread_count_user_2');
+    const hasIsArchivedUser1 = await knex.schema.hasColumn('chats', 'is_archived_user_1');
+    const hasIsArchivedUser2 = await knex.schema.hasColumn('chats', 'is_archived_user_2');
+    const hasIsBlocked = await knex.schema.hasColumn('chats', 'is_blocked');
+    const hasBlockedBy = await knex.schema.hasColumn('chats', 'blocked_by');
+    const hasBlockedAt = await knex.schema.hasColumn('chats', 'blocked_at');
     
-    if (!hasChatsBookingId || !hasChatsProductId || !hasChatsSubject) {
-      console.log('   Adding missing columns to chats table...');
+    const missingChatsColumns = [];
+    if (!hasChatsProductId) missingChatsColumns.push('product_id');
+    if (!hasChatsBookingId) missingChatsColumns.push('booking_id');
+    if (!hasChatsSubject) missingChatsColumns.push('subject');
+    if (!hasLastMessagePreview) missingChatsColumns.push('last_message_preview');
+    if (!hasLastMessageAt) missingChatsColumns.push('last_message_at');
+    if (!hasUnreadCountUser1) missingChatsColumns.push('unread_count_user_1');
+    if (!hasUnreadCountUser2) missingChatsColumns.push('unread_count_user_2');
+    if (!hasIsArchivedUser1) missingChatsColumns.push('is_archived_user_1');
+    if (!hasIsArchivedUser2) missingChatsColumns.push('is_archived_user_2');
+    if (!hasIsBlocked) missingChatsColumns.push('is_blocked');
+    if (!hasBlockedBy) missingChatsColumns.push('blocked_by');
+    if (!hasBlockedAt) missingChatsColumns.push('blocked_at');
+    
+    if (missingChatsColumns.length > 0) {
+      console.log(`   Adding ${missingChatsColumns.length} missing columns to chats table...`);
+      console.log(`   Missing: ${missingChatsColumns.join(', ')}\n`);
       const hasProductsTable = await knex.schema.hasTable('products');
       const hasBookingsTable = await knex.schema.hasTable('bookings');
       
       await knex.schema.alterTable('chats', (table) => {
-        if (!hasChatsProductId) {
+        if (missingChatsColumns.includes('product_id')) {
           if (hasProductsTable) {
             table.uuid('product_id').references('id').inTable('products').onDelete('SET NULL');
           } else {
             table.uuid('product_id');
           }
         }
-        if (!hasChatsBookingId) {
+        if (missingChatsColumns.includes('booking_id')) {
           if (hasBookingsTable) {
             table.uuid('booking_id').references('id').inTable('bookings').onDelete('SET NULL');
           } else {
             table.uuid('booking_id');
           }
         }
-        if (!hasChatsSubject) {
+        if (missingChatsColumns.includes('subject')) {
           table.string('subject', 255);
+        }
+        if (missingChatsColumns.includes('last_message_preview')) {
+          table.string('last_message_preview', 500);
+        }
+        if (missingChatsColumns.includes('last_message_at')) {
+          table.timestamp('last_message_at', { useTz: true });
+        }
+        if (missingChatsColumns.includes('unread_count_user_1')) {
+          table.integer('unread_count_user_1').defaultTo(0);
+        }
+        if (missingChatsColumns.includes('unread_count_user_2')) {
+          table.integer('unread_count_user_2').defaultTo(0);
+        }
+        if (missingChatsColumns.includes('is_archived_user_1')) {
+          table.boolean('is_archived_user_1').defaultTo(false);
+        }
+        if (missingChatsColumns.includes('is_archived_user_2')) {
+          table.boolean('is_archived_user_2').defaultTo(false);
+        }
+        if (missingChatsColumns.includes('is_blocked')) {
+          table.boolean('is_blocked').defaultTo(false);
+        }
+        if (missingChatsColumns.includes('blocked_by')) {
+          if (hasUsersTable) {
+            table.uuid('blocked_by').references('id').inTable('users').onDelete('SET NULL');
+          } else {
+            table.uuid('blocked_by');
+          }
+        }
+        if (missingChatsColumns.includes('blocked_at')) {
+          table.timestamp('blocked_at', { useTz: true });
         }
       });
       
@@ -85,6 +140,7 @@ async function fixMessagingTables() {
       try {
         await knex.raw('CREATE INDEX IF NOT EXISTS idx_chats_product_id ON chats(product_id)');
         await knex.raw('CREATE INDEX IF NOT EXISTS idx_chats_booking_id ON chats(booking_id)');
+        await knex.raw('CREATE INDEX IF NOT EXISTS idx_chats_last_message_at ON chats(last_message_at DESC)');
       } catch (e) {
         // Indexes may already exist
       }
@@ -235,6 +291,8 @@ async function fixMessagingTables() {
     const finalHasChatsBookingId = await knex.schema.hasColumn('chats', 'booking_id');
     const finalHasChatsProductId = await knex.schema.hasColumn('chats', 'product_id');
     const finalHasChatsSubject = await knex.schema.hasColumn('chats', 'subject');
+    const finalHasLastMessagePreview = await knex.schema.hasColumn('chats', 'last_message_preview');
+    const finalHasLastMessageAt = await knex.schema.hasColumn('chats', 'last_message_at');
     
     console.log('Final state:');
     console.log(`  conversation_participants table: ${finalHasConversationParticipants ? '✅ exists' : '❌ missing'}`);
@@ -243,13 +301,17 @@ async function fixMessagingTables() {
     console.log(`  chats.booking_id: ${finalHasChatsBookingId ? '✅ exists' : '❌ missing'}`);
     console.log(`  chats.product_id: ${finalHasChatsProductId ? '✅ exists' : '❌ missing'}`);
     console.log(`  chats.subject: ${finalHasChatsSubject ? '✅ exists' : '❌ missing'}`);
+    console.log(`  chats.last_message_preview: ${finalHasLastMessagePreview ? '✅ exists' : '❌ missing'}`);
+    console.log(`  chats.last_message_at: ${finalHasLastMessageAt ? '✅ exists' : '❌ missing'}`);
     
     const allFixed = finalHasConversationParticipants && 
                      finalHasIsDeleted && 
                      finalHasMessageStatus &&
                      finalHasChatsBookingId &&
                      finalHasChatsProductId &&
-                     finalHasChatsSubject;
+                     finalHasChatsSubject &&
+                     finalHasLastMessagePreview &&
+                     finalHasLastMessageAt;
     
     if (allFixed) {
       console.log('\n✅ All messaging tables and columns successfully fixed!');

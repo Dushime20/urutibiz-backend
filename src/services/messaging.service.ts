@@ -2,6 +2,8 @@ import { Chat, Message, MessageTemplate, AdminMessageStats, CreateMessageRequest
 import { ResponseHelper } from '../utils/response';
 import MessagingRepository from '../repositories/MessagingRepository';
 import { getDatabase } from '../config/database';
+import { NotificationEngine } from './notification/NotificationEngine';
+import { NotificationType, NotificationChannel, NotificationPriority } from '../types/notification.types';
 
 export class MessagingService {
   private static repository = MessagingRepository;
@@ -72,6 +74,14 @@ export class MessagingService {
         attachments: messageData.attachments,
         metadata: messageData.metadata
       });
+
+      // Send notification to recipient(s) - IMPORTANT: Messages go from renter to owner
+      try {
+        await this.sendMessageNotification(chat, message, senderId);
+      } catch (notifError) {
+        // Log but don't fail the message creation if notification fails
+        console.error('[MessagingService] Failed to send message notification:', notifError);
+      }
 
       return { success: true, data: message };
     } catch (error: any) {
@@ -397,6 +407,116 @@ export class MessagingService {
       return { success: true, data: mockSuggestions };
     } catch (error: any) {
       return { success: false, data: [], error: error.message };
+    }
+  }
+
+  /**
+   * Send notification to message recipient(s)
+   * Messages flow from renter to product owner
+   */
+  private static async sendMessageNotification(chat: Chat, message: Message, senderId: string): Promise<void> {
+    try {
+      // Get recipient(s) - all participants except the sender
+      const recipients = chat.participant_ids.filter(id => id !== senderId);
+      
+      if (recipients.length === 0) {
+        console.warn('[MessagingService] No recipients found for message notification');
+        return;
+      }
+
+      // Get sender info for notification
+      const sender = await this.knex('users')
+        .where('id', senderId)
+        .select('first_name', 'last_name', 'email')
+        .first();
+
+      const senderName = sender 
+        ? `${sender.first_name || ''} ${sender.last_name || ''}`.trim() || sender.email || 'Someone'
+        : 'Someone';
+
+      // Get product/booking context if available
+      let productName = 'a product';
+      let bookingNumber = '';
+      
+      if (chat.product_id) {
+        const product = await this.knex('products')
+          .where('id', chat.product_id)
+          .select('title')
+          .first();
+        if (product) {
+          productName = product.title;
+        }
+      }
+
+      if (chat.booking_id) {
+        const booking = await this.knex('bookings')
+          .where('id', chat.booking_id)
+          .select('booking_number')
+          .first();
+        if (booking) {
+          bookingNumber = booking.booking_number;
+        }
+      }
+
+      // Prepare message preview (truncate if too long)
+      const messagePreview = message.content.length > 100 
+        ? message.content.substring(0, 100) + '...'
+        : message.content;
+
+      // Send notification to each recipient
+      const notificationPromises = recipients.map(async (recipientId) => {
+        try {
+          // Get recipient email
+          const recipient = await this.knex('users')
+            .where('id', recipientId)
+            .select('email', 'first_name')
+            .first();
+
+          const notificationTitle = bookingNumber 
+            ? `New message from ${senderName} - Booking ${bookingNumber}`
+            : `New message from ${senderName} - ${productName}`;
+
+          const notificationMessage = bookingNumber
+            ? `${senderName} sent you a message about ${productName} (Booking ${bookingNumber}): "${messagePreview}"`
+            : `${senderName} sent you a message about ${productName}: "${messagePreview}"`;
+
+          await NotificationEngine.sendNotification({
+            type: NotificationType.BOOKING_REMINDER, // Using available type, can be changed to MESSAGE_RECEIVED if added
+            recipientId,
+            recipientEmail: recipient?.email,
+            title: notificationTitle,
+            message: notificationMessage,
+            channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH, NotificationChannel.IN_APP],
+            priority: NotificationPriority.NORMAL,
+            data: {
+              chatId: chat.id,
+              messageId: message.id,
+              senderId,
+              senderName,
+              productId: chat.product_id,
+              bookingId: chat.booking_id,
+              bookingNumber,
+              productName,
+              messagePreview: message.content.substring(0, 200),
+              hasAttachments: message.attachments && message.attachments.length > 0
+            },
+            metadata: {
+              source: 'messaging_service',
+              event: 'message_received',
+              direction: 'renter_to_owner' // Remember: messages go from renter to owner
+            }
+          });
+
+          console.log(`[MessagingService] Notification sent to recipient ${recipientId} for message ${message.id}`);
+        } catch (error) {
+          console.error(`[MessagingService] Failed to send notification to ${recipientId}:`, error);
+        }
+      });
+
+      await Promise.allSettled(notificationPromises);
+    } catch (error) {
+      console.error('[MessagingService] Error sending message notifications:', error);
+      // Don't throw - notification failure shouldn't break message creation
     }
   }
 }

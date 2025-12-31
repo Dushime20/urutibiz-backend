@@ -3,6 +3,21 @@ import { Chat, Message } from '@/types/messaging.types';
 
 export class MessagingRepository {
   private knex = getDatabase();
+  private columnCache: Map<string, boolean> = new Map();
+
+  /**
+   * Check if a column exists in the chats table (with caching)
+   */
+  private async hasColumn(columnName: string): Promise<boolean> {
+    const cacheKey = `chats.${columnName}`;
+    if (this.columnCache.has(cacheKey)) {
+      return this.columnCache.get(cacheKey)!;
+    }
+    
+    const exists = await this.knex.schema.hasColumn('chats', columnName);
+    this.columnCache.set(cacheKey, exists);
+    return exists;
+  }
 
   /**
    * Create or get existing chat between two users
@@ -37,16 +52,33 @@ export class MessagingRepository {
     // Properly format participant_ids as JSONB for PostgreSQL
     // Use knex.raw to explicitly cast the JSON string to jsonb
     const participantIdsJson = JSON.stringify(participants);
+    
+    // Check which columns exist before building insert object
+    const hasProductId = await this.hasColumn('product_id');
+    const hasBookingId = await this.hasColumn('booking_id');
+    const hasSubject = await this.hasColumn('subject');
+    
+    // Build insert object conditionally based on column existence
+    const insertData: any = {
+      participant_ids: this.knex.raw('?::jsonb', [participantIdsJson]),
+      is_active: true,
+      created_at: new Date(),
+      updated_at: new Date()
+    };
+    
+    // Only include columns if they exist in the table
+    if (hasProductId && options?.productId) {
+      insertData.product_id = options.productId;
+    }
+    if (hasBookingId && options?.bookingId) {
+      insertData.booking_id = options.bookingId;
+    }
+    if (hasSubject && options?.subject) {
+      insertData.subject = options.subject;
+    }
+    
     const [newChat] = await this.knex('chats')
-      .insert({
-        participant_ids: this.knex.raw('?::jsonb', [participantIdsJson]),
-        is_active: true,
-        product_id: options?.productId || null,
-        booking_id: options?.bookingId || null,
-        subject: options?.subject || null,
-        created_at: new Date(),
-        updated_at: new Date()
-      })
+      .insert(insertData)
       .returning('*');
 
     // Create participant records

@@ -46,7 +46,7 @@ git pull origin main
 # Update Backend
 cd urutibiz-backend
 npm install
-
+npm run build
 pm2 restart urutibiz-backend
 
 # Update Frontend

@@ -427,6 +427,25 @@ export class MessagingRepository {
   }
 
   /**
+   * Mark message as delivered
+   */
+  async markMessageAsDelivered(messageId: string): Promise<void> {
+    const message = await this.knex('messages')
+      .where('id', messageId)
+      .first();
+
+    if (!message || message.message_status === 'read') return;
+
+    await this.knex('messages')
+      .where('id', messageId)
+      .update({
+        message_status: 'delivered',
+        delivered_at: new Date(),
+        updated_at: new Date()
+      });
+  }
+
+  /**
    * Mark all messages in chat as read
    */
   async markChatAsRead(chatId: string, userId: string): Promise<void> {

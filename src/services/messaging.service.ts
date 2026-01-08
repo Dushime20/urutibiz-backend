@@ -2,7 +2,7 @@ import { Chat, Message, MessageTemplate, AdminMessageStats, CreateMessageRequest
 import { ResponseHelper } from '../utils/response';
 import MessagingRepository from '../repositories/MessagingRepository';
 import { getDatabase } from '../config/database';
-import { NotificationEngine } from './notification/NotificationEngine';
+import NotificationEngine from './notification/NotificationEngine';
 import { NotificationType, NotificationChannel, NotificationPriority } from '../types/notification.types';
 
 export class MessagingService {
@@ -115,6 +115,18 @@ export class MessagingService {
   static async markMessageAsRead(messageId: string, userId: string): Promise<{ success: boolean; error?: string }> {
     try {
       await this.repository.markMessageAsRead(messageId, userId);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Mark message as delivered
+   */
+  static async markMessageAsDelivered(messageId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.repository.markMessageAsDelivered(messageId);
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -481,7 +493,7 @@ export class MessagingService {
             : `${senderName} sent you a message about ${productName}: "${messagePreview}"`;
 
           await NotificationEngine.sendNotification({
-            type: NotificationType.BOOKING_REMINDER, // Using available type, can be changed to MESSAGE_RECEIVED if added
+            type: NotificationType.MESSAGE_RECEIVED, 
             recipientId,
             recipientEmail: recipient?.email,
             title: notificationTitle,

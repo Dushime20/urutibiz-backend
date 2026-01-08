@@ -1,4 +1,7 @@
 export enum NotificationType {
+  // Messaging related
+  MESSAGE_RECEIVED = 'message_received',
+
   // Inspection related
   INSPECTION_SCHEDULED = 'inspection_scheduled',
   INSPECTION_STARTED = 'inspection_started',

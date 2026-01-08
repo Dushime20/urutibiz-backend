@@ -101,6 +101,11 @@ export class Product implements ProductData {
     if (typeof specifications === 'string') {
       try { specifications = JSON.parse(specifications); } catch { /* keep as is */ }
     }
+    // Parse images if they come as JSON string from aggregation
+    let images: any = row.images || [];
+    if (typeof images === 'string') {
+      try { images = JSON.parse(images); } catch { images = []; }
+    }
     const created_at = row.created_at instanceof Date ? row.created_at : new Date(row.created_at);
     const updated_at = row.updated_at instanceof Date ? row.updated_at : new Date(row.updated_at);
     return {
@@ -113,7 +118,7 @@ export class Product implements ProductData {
       condition: row.condition,
       pickup_methods,
       location: row.location,
-      images: [],
+      images: images,
       specifications,
       availability: [],
       view_count: row.view_count || 0,
@@ -129,13 +134,15 @@ export class Product implements ProductData {
       model: row.model,
       year_manufactured: row.year_manufactured,
       address_line: row.address_line,
+      district: row.district,
+      sector: row.sector,
       delivery_fee: row.delivery_fee,
       included_accessories: row.included_accessories,
       // optional extras
       ai_score: row.ai_score,
       ai_tags: row.ai_tags,
-      display_price: row.display_price,
-      display_currency: row.display_currency,
+      display_price: row.display_price || row.base_price_per_day,
+      display_currency: row.display_currency || row.currency,
       recommendations: row.recommendations,
       // ids
       country_id: row.country_id,

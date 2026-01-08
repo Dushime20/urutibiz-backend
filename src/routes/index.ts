@@ -41,6 +41,7 @@ import testRoutes from './test.routes';
 import validationRoutes from './validation.routes';
 import walletRoutes from './wallet.routes';
 import thirdPartyInspectionRoutes from './thirdPartyInspection.routes';
+import aiChatbotRoutes from './aiChatbot.routes';
 
 const router = Router();
 
@@ -110,6 +111,8 @@ console.log('🔧 Mounting Violation routes at /violations');
 router.use('/violations', violationRoutes);
 console.log('🔧 Mounting System routes at /system');
 router.use('/system', systemRoutes);
+console.log('🔧 Mounting AI Chatbot routes at /chatbot');
+router.use('/chatbot', aiChatbotRoutes);
 
 // Test routes for development
 console.log('🔧 Mounting Test routes at /test');
@@ -161,6 +164,7 @@ router.get('/', (_req, res) => {
       admin: '/api/v1/admin',
       analytics: '/api/v1/analytics',
       third_party_inspections: '/api/v1/third-party-inspections',
+      chatbot: '/api/v1/chatbot',
     },
   });
 });

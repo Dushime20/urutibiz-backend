@@ -287,7 +287,8 @@ const convertFiltersToQuery = (filters: Partial<ProductFilters>): Partial<Produc
   if (filters.category_id) query.category_id = filters.category_id;
   if (filters.status) query.status = filters.status; // This will filter by status='active'
   if (filters.condition) query.condition = filters.condition;
-  if (filters.search) query.title = filters.search;
+  // Pass search term as generic 'search' param to be handled by repository override
+  if (filters.search) (query as any).search = filters.search;
   
   // Note: country_id and location filters are complex and should be handled
   // in a custom repository method, not in the generic base repository
@@ -545,6 +546,56 @@ export class ProductsController extends BaseController {
       }
       
       return ResponseHelper.error(res, errorMessage, 500);
+    }
+  });
+
+  /**
+   * AI-Powered Product Search
+   * GET /api/v1/products/ai-search
+   */
+  public searchByAI = this.asyncHandler(async (req: Request, res: Response) => {
+    const { prompt } = req.query;
+    if (!prompt || typeof prompt !== 'string') {
+      return ResponseHelper.error(res, 'Prompt is required', 400);
+    }
+
+    try {
+      const AISearchService = (await import('@/services/aiSearch.service')).default;
+      
+      // 1. Parse prompt into filters
+      const aiFilters = await AISearchService.parseNaturalLanguageQuery(prompt);
+      
+      console.log('[ProductsController] AI Filters derived:', aiFilters);
+
+      // 2. Normalize and combine with defaults
+      const filters = normalizeProductFilters({ ...aiFilters });
+      if (!filters.status) filters.status = 'active'; // Public search only shows active
+
+      // 3. Convert to query
+      const query = convertFiltersToQuery(filters);
+      
+      // 4. Execute Search
+      const { page, limit } = this.getPaginationParams(req);
+      const result = await ProductService.getPaginated(query, page, limit);
+
+      if (!result.success) {
+        return ResponseHelper.error(res, result.error || 'Search failed', 500);
+      }
+
+      // 5. Enhance with metadata about the AI interpretation
+      const responseData = {
+        ...result.data,
+        aiInterpretation: {
+          originalPrompt: prompt,
+          derivedFilters: aiFilters
+        }
+      };
+
+      return this.formatPaginatedResponse(res, 'AI Search results', responseData);
+
+    } catch (error: any) {
+      console.error('[ProductsController] AI Search error:', error);
+      return ResponseHelper.error(res, 'AI Search failed', 500);
     }
   });
 

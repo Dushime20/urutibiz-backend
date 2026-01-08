@@ -171,13 +171,17 @@ export const initializeSocket = (io: SocketServer): void => {
         // Emit to sender for confirmation (only to sender, not broadcast)
         socket.emit('message-sent', messagePayload);
 
-        // Broadcast to chat room ONLY (all participants including sender)
-        // This is the PRIMARY method - ensures real-time delivery without duplicates
-        // All participants should join the chat room when loading messages
+        // Broadcast to chat room (for chat view)
         io.to(`chat-${chatId}`).emit('new-message', messagePayload);
         
-        // Note: We removed individual user room emissions to prevent duplicates
-        // All clients should join the chat room via joinRoom(chatId, 'chat')
+        // Also broadcast to individual recipients for dashboard updates (in case they are not in the chat room)
+        if (chat && chat.participant_ids) {
+            chat.participant_ids.forEach((participantId: string) => {
+                if (participantId !== userId) {
+                    io.to(`user-${participantId}`).emit('new-message', messagePayload);
+                }
+            });
+        }
 
         logger.info(`Message sent from socket ${socket.id} in chat ${chatId}`);
       } catch (error: any) {
@@ -231,6 +235,27 @@ export const initializeSocket = (io: SocketServer): void => {
         });
       } catch (error: any) {
         logger.error('Error handling message read:', error);
+      }
+    });
+
+    // Handle message delivery receipts
+    socket.on('message-delivered', async (data) => {
+      try {
+        const { messageId, chatId } = data;
+        
+        if (!messageId || !userId) return;
+
+        const { MessagingService } = await import('../services/messaging.service');
+        await MessagingService.markMessageAsDelivered(messageId);
+
+        // Broadcast delivery receipt to chat room
+        io.to(`chat-${chatId}`).emit('message-delivered-receipt', {
+          messageId,
+          chatId,
+          deliveredAt: new Date().toISOString(),
+        });
+      } catch (error: any) {
+        logger.error('Error handling message delivery:', error);
       }
     });
 

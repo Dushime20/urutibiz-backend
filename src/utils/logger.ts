@@ -14,6 +14,22 @@ const logFormat = winston.format.combine(
   winston.format.prettyPrint()
 );
 
+// Safe stringification for meta objects that might have circular references
+const safeStringify = (obj: any) => {
+  const cache = new Set();
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === 'object' && value !== null) {
+      if (cache.has(value)) return '[Circular]';
+      cache.add(value);
+    }
+    // Special handling for Axios error parts to avoid huge logs
+    if (key === 'request' || key === 'response' || key === 'config') {
+      return '[Axios Detail Hidden]';
+    }
+    return value;
+  }, 2);
+};
+
 // Define console format for development
 const consoleFormat = winston.format.combine(
   winston.format.colorize(),
@@ -23,7 +39,11 @@ const consoleFormat = winston.format.combine(
   winston.format.printf(({ timestamp, level, message, ...meta }) => {
     let metaString = '';
     if (Object.keys(meta).length > 0) {
-      metaString = `\n${JSON.stringify(meta, null, 2)}`;
+      try {
+        metaString = `\n${safeStringify(meta)}`;
+      } catch (e) {
+        metaString = '\n[Meta contains circular structure or could not be stringified]';
+      }
     }
     return `${timestamp} [${level}]: ${message}${metaString}`;
   })
@@ -106,20 +126,33 @@ export class Logger {
 
   private log(level: string, message: string, meta?: any): void {
     const timestamp = new Date().toISOString();
+    const safeMeta = meta ? JSON.parse(this.safeStringify(meta)) : undefined;
+    
     const logEntry = {
       timestamp,
       level,
       context: this.context,
       message,
-      ...(meta && { meta })
+      ...(safeMeta && { meta: safeMeta })
     };
 
     if (level === 'ERROR') {
-      console.error(JSON.stringify(logEntry));
+      console.error(JSON.stringify(logEntry, null, 2));
     } else if (level === 'WARN') {
-      console.warn(JSON.stringify(logEntry));
+      console.warn(JSON.stringify(logEntry, null, 2));
     } else {
-      console.log(JSON.stringify(logEntry));
+      console.log(JSON.stringify(logEntry, null, 2));
     }
+  }
+
+  private safeStringify(obj: any): string {
+    const cache = new Set();
+    return JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) return '[Circular]';
+        cache.add(value);
+      }
+      return value;
+    });
   }
 }

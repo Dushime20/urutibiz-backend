@@ -173,6 +173,8 @@ export function getConfig(): AppConfig {
     ai: {
       openaiApiKey: process.env.OPENAI_API_KEY,
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      geminiApiKey: process.env.GEMINI_API_KEY,
+      groqApiKey: process.env.GROQ_API_KEY,
     },
     
     admin: {

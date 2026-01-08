@@ -93,6 +93,8 @@ export interface LoggingConfig {
 export interface AiConfig {
   openaiApiKey?: string;
   anthropicApiKey?: string;
+  geminiApiKey?: string;
+  groqApiKey?: string;
 }
 
 export interface AdminConfig {

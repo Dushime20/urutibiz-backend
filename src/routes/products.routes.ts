@@ -151,6 +151,44 @@ router.get('/search', cacheMiddleware({ ...productCacheOptions, duration: 180 })
 
 /**
  * @swagger
+ * /products/ai-search:
+ *   get:
+ *     summary: AI-Powered Product Search (Natural Language)
+ *     description: |
+ *       Uses Generative AI (Gemini) to interpret a natural language prompt and convert it into
+ *       structured product filters (Category, Keywords, Price, etc.).
+ *     tags: [Products]
+ *     parameters:
+ *       - in: query
+ *         name: prompt
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Natural language search prompt (e.g., "I need a cheap red car")
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Results per page
+ *     responses:
+ *       200:
+ *         description: Detailed search results with AI interpretation metadata
+ *       400:
+ *         description: Missing prompt
+ *       500:
+ *         description: AI Service or Database error
+ */
+router.get('/ai-search', cacheMiddleware({ ...productCacheOptions, duration: 60 }), controller.searchByAI);
+
+/**
+ * @swagger
  * /products/search-by-image:
  *   post:
  *     summary: Search products by image (AI-powered)

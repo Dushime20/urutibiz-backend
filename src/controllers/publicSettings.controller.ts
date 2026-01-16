@@ -34,6 +34,7 @@ export default class PublicSettingsController {
         'appName', 
         'appVersion',
         'platformName',
+        'siteName',
         'platformTagline'
       ];
 
@@ -63,17 +64,34 @@ export default class PublicSettingsController {
             acc[category] = {};
         }
 
-        // Map platformLogo to companyLogo for frontend compatibility if needed
-        // but frontend service maps it manually usually.
         acc[category][key] = value;
         
         return acc;
       }, {});
       
-      // Ensure business.companyLogo exists if platformLogo is there
-      if (settingsMap.business?.platformLogo) {
-          settingsMap.business.companyLogo = settingsMap.business.platformLogo;
+      // Ensure business.companyLogo exists if platformLogo is there (check both categories)
+      const logo = settingsMap.business?.platformLogo || settingsMap.platform?.platformLogo;
+      if (logo) {
+          if (!settingsMap.business) settingsMap.business = {};
+          if (!settingsMap.platform) settingsMap.platform = {};
+          
+          settingsMap.business.companyLogo = logo;
+          settingsMap.platform.logoUrl = logo; // Also set for platform.logoUrl
       }
+
+      // Ensure siteName is populated (try siteName, then platformName, then appName)
+      const siteName = settingsMap.platform?.siteName || settingsMap.platform?.platformName || settingsMap.system?.appName;
+      if (siteName) {
+          if (!settingsMap.platform) settingsMap.platform = {};
+          settingsMap.platform.siteName = siteName;
+      }
+      
+      // Ensure companyName is populated
+       const companyName = settingsMap.business?.companyName || settingsMap.platform?.companyName;
+       if (companyName) {
+          if (!settingsMap.business) settingsMap.business = {};
+           settingsMap.business.companyName = companyName;
+       }
 
       return ResponseHelper.success(res, 'Public settings retrieved', settingsMap);
     } catch (error: any) {

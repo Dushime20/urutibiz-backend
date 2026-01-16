@@ -449,10 +449,7 @@ export class AdminSettingsController extends BaseController {
         .orderBy('key');
 
       const businessObject = businessSettings.reduce((acc: any, setting: any) => {
-        // Skip companyLogo field as it contains base64 data
-        if (setting.key === 'companyLogo') {
-          return acc;
-        }
+        // Properly deserialize values based on type
 
         // Properly deserialize values based on type
         let parsedValue = setting.value;

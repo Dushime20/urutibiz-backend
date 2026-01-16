@@ -3,6 +3,7 @@ import { getRedisClient, isConnected as isRedisConnected } from '@/config/redis'
 import { ResponseHelper } from '@/utils/response';
 import logger from '@/utils/logger';
 import { recommendationCache } from '@/utils/RecommendationCache';
+import PublicSettingsController from '@/controllers/publicSettings.controller';
 
 const router = Router();
 
@@ -67,7 +68,11 @@ router.post('/cache/clear', async (_req, res) => {
 
   logger.info('System cache clear executed', { result });
   return ResponseHelper.success(res, 'Cache clear executed', result);
+  logger.info('System cache clear executed', { result });
+  return ResponseHelper.success(res, 'Cache clear executed', result);
 });
+
+router.get('/public-settings', PublicSettingsController.getPublicSettings);
 
 export default router;
 

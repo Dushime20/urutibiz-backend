@@ -53,7 +53,8 @@ pm2 restart urutibiz-backend
 cd ../urutibz-frontend
 npm install
 npm run build
-dist/* /var/www/urutibz-frontend/sudo cp -r 
+sudo cp -r dist/* /var/www/urutibz-frontend/
+
 sudo chown -R www-data:www-data /var/www/urutibz-frontend
 
 # Reload Nginx

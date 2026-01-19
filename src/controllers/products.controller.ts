@@ -219,12 +219,15 @@ interface OptionalAuthRequest extends Request {
 /**
  * High-performance filter normalization
  */
-const normalizeProductFilters = (query: any): Partial<ProductFilters> => {
-  const filters: Partial<ProductFilters> = {};
+const normalizeProductFilters = (query: any): Partial<ProductFilters> & { sort?: string; sortOrder?: 'asc' | 'desc' } => {
+  const filters: any = {};
   
   // Fast string validation
   if (query.search && typeof query.search === 'string' && query.search.trim().length > 0) {
     filters.search = query.search.trim().toLowerCase();
+  } else if (query.q && typeof query.q === 'string' && query.q.trim().length > 0) {
+    // Handle 'q' from header search
+    filters.search = query.q.trim().toLowerCase();
   }
   
   // Fast set-based validation
@@ -238,21 +241,27 @@ const normalizeProductFilters = (query: any): Partial<ProductFilters> => {
     filters.currency = query.currency;
   }
   
-  // Numeric validation with fast parsing
-  if (query.min_price) {
-    const price = parseFloat(query.min_price);
+  // Numeric validation with fast parsing - support both snake_case and camelCase
+  const minP = query.min_price || query.priceMin;
+  if (minP) {
+    const price = parseFloat(minP);
     if (!isNaN(price) && price >= 0) filters.min_price = price;
   }
-  if (query.max_price) {
-    const price = parseFloat(query.max_price);
+  const maxP = query.max_price || query.priceMax;
+  if (maxP) {
+    const price = parseFloat(maxP);
     if (!isNaN(price) && price >= 0) filters.max_price = price;
   }
   
-  // Location optimization
-  if (query.latitude && query.longitude) {
-    const latitude = parseFloat(query.latitude);
-    const longitude = parseFloat(query.longitude);
-    const radius = parseFloat(query.radius) || 10;
+  // Location optimization - support lat/lng/radiusKm from frontend
+  const lat = query.latitude || query.lat;
+  const lng = query.longitude || query.lng;
+  const rad = query.radius || query.radiusKm;
+  
+  if (lat && lng) {
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    const radius = parseFloat(rad) || 10;
     
     if (!isNaN(latitude) && !isNaN(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180) {
       filters.location = { latitude, longitude, radius };
@@ -262,11 +271,17 @@ const normalizeProductFilters = (query: any): Partial<ProductFilters> => {
   if (query.country_id && typeof query.country_id === 'string') {
     filters.country_id = query.country_id;
   }
-  if (query.category_id && typeof query.category_id === 'string') {
-    filters.category_id = query.category_id;
+  if ((query.category_id || query.category) && typeof (query.category_id || query.category) === 'string') {
+    filters.category_id = query.category_id || query.category;
   }
   if (query.owner_id && typeof query.owner_id === 'string') {
     filters.owner_id = query.owner_id;
+  }
+
+  // Sort parameters
+  if (query.sort) {
+    filters.sort = query.sort;
+    filters.sortOrder = query.sortOrder === 'asc' ? 'asc' : 'desc';
   }
   
   return filters;
@@ -278,21 +293,19 @@ const normalizeProductFilters = (query: any): Partial<ProductFilters> => {
  * Note: Location-based filtering is handled separately and not included here
  * to avoid creating invalid SQL queries with object values
  */
-const convertFiltersToQuery = (filters: Partial<ProductFilters>): Partial<ProductData> => {
-  const query: Partial<ProductData> = {};
+const convertFiltersToQuery = (filters: Partial<ProductFilters> & { sort?: string; sortOrder?: 'asc' | 'desc' }): any => {
+  const query: any = {};
   
-  // Map filters to database columns (snake_case)
-  // Only include simple scalar values that can be used in WHERE clauses
   if (filters.owner_id) query.owner_id = filters.owner_id;
   if (filters.category_id) query.category_id = filters.category_id;
-  if (filters.status) query.status = filters.status; // This will filter by status='active'
+  if (filters.status) query.status = filters.status;
   if (filters.condition) query.condition = filters.condition;
-  // Pass search term as generic 'search' param to be handled by repository override
-  if (filters.search) (query as any).search = filters.search;
+  if (filters.search) query.search = filters.search;
   
-  // Note: country_id and location filters are complex and should be handled
-  // in a custom repository method, not in the generic base repository
-  // For now, we skip them to prevent invalid SQL queries
+  // Include deep search filters
+  if (filters.min_price !== undefined) query.min_price = filters.min_price;
+  if (filters.max_price !== undefined) query.max_price = filters.max_price;
+  if (filters.location) query.location = filters.location;
   
   return query;
 };
@@ -480,7 +493,8 @@ export class ProductsController extends BaseController {
       
       let result;
       try {
-        result = await ProductService.getPaginated(query, page, limit);
+        const { sort, sortOrder } = filters;
+        result = await ProductService.getPaginated(query, page, limit, sort, sortOrder);
         const queryTime = Date.now() - queryStartTime;
         console.log('[ProductsController] Database query completed in', queryTime, 'ms');
       } catch (queryError: any) {

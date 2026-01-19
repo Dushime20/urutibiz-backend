@@ -63,9 +63,9 @@ class ProductService {
     return { success: true };
   }
 
-  async getPaginated(query: Partial<ProductData>, page = 1, limit = 10) {
+  async getPaginated(query: any, page = 1, limit = 10, sortBy = 'created_at', sortOrder: 'asc' | 'desc' = 'desc') {
     // For now, treat query as criteria for findPaginated
-    const result = await ProductRepository.findPaginated(query, page, limit);
+    const result = await ProductRepository.findPaginated(query, page, limit, sortBy, sortOrder);
     return result;
   }
 

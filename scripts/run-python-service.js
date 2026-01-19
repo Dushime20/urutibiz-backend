@@ -32,16 +32,30 @@ if (fs.existsSync(requirementsFile)) {
 
 // Try to find Python
 let pythonCmd = 'python';
-try {
-  require('child_process').execSync('python --version', { stdio: 'ignore' });
-} catch (error) {
+
+// Check for virtual environment first
+const isWin = process.platform === 'win32';
+const venvPath = path.join(pythonServiceDir, 'venv');
+const venvPython = isWin
+  ? path.join(venvPath, 'Scripts', 'python.exe')
+  : path.join(venvPath, 'bin', 'python');
+
+if (fs.existsSync(venvPython)) {
+  console.log('✅ Found virtual environment, using it.');
+  pythonCmd = venvPython;
+} else {
+  console.log('⚠️ Virtual environment not found, falling back to system python.');
   try {
-    require('child_process').execSync('python3 --version', { stdio: 'ignore' });
-    pythonCmd = 'python3';
-  } catch (error2) {
-    console.error('❌ Python not found!');
-    console.error('   Please install Python 3.8+ from https://www.python.org/');
-    process.exit(1);
+    require('child_process').execSync('python --version', { stdio: 'ignore' });
+  } catch (error) {
+    try {
+      require('child_process').execSync('python3 --version', { stdio: 'ignore' });
+      pythonCmd = 'python3';
+    } catch (error2) {
+      console.error('❌ Python not found!');
+      console.error('   Please install Python 3.8+ or run setup_python_env.sh');
+      process.exit(1);
+    }
   }
 }
 

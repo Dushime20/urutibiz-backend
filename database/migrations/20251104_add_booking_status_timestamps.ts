@@ -16,10 +16,7 @@ import { Knex } from 'knex';
  */
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('bookings');
-  if (!hasTable) {
-    console.log('⚠️ bookings table does not exist, skipping status timestamps migration');
-    return;
-  }
+  
 
   // Add confirmed_at column
   const hasConfirmedAt = await knex.schema.hasColumn('bookings', 'confirmed_at');
@@ -30,7 +27,7 @@ export async function up(knex: Knex): Promise<void> {
     await knex.raw(`CREATE INDEX IF NOT EXISTS idx_bookings_confirmed_at ON bookings(confirmed_at)`);
     console.log('✅ Added confirmed_at column to bookings table');
   } else {
-    console.log('ℹ️ confirmed_at column already exists, skipping');
+    
   }
 
   // Add started_at column
@@ -42,7 +39,7 @@ export async function up(knex: Knex): Promise<void> {
     await knex.raw(`CREATE INDEX IF NOT EXISTS idx_bookings_started_at ON bookings(started_at)`);
     console.log('✅ Added started_at column to bookings table');
   } else {
-    console.log('ℹ️ started_at column already exists, skipping');
+    
   }
 
   // Add completed_at column
@@ -54,7 +51,7 @@ export async function up(knex: Knex): Promise<void> {
     await knex.raw(`CREATE INDEX IF NOT EXISTS idx_bookings_completed_at ON bookings(completed_at)`);
     console.log('✅ Added completed_at column to bookings table');
   } else {
-    console.log('ℹ️ completed_at column already exists, skipping');
+    
   }
 
   // Add cancelled_at column
@@ -66,7 +63,7 @@ export async function up(knex: Knex): Promise<void> {
     await knex.raw(`CREATE INDEX IF NOT EXISTS idx_bookings_cancelled_at ON bookings(cancelled_at)`);
     console.log('✅ Added cancelled_at column to bookings table');
   } else {
-    console.log('ℹ️ cancelled_at column already exists, skipping');
+    
   }
 
   console.log('✅ Booking status timestamps migration completed');
@@ -74,7 +71,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('bookings');
-  if (!hasTable) return;
+  
 
   // Drop indexes first
   try {

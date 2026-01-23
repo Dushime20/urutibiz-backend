@@ -92,7 +92,7 @@ export async function up(knex: Knex): Promise<void> {
         ]);
       }
     } catch (err) {
-      console.warn('Skipping administrative divisions seed due to error:', err);
+      
     }
   }
 

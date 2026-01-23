@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('bookings');
-  if (!hasTable) return;
+  
 
   const hasColumn = await knex.schema.hasColumn('bookings', 'return_time');
   if (!hasColumn) {
@@ -16,7 +16,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('bookings');
-  if (!hasTable) return;
+  
   try { await knex.raw(`DROP INDEX IF EXISTS idx_bookings_return_time`); } catch {}
   const hasColumn = await knex.schema.hasColumn('bookings', 'return_time');
   if (hasColumn) {

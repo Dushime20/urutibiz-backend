@@ -2,10 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('user_notification_preferences');
-  if (!hasTable) {
-    console.log('⚠️ user_notification_preferences table missing; skipping');
-    return;
-  }
+  
 
   // Ensure defaults on columns where applicable
   const hasPreferences = await knex.schema.hasColumn('user_notification_preferences', 'preferences');

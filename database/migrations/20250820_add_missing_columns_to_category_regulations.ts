@@ -3,10 +3,7 @@ import { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   // Check if category_regulations table exists
   const hasTable = await knex.schema.hasTable('category_regulations');
-  if (!hasTable) {
-    console.log('⚠️ category_regulations table does not exist, skipping...');
-    return;
-  }
+  
 
   // Add missing columns to category_regulations table (only if they don't exist)
   const columnsToAdd = [
@@ -55,7 +52,7 @@ export async function up(knex: Knex): Promise<void> {
         console.log(`⚠️ Failed to add column ${column.name}: ${error instanceof Error ? error.message : String(error)}`);
       }
     } else {
-      console.log(`⚠️ Column ${column.name} already exists, skipping...`);
+      
     }
   }
 
@@ -83,10 +80,7 @@ export async function up(knex: Knex): Promise<void> {
 export async function down(knex: Knex): Promise<void> {
   // Check if category_regulations table exists
   const hasTable = await knex.schema.hasTable('category_regulations');
-  if (!hasTable) {
-    console.log('⚠️ category_regulations table does not exist, skipping...');
-    return;
-  }
+  
 
   // Remove the columns we added (only if they exist)
   const columnsToRemove = [
@@ -110,7 +104,7 @@ export async function down(knex: Knex): Promise<void> {
         console.log(`⚠️ Failed to remove column ${columnName}: ${error instanceof Error ? error.message : String(error)}`);
       }
     } else {
-      console.log(`⚠️ Column ${columnName} does not exist, skipping...`);
+      
     }
   }
 

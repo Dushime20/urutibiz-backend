@@ -7,10 +7,7 @@ import { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('product_images');
   
-  if (!hasTable) {
-    console.log('product_images table does not exist, skipping migration');
-    return;
-  }
+  
 
   // Check if column already exists using raw query
   const columnExists = await knex.raw(`
@@ -21,7 +18,7 @@ export async function up(knex: Knex): Promise<void> {
   `);
 
   if (columnExists.rows && columnExists.rows.length > 0) {
-    console.log('image_embedding column already exists, skipping');
+    
     return;
   }
 

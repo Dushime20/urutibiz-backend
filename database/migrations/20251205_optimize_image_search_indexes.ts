@@ -7,10 +7,7 @@ import { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('product_images');
   
-  if (!hasTable) {
-    console.log('product_images table does not exist, skipping migration');
-    return;
-  }
+  
 
   // 1. Composite index for active products with embeddings (common query pattern)
   try {

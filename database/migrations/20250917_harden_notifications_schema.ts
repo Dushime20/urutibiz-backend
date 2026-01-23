@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasNotifications = await knex.schema.hasTable('notifications');
-  if (!hasNotifications) return;
+  
 
   // Ensure required columns exist and have expected defaults/types
   const hasIsRead = await knex.schema.hasColumn('notifications', 'is_read');
@@ -46,7 +46,7 @@ export async function up(knex: Knex): Promise<void> {
         END$$;
       `);
     } catch (e) {
-      console.log('⚠️ Skipping channels type normalization');
+      
     }
   }
 
@@ -83,7 +83,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasNotifications = await knex.schema.hasTable('notifications');
-  if (!hasNotifications) return;
+  
 
   try { await knex.raw(`DROP INDEX IF EXISTS idx_notifications_is_read;`); } catch {}
   try { await knex.raw(`DROP INDEX IF EXISTS idx_notifications_created_at;`); } catch {}

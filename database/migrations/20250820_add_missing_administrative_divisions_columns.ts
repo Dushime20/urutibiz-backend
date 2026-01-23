@@ -4,7 +4,7 @@ export async function up(knex: Knex): Promise<void> {
   // Check if table exists
   const tableExists = await knex.schema.hasTable('administrative_divisions');
   if (!tableExists) {
-    console.log('Table administrative_divisions does not exist, skipping migration');
+    
     return;
   }
 

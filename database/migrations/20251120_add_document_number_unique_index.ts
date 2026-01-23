@@ -12,10 +12,7 @@ import { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('user_verifications');
   
-  if (!hasTable) {
-    console.log('⚠️ user_verifications table does not exist, skipping index creation');
-    return;
-  }
+  
 
   const hasIndex = await knex.schema.hasTable('user_verifications')
     .then(() => {

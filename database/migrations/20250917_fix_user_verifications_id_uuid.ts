@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('user_verifications');
-  if (!hasTable) return;
+  
 
   // Ensure extensions for UUID
   await knex.raw('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');

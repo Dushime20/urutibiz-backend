@@ -25,7 +25,7 @@ export async function up(knex: Knex): Promise<void> {
 
     console.log('✅ User sessions table created successfully');
   } else {
-    console.log('⚠️ user_sessions table already exists, skipping...');
+    
   }
 }
 
@@ -35,6 +35,6 @@ export async function down(knex: Knex): Promise<void> {
     await knex.schema.dropTable('user_sessions');
     console.log('✅ User sessions table dropped successfully');
   } else {
-    console.log('⚠️ user_sessions table does not exist, skipping...');
+    
   }
 }

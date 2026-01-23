@@ -5,10 +5,7 @@ export async function up(knex: Knex): Promise<void> {
 
   // Check if payment_transactions table exists
   const hasPaymentTransactions = await knex.schema.hasTable('payment_transactions');
-  if (!hasPaymentTransactions) {
-    console.log('⚠️ payment_transactions table does not exist, skipping...');
-    return;
-  }
+  
 
   // Drop the view that depends on the amount column
   await knex.raw('DROP VIEW IF EXISTS transaction_summaries;');
@@ -55,10 +52,7 @@ export async function down(knex: Knex): Promise<void> {
 
   // Check if payment_transactions table exists
   const hasPaymentTransactions = await knex.schema.hasTable('payment_transactions');
-  if (!hasPaymentTransactions) {
-    console.log('⚠️ payment_transactions table does not exist, skipping...');
-    return;
-  }
+  
 
   // Drop the view that depends on the amount column
   await knex.raw('DROP VIEW IF EXISTS transaction_summaries;');

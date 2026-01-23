@@ -3,10 +3,7 @@ import { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   // Ensure products table exists
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) {
-    console.log('⚠️ products table does not exist, skipping owner_id addition');
-    return;
-  }
+  
 
   // 1) Add owner_id column if missing
   const hasOwnerId = await knex.schema.hasColumn('products', 'owner_id');
@@ -16,7 +13,7 @@ export async function up(knex: Knex): Promise<void> {
     });
     console.log('✅ Added products.owner_id column');
   } else {
-    console.log('⚠️ products.owner_id already exists, skipping column add');
+    
   }
 
   // 2) Optional backfill from created_by if that column exists and owner_id is null
@@ -51,7 +48,7 @@ export async function up(knex: Knex): Promise<void> {
     `);
     console.log('✅ Ensured FK products.owner_id -> users.id');
   } else {
-    console.log('⚠️ users table does not exist, skipping FK for products.owner_id');
+    
   }
 
   // 4) Create index for owner_id
@@ -61,10 +58,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) {
-    console.log('⚠️ products table does not exist, skipping down');
-    return;
-  }
+  
 
   // Drop FK if exists
   try {
@@ -97,7 +91,7 @@ export async function down(knex: Knex): Promise<void> {
     });
     console.log('✅ Dropped products.owner_id');
   } else {
-    console.log('⚠️ products.owner_id does not exist, skipping column drop');
+    
   }
 }
 

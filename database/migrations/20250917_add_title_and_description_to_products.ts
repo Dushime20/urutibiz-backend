@@ -2,10 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) {
-    console.log('⚠️ products table does not exist, skipping title/description addition');
-    return;
-  }
+  
 
   const hasTitle = await knex.schema.hasColumn('products', 'title');
   const hasDescription = await knex.schema.hasColumn('products', 'description');
@@ -37,7 +34,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) return;
+  
 
   try { await knex.raw(`DROP INDEX IF EXISTS idx_products_title`); } catch {}
 

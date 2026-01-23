@@ -2,10 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasNotifications = await knex.schema.hasTable('notifications');
-  if (!hasNotifications) {
-    console.log('⚠️ notifications table does not exist, skipping alignment migration');
-    return;
-  }
+  
 
   // Add columns only if they don't exist
   const needsUserId = !(await knex.schema.hasColumn('notifications', 'user_id'));
@@ -20,7 +17,7 @@ export async function up(knex: Knex): Promise<void> {
     });
     console.log('✅ Added missing notification columns');
   } else {
-    console.log('⚠️ Notification columns already present, skipping column add');
+    
   }
 
   // Add FK to users if not present and table exists
@@ -40,7 +37,7 @@ export async function up(knex: Knex): Promise<void> {
     `);
     console.log('✅ Ensured FK notifications.user_id -> users.id');
   } else {
-    console.log('⚠️ users table not found, skipping FK');
+    
   }
 
   // Indexes
@@ -52,7 +49,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasNotifications = await knex.schema.hasTable('notifications');
-  if (!hasNotifications) return;
+  
 
   // Drop FK if exists
   try {

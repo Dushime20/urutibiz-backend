@@ -3,7 +3,7 @@ import { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   const hasNotifications = await knex.schema.hasTable('notifications');
   if (!hasNotifications) {
-    console.warn('⚠️ notifications table missing, skipping schema fix');
+    
     return;
   }
 

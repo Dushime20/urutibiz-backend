@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('payment_transactions');
-  if (!hasTable) return;
+  
 
   // Drop all existing constraints that might conflict
   const constraintsToDrop = [
@@ -48,7 +48,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('payment_transactions');
-  if (!hasTable) return;
+  
 
   try {
     await knex.raw(`ALTER TABLE payment_transactions DROP CONSTRAINT IF EXISTS check_processed_at_for_final_status_new;`);

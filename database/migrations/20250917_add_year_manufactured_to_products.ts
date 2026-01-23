@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) return;
+  
 
   const hasYear = await knex.schema.hasColumn('products', 'year_manufactured');
   if (!hasYear) {
@@ -15,7 +15,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) return;
+  
   const hasYear = await knex.schema.hasColumn('products', 'year_manufactured');
   if (hasYear) {
     await knex.schema.alterTable('products', (table) => {

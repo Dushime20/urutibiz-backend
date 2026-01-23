@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('bookings');
-  if (!hasTable) return;
+  
 
   // Change pickup_time and return_time from timestamp to time
   const hasPickupTime = await knex.schema.hasColumn('bookings', 'pickup_time');
@@ -33,7 +33,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('bookings');
-  if (!hasTable) return;
+  
 
   const hasPickupTime = await knex.schema.hasColumn('bookings', 'pickup_time');
   const hasReturnTime = await knex.schema.hasColumn('bookings', 'return_time');

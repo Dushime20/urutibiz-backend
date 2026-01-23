@@ -12,10 +12,7 @@ import { Knex } from 'knex';
  */
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('bookings');
-  if (!hasTable) {
-    console.log('⚠️ bookings table does not exist, skipping owner confirmation migration');
-    return;
-  }
+  
 
   // Add owner_confirmed boolean column
   const hasOwnerConfirmed = await knex.schema.hasColumn('bookings', 'owner_confirmed');
@@ -26,7 +23,7 @@ export async function up(knex: Knex): Promise<void> {
     await knex.raw(`CREATE INDEX IF NOT EXISTS idx_bookings_owner_confirmed ON bookings(owner_confirmed)`);
     console.log('✅ Added owner_confirmed column to bookings table');
   } else {
-    console.log('ℹ️ owner_confirmed column already exists, skipping');
+    
   }
 
   // Add owner_confirmation_status column
@@ -38,7 +35,7 @@ export async function up(knex: Knex): Promise<void> {
     await knex.raw(`CREATE INDEX IF NOT EXISTS idx_bookings_owner_confirmation_status ON bookings(owner_confirmation_status)`);
     console.log('✅ Added owner_confirmation_status column to bookings table');
   } else {
-    console.log('ℹ️ owner_confirmation_status column already exists, skipping');
+    
   }
 
   // Add owner_confirmed_at timestamp
@@ -50,7 +47,7 @@ export async function up(knex: Knex): Promise<void> {
     await knex.raw(`CREATE INDEX IF NOT EXISTS idx_bookings_owner_confirmed_at ON bookings(owner_confirmed_at)`);
     console.log('✅ Added owner_confirmed_at column to bookings table');
   } else {
-    console.log('ℹ️ owner_confirmed_at column already exists, skipping');
+    
   }
 
   // Add owner_rejection_reason text field
@@ -61,7 +58,7 @@ export async function up(knex: Knex): Promise<void> {
     });
     console.log('✅ Added owner_rejection_reason column to bookings table');
   } else {
-    console.log('ℹ️ owner_rejection_reason column already exists, skipping');
+    
   }
 
   // Add owner_confirmation_notes text field
@@ -72,7 +69,7 @@ export async function up(knex: Knex): Promise<void> {
     });
     console.log('✅ Added owner_confirmation_notes column to bookings table');
   } else {
-    console.log('ℹ️ owner_confirmation_notes column already exists, skipping');
+    
   }
 
   console.log('✅ Owner confirmation migration completed');
@@ -80,7 +77,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('bookings');
-  if (!hasTable) return;
+  
 
   // Remove columns in reverse order
   const columnsToRemove = [

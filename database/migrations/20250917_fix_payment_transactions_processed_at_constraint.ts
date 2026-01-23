@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('payment_transactions');
-  if (!hasTable) return;
+  
 
   // Drop the problematic constraint
   try {
@@ -27,7 +27,7 @@ export async function up(knex: Knex): Promise<void> {
   } catch (error: any) {
     // If constraint already exists, that's okay
     if (error.message?.includes('already exists')) {
-      console.log('✅ Constraint already exists, skipping');
+      
     } else {
       console.warn('Could not add new constraint:', error);
     }
@@ -36,7 +36,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('payment_transactions');
-  if (!hasTable) return;
+  
 
   try {
     await knex.raw(`ALTER TABLE payment_transactions DROP CONSTRAINT IF EXISTS check_processed_at_for_final_status;`);

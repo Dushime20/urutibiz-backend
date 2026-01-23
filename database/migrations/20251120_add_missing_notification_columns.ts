@@ -3,7 +3,7 @@ import { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   const hasNotifications = await knex.schema.hasTable('notifications');
   if (!hasNotifications) {
-    console.warn('⚠️ notifications table missing, skipping column alignment');
+    
     return;
   }
 
@@ -57,7 +57,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasNotifications = await knex.schema.hasTable('notifications');
-  if (!hasNotifications) return;
+  
 
   const dropColumn = async (column: string) => {
     const exists = await knex.schema.hasColumn('notifications', column);

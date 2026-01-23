@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('user_verifications');
-  if (!hasTable) return;
+  
 
   // If user_id is not uuid, convert it to uuid using a safe USING cast
   await knex.raw(`
@@ -47,7 +47,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('user_verifications');
-  if (!hasTable) return;
+  
 
   // Drop FK and index; do not revert type automatically
   try { await knex.raw(`DROP INDEX IF EXISTS idx_user_verifications_user_id;`); } catch {}

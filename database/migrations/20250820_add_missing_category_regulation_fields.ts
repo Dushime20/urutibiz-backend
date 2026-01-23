@@ -29,7 +29,7 @@ export async function up(knex: Knex): Promise<void> {
   // Add missing columns to category_regulations table - check each one first
   const tableExists = await knex.schema.hasTable('category_regulations');
   if (!tableExists) {
-    console.log('Table category_regulations does not exist, skipping migration');
+    
     return;
   }
 

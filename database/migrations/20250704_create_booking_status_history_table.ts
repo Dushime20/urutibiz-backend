@@ -29,7 +29,7 @@ export async function up(knex: Knex): Promise<void> {
     }
     console.log('✅ Created booking_status_history table with audit trail functionality');
   } else {
-    console.log('ℹ️ booking_status_history table already exists, skipping creation');
+    
   }
 }
 

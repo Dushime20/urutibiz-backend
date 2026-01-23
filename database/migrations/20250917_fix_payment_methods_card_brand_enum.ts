@@ -2,11 +2,11 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('payment_methods');
-  if (!hasTable) return;
+  
 
   // Check if card_brand column exists
   const hasColumn = await knex.schema.hasColumn('payment_methods', 'card_brand');
-  if (!hasColumn) return;
+  
 
   // First, ensure the card_brand enum exists
   await knex.raw(`

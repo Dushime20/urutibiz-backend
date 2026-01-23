@@ -219,7 +219,7 @@ export async function up(knex: Knex): Promise<void> {
         },
       ]);
     } catch (err) {
-      console.warn('Skipping category regulations seed due to error:', err);
+      
     }
   }
 }

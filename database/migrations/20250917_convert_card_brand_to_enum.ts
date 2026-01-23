@@ -2,10 +2,10 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('payment_methods');
-  if (!hasTable) return;
+  
 
   const hasColumn = await knex.schema.hasColumn('payment_methods', 'card_brand');
-  if (!hasColumn) return;
+  
 
   // Drop any existing check constraint that might conflict
   try {
@@ -51,7 +51,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('payment_methods');
-  if (!hasTable) return;
+  
 
   // Convert back to text
   await knex.raw(`

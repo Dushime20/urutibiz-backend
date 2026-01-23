@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('bookings');
-  if (!hasTable) return;
+  
 
   // Add delivery_time_window column
   const hasDeliveryTimeWindow = await knex.schema.hasColumn('bookings', 'delivery_time_window');
@@ -34,7 +34,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable('bookings');
-  if (!hasTable) return;
+  
 
   const hasDeliveryTimeWindow = await knex.schema.hasColumn('bookings', 'delivery_time_window');
   if (hasDeliveryTimeWindow) {

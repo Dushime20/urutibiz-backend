@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) return;
+  
 
   // Detect current data type of pickup_methods
   const result = await knex.raw(`

@@ -9,7 +9,7 @@ export async function up(knex: Knex): Promise<void> {
   `);
 
   if (enumExists.rows.length === 0) {
-    console.log('⚠️ inspection_type enum does not exist, skipping...');
+    
     return;
   }
 

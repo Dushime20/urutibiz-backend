@@ -162,7 +162,7 @@ export async function up(knex: Knex): Promise<void> {
     });
     console.log('✅ Created typing_indicators table');
   } else if (!hasChatsTable || !hasUsersTableForTyping) {
-    console.log('⚠️ chats or users table does not exist, skipping typing_indicators table creation');
+    
   }
 
   // Create message_attachments table for better file management
@@ -187,7 +187,7 @@ export async function up(knex: Knex): Promise<void> {
     });
     console.log('✅ Created message_attachments table');
   } else if (!hasMessagesTable) {
-    console.log('⚠️ messages table does not exist, skipping message_attachments table creation');
+    
   }
 
   // Create blocked_users table
@@ -210,7 +210,7 @@ export async function up(knex: Knex): Promise<void> {
     });
     console.log('✅ Created blocked_users table');
   } else if (!hasUsersTableForBlocked) {
-    console.log('⚠️ users table does not exist, skipping blocked_users table creation');
+    
   }
 
   // Create conversation_participants table for better participant management
@@ -241,7 +241,7 @@ export async function up(knex: Knex): Promise<void> {
     });
     console.log('✅ Created conversation_participants table');
   } else if (!hasChatsTableForParticipants || !hasUsersTableForParticipants) {
-    console.log('⚠️ chats or users table does not exist, skipping conversation_participants table creation');
+    
   }
 
   console.log('✅ International messaging system enhancement completed');

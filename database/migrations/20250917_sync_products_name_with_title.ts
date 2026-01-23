@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) return;
+  
 
   // Backfill name from title/slug
   await knex.raw(`
@@ -35,7 +35,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) return;
+  
   await knex.raw(`DROP TRIGGER IF EXISTS trg_set_product_name ON products;`);
   await knex.raw(`DROP FUNCTION IF EXISTS set_product_name_from_title;`);
 }

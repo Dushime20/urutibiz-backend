@@ -2,10 +2,10 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) return;
+  
 
   const hasPrice = await knex.schema.hasColumn('products', 'price');
-  if (!hasPrice) return;
+  
 
   // Ensure a sane default and not-null with backfill
   await knex.raw(`ALTER TABLE products ALTER COLUMN price SET DEFAULT 0`);
@@ -15,9 +15,9 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) return;
+  
   const hasPrice = await knex.schema.hasColumn('products', 'price');
-  if (!hasPrice) return;
+  
   // Drop default only; keep not-null
   await knex.raw(`ALTER TABLE products ALTER COLUMN price DROP DEFAULT`);
 }

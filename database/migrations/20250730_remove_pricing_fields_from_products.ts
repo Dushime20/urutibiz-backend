@@ -3,10 +3,7 @@ import { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   // Check if products table exists
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) {
-    console.log('⚠️ products table does not exist, skipping...');
-    return;
-  }
+  
 
   // Remove redundant pricing fields from products table
   // These fields are now handled by the dedicated product_prices table
@@ -31,7 +28,7 @@ export async function up(knex: Knex): Promise<void> {
         console.log(`⚠️ Failed to remove column ${columnName}: ${error instanceof Error ? error.message : String(error)}`);
       }
     } else {
-      console.log(`⚠️ Column ${columnName} does not exist, skipping...`);
+      
     }
   }
 
@@ -41,10 +38,7 @@ export async function up(knex: Knex): Promise<void> {
 export async function down(knex: Knex): Promise<void> {
   // Check if products table exists
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) {
-    console.log('⚠️ products table does not exist, skipping...');
-    return;
-  }
+  
 
   // Add back the pricing fields if needed to rollback
   const columnsToAdd = [
@@ -80,7 +74,7 @@ export async function down(knex: Knex): Promise<void> {
         console.log(`⚠️ Failed to add column ${column.name}: ${error instanceof Error ? error.message : String(error)}`);
       }
     } else {
-      console.log(`⚠️ Column ${column.name} already exists, skipping...`);
+      
     }
   }
 

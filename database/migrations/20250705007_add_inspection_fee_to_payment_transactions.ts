@@ -5,7 +5,7 @@ export async function up(knex: Knex): Promise<void> {
   const tableExists = await knex.schema.hasTable('payment_transactions');
   
   if (!tableExists) {
-    console.log('payment_transactions table does not exist, skipping migration');
+    
     return;
   }
 
@@ -37,7 +37,7 @@ export async function down(knex: Knex): Promise<void> {
   const tableExists = await knex.schema.hasTable('payment_transactions');
   
   if (!tableExists) {
-    console.log('payment_transactions table does not exist, skipping rollback');
+    
     return;
   }
 

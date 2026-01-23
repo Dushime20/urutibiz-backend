@@ -2,7 +2,7 @@ import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) return;
+  
 
   // Ensure PostGIS for geometry
   await knex.raw('CREATE EXTENSION IF NOT EXISTS "postgis"');
@@ -40,7 +40,7 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasProducts = await knex.schema.hasTable('products');
-  if (!hasProducts) return;
+  
   // Non-destructive down; leave columns as they may be in use
 }
 

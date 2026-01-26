@@ -251,8 +251,8 @@ class ImageSearchService {
   }
 
   /**
-   * Multi-stage search: Exact match → Category match → High similarity → Medium similarity
-   * Alibaba approach: Prioritize exact matches, then same-category products, then high-quality matches
+   * Multi-stage search: Exact match → High similarity → Medium similarity → Low similarity
+   * Results ordered by similarity percentage descending (highest to lowest)
    */
   private rankResults(results: any[]): any[] {
     return results.sort((a, b) => {
@@ -260,31 +260,7 @@ class ImageSearchService {
       if (a._isExactMatch && !b._isExactMatch) return -1;
       if (!a._isExactMatch && b._isExactMatch) return 1;
 
-      // Priority 2: Category matches (same category as query image) - STRONG PRIORITY
-      // This ensures car images return car products first, not clothes/shoes
-      if (a.category_match && !b.category_match) return -1;
-      if (!a.category_match && b.category_match) return 1;
-      
-      // Priority 2.5: Category boost flag (products that got category boost)
-      if (a._categoryBoost && !b._categoryBoost) return -1;
-      if (!a._categoryBoost && b._categoryBoost) return 1;
-      
-      // Priority 2.6: Penalize products NOT in dominant category
-      if (a._categoryPenalty && !b._categoryPenalty) return 1; // Penalized items go down
-      if (!a._categoryPenalty && b._categoryPenalty) return -1;
-
-      // Priority 3: Quality score (includes category boost/penalty)
-      const qualityA = a.quality_score || a.similarity;
-      const qualityB = b.quality_score || b.similarity;
-      if (Math.abs(qualityA - qualityB) > 0.01) {
-        return qualityB - qualityA;
-      }
-
-      // Priority 4: Primary images
-      if (a.image?.is_primary && !b.image?.is_primary) return -1;
-      if (!a.image?.is_primary && b.image?.is_primary) return 1;
-
-      // Priority 5: Similarity score
+      // Priority 2: Sort by similarity percentage descending (highest to lowest)
       return b.similarity - a.similarity;
     });
   }

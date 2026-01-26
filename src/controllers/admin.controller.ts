@@ -497,6 +497,47 @@ export class AdminController extends BaseController {
 
   /**
    * @swagger
+   * /admin/products/{id}/soft-delete:
+   *   patch:
+   *     summary: Soft delete product (hide from public)
+   *     tags: [Admin]
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: Product soft deleted successfully
+   */
+  public async softDeleteProduct(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const adminId = (req as any).user.id;
+      const db = require('@/config/database').getDatabase();
+      
+      const product = await db('products').where('id', id).first();
+      if (!product) {
+        return ResponseHelper.error(res, 'Product not found', undefined, 404);
+      }
+      
+      await db('products').where('id', id).update({
+        status: 'deleted',
+        updated_at: new Date()
+      });
+      
+      logger.info(`Admin ${adminId} soft deleted product ${id}`);
+      
+      return ResponseHelper.success(res, 'Product disabled successfully', { id, status: 'deleted' });
+    } catch (error: any) {
+      logger.error(`Error in softDeleteProduct: ${error.message}`);
+      return ResponseHelper.error(res, 'Failed to disable product', error);
+    }
+  }
+
+  /**
+   * @swagger
    * /admin/bookings:
    *   get:
    *     summary: List bookings

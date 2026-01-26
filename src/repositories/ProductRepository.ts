@@ -122,6 +122,9 @@ class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProdu
           }
         }
       });
+      
+      // Exclude soft-deleted products from public queries
+      qb.whereNot('products.status', 'deleted');
     };
 
     applyFilters(query);

@@ -290,38 +290,10 @@ export const connectRedis = async (retryAttempt: number = 0): Promise<void> => {
         return connectRedis(retryAttempt + 1);
       }
 
-      // Fallback to Mock Client if connection fails after retries
-      logger.warn(`Failed to connect to Redis after ${MAX_RETRY_ATTEMPTS} attempts. Switching to Mock Redis Client (Memory Mode).`);
-
-      // Create a mock client interface
-      const mockClient = {
-        get: async () => null,
-        set: async () => 'OK',
-        setEx: async () => 'OK',
-        del: async () => 1,
-        exists: async () => 0,
-        expire: async () => true,
-        quit: async () => 'OK',
-        disconnect: async () => { },
-        multi: () => ({
-          get: () => { },
-          set: () => { },
-          setEx: () => { },
-          del: () => { },
-          exists: () => { },
-          exec: async () => []
-        }),
-        on: () => { }, // Mock event listener
-        connect: async () => { } // Mock connect
-      } as unknown as RedisClientType;
-
-      redisClient = mockClient;
-      connectionState.isConnected = true; // Use connected state for mock to allow operations to proceed
-      connectionState.isConnecting = false;
-
-      logger.info('✅ Mock Redis Client Active (Memory Mode) - Caching disabled');
-      return;
-
+      throw new RedisConnectionError(
+        `Failed to connect to Redis after ${MAX_RETRY_ATTEMPTS} attempts`,
+        error instanceof Error ? error : new Error(String(error))
+      );
     } finally {
       connectionState.reconnectPromise = undefined;
     }

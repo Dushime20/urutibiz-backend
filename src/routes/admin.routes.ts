@@ -815,6 +815,7 @@ router.get('/products', adminController.getProducts);
 router.get('/products/analytics', adminController.getProductAnalytics);
 router.get('/products/:id', adminController.getProductDetails);
 router.post('/products/:id/moderate', adminController.moderateProduct);
+router.patch('/products/:id/soft-delete', adminController.softDeleteProduct);
 
 // Bookings routes
 router.get('/bookings', adminController.getBookings);

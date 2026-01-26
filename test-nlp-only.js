@@ -33,6 +33,7 @@ async function testQuery(prompt) {
 
 async function run() {
     console.log("Running NLP Debug Tests...");
+    await testQuery("cheap house in kigali");
     await testQuery("camera in kigali which is at least 30000 rwf cost");
     await testQuery("cheap red car");
     await testQuery("new laptop under 50000");

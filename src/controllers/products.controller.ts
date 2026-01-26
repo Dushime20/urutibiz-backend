@@ -446,7 +446,32 @@ export class ProductsController extends BaseController {
     
     try {
       const { page, limit } = this.getPaginationParams(req);
-      const filters = normalizeProductFilters(req.query);
+      let filters = normalizeProductFilters(req.query);
+      
+      // Check if this is an AI search (search param starts with "🔍 AI Search:")
+      if (filters.search && filters.search.includes('🔍 ai search:')) {
+        // Extract the actual prompt from the search string
+        const promptMatch = filters.search.match(/🔍 ai search:\s*["']?(.+?)["']?$/i);
+        if (promptMatch && promptMatch[1]) {
+          const prompt = promptMatch[1].trim();
+          console.log('[ProductsController] AI Search detected, prompt:', prompt);
+          
+          // Use AI search service to parse the prompt
+          const AISearchService = (await import('@/services/aiSearch.service')).default;
+          const aiFilters = await AISearchService.parseNaturalLanguageQuery(prompt);
+          
+          console.log('[ProductsController] AI Filters derived:', aiFilters);
+          
+          // Merge AI filters with existing filters
+          filters = { ...filters, ...aiFilters };
+          // Remove the AI search prefix from search term
+          if (aiFilters.search) {
+            filters.search = aiFilters.search;
+          } else {
+            delete filters.search;
+          }
+        }
+      }
       
       // SIMPLE E-RENTAL LOGIC: Always return only approved (active) products for public
       // This ensures only admin-approved products are visible in the marketplace

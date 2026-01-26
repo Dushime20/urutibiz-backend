@@ -228,13 +228,15 @@ class AISearchService {
       }
     }
 
-    // Cleanup
+    // Cleanup and remove common words
     searchTerms = searchTerms
-      .replace(/\b(i want|i need|looking for|find me|buy|which is|that is)\b/g, '')
+      .replace(/\b(i want|i need|looking for|find me|buy|which is|that is|for|rent|sale|to)\b/g, '')
       .replace(/\s+/g, ' ')
       .trim();
 
-    if (searchTerms.length > 0) {
+    // Only add search term if it's meaningful and category wasn't matched
+    // If category is matched, the search term becomes optional
+    if (searchTerms.length > 2 && !matchedCategory) {
       filters.search = searchTerms;
     }
 

@@ -132,7 +132,9 @@ class AISearchService {
         // filters.search += " " + result.location_text; 
       }
 
-      if (result.keywords && Array.isArray(result.keywords)) {
+      // Only add search keywords if no category was matched
+      // When category is found, return all products in that category without additional filters
+      if (result.keywords && Array.isArray(result.keywords) && !filters.category_id) {
         filters.search = result.keywords.join(' ');
       }
 
@@ -234,8 +236,7 @@ class AISearchService {
       .replace(/\s+/g, ' ')
       .trim();
 
-    // Only add search term if it's meaningful and category wasn't matched
-    // If category is matched, the search term becomes optional
+    // When category is found, skip search keywords to return all products in that category
     if (searchTerms.length > 2 && !matchedCategory) {
       filters.search = searchTerms;
     }

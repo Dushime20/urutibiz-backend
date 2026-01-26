@@ -1,14 +1,33 @@
 import * as faceapi from 'face-api.js';
-import * as canvas from 'canvas';
 import * as path from 'path';
 import * as fs from 'fs';
 
-const { Canvas, Image, ImageData } = canvas;
+// Try to load canvas with fallback to @napi-rs/canvas
+let Canvas: any;
+let Image: any;
+let ImageData: any;
+
+try {
+  // Try original canvas first
+  const canvas = require('canvas');
+  Canvas = canvas.Canvas;
+  Image = canvas.Image;
+  ImageData = canvas.ImageData;
+  console.log('[face-api] Using original canvas package');
+} catch (error) {
+  // Fallback to @napi-rs/canvas if original fails
+  console.log('[face-api] Original canvas failed, using @napi-rs/canvas as fallback');
+  const napiCanvas = require('@napi-rs/canvas');
+  Canvas = napiCanvas.Canvas;
+  Image = napiCanvas.Image;
+  ImageData = napiCanvas.ImageData;
+}
+
 faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 
 // Resolve model path - works both in development and after compilation
 const MODEL_PATH = path.resolve(
-  __dirname.includes('dist') 
+  __dirname.includes('dist')
     ? path.join(__dirname, '../models/face-api')
     : path.join(__dirname, '../../models/face-api')
 );
@@ -29,7 +48,7 @@ async function ensureModelsLoaded() {
     }
 
     console.log('[face-api] Loading models from:', MODEL_PATH);
-    
+
     // Check if model directory exists
     if (!fs.existsSync(MODEL_PATH)) {
       throw new Error(`Model directory not found: ${MODEL_PATH}`);
@@ -37,20 +56,20 @@ async function ensureModelsLoaded() {
 
     await faceapi.nets.ssdMobilenetv1.loadFromDisk(MODEL_PATH);
     console.log('[face-api] ssdMobilenetv1 loaded');
-    
+
     // Use faceLandmark68Net (correct property name in face-api.js)
     if (!faceapi.nets.faceLandmark68Net) {
       throw new Error('faceLandmark68Net not available in face-api.js');
     }
     await faceapi.nets.faceLandmark68Net.loadFromDisk(MODEL_PATH);
     console.log('[face-api] faceLandmark68Net loaded');
-    
+
     if (!faceapi.nets.faceRecognitionNet) {
       throw new Error('faceRecognitionNet not available in face-api.js');
     }
     await faceapi.nets.faceRecognitionNet.loadFromDisk(MODEL_PATH);
     console.log('[face-api] faceRecognitionNet loaded');
-    
+
     modelsLoaded = true;
     console.log('[face-api] All models loaded successfully');
   } catch (error: any) {
@@ -60,7 +79,7 @@ async function ensureModelsLoaded() {
   }
 }
 
-async function loadImageFromUrl(url: string): Promise<canvas.Image> {
+async function loadImageFromUrl(url: string): Promise<any> {
   const axios = require('axios');
   const response = await axios.get(url, { responseType: 'arraybuffer' });
   const img = new Image();
@@ -76,7 +95,7 @@ export async function compareFacesFaceApi(documentImageUrl: string, selfieImageU
   try {
     await ensureModelsLoaded();
     console.log('[face-api] Loading images:', documentImageUrl, selfieImageUrl);
-    
+
     const [img1, img2] = await Promise.all([
       loadImageFromUrl(documentImageUrl),
       loadImageFromUrl(selfieImageUrl)

@@ -102,17 +102,21 @@ class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProdu
     // 3. Apply Filters (to both Data and Count query)
     const applyFilters = (qb: any) => {
       // Keyword Filtering (Deep Search: each keyword must match at least something)
+      // Keyword Filtering (Relaxed for Deep Search: at least one core keyword must match)
       if (search) {
-        const keywords = search.split(/\s+/).filter((k: string) => k.length > 0);
-        keywords.forEach((word: string) => {
-          const pattern = `%${word}%`;
+        const noiseWords = new Set(['i', 'want', 'for', 'and', 'also', 'the', 'in', 'at', 'with', 'a', 'an']);
+        const keywords = search.split(/\s+/).filter((k: string) => k.length > 1 && !noiseWords.has(k.toLowerCase()));
+
+        if (keywords.length > 0) {
           qb.where((builder: any) => {
-            builder.where('products.title', 'ILIKE', pattern)
-              .orWhere('categories.name', 'ILIKE', pattern)
-              .orWhere('products.description', 'ILIKE', pattern)
-              .orWhereRaw('products.tags::text ILIKE ?', [pattern]);
+            keywords.forEach((word: string) => {
+              const pattern = `%${word}%`;
+              builder.orWhere('products.title', 'ILIKE', pattern)
+                .orWhere('categories.name', 'ILIKE', pattern)
+                .orWhere('products.description', 'ILIKE', pattern);
+            });
           });
-        });
+        }
       }
 
       // Deep Search: Technical Specifications Filtering

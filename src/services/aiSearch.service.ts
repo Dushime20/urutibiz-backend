@@ -86,12 +86,14 @@ class AISearchService {
           condition: (new, like_new, good, fair, poor),
           attributes: { (key-value pairs of features/specs like red, toyota, 8GB) }
         }
-      - semantic_query: (Cleaned descriptive phrase for vector search, e.g. "camera that works well at night")
-      - keywords: (Array of core product keywords)
+      - semantic_query: (Cleaned descriptive phrase for vector search. STRIP words like "want", "find", "need", "also". E.g., "cheap camera kigali house musanze")
+      - keywords: (Array of core product keywords ONLY. Max 5 high-importance keywords.)
       - sort_intent: (price_asc, price_desc, rating, newest)
       
-      Strict Rule: Identify multiple intents if present (e.g., "car and a house"). 
-      For multi-intent queries, merge them into a single coherent semantic_query but keep keywords separate.
+      Strict Rules: 
+      1. Identify multiple items if present (e.g., "car and a house"). 
+      2. Keep semantic_query lean and focused on product attributes and locations.
+      3. For multi-intent queries, merge them into a single focused semantic_query.
       
       Output MUST be valid JSON.
     `;

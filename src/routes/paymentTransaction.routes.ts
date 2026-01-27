@@ -27,7 +27,7 @@ const controller = new PaymentTransactionController();
  * @access  Private (requires authentication in production)
  * @body    CreatePaymentTransactionData
  */
-router.post('/',requireAuth, controller.createTransaction);
+router.post('/', requireAuth, controller.createTransaction);
 
 /**
  * @route   GET /api/payment-transactions
@@ -35,11 +35,11 @@ router.post('/',requireAuth, controller.createTransaction);
  * @access  Private (requires authentication in production)
  * @query   page, limit, sortBy, sortOrder, search, userId, bookingId, etc.
  */
-router.get('/',requireAuth, controller.getTransactions);
+router.get('/', requireAuth, controller.getTransactions);
 
 // Move analytics and health BEFORE dynamic :id to avoid UUID cast on 'stats'/'health'
-router.get('/stats',requireAuth, controller.getTransactionStats);
-router.get('/health',requireAuth, controller.healthCheck);
+router.get('/stats', requireAuth, controller.getTransactionStats);
+router.get('/health', requireAuth, controller.healthCheck);
 
 /**
  * @route   GET /api/payment-transactions/:id
@@ -47,7 +47,7 @@ router.get('/health',requireAuth, controller.healthCheck);
  * @access  Private (requires authentication in production)
  * @params  id - Transaction ID
  */
-router.get('/:id',requireAuth, controller.getTransaction);
+router.get('/:id', requireAuth, controller.getTransaction);
 
 /**
  * @route   PUT /api/payment-transactions/:id
@@ -56,7 +56,7 @@ router.get('/:id',requireAuth, controller.getTransaction);
  * @params  id - Transaction ID
  * @body    UpdatePaymentTransactionData
  */
-router.put('/:id',requireAuth, controller.updateTransaction);
+router.put('/:id', requireAuth, controller.updateTransaction);
 
 /**
  * @route   DELETE /api/payment-transactions/:id
@@ -76,7 +76,15 @@ router.delete('/:id', controller.deleteTransaction);
  * @access  Private (requires authentication in production)
  * @params  userId - User ID
  */
-router.get('/user/:userId',requireAuth, controller.getTransactionsByUser);
+router.get('/user/:userId', requireAuth, controller.getTransactionsByUser);
+
+/**
+ * @route   GET /api/payment-transactions/received/:userId
+ * @desc    Get all received transactions for a specific user (where user is owner)
+ * @access  Private (requires authentication in production)
+ * @params  userId - User ID
+ */
+router.get('/received/:userId', requireAuth, controller.getReceivedTransactions);
 
 /**
  * @route   GET /api/payment-transactions/inspector/:inspectorId
@@ -113,7 +121,7 @@ router.get('/user/:userId/summary', requireAuth, controller.getUserTransactionSu
  * @access  Private (requires authentication in production)
  * @body    ProcessPaymentRequest
  */
-router.post('/process',requireAuth, controller.processPayment);
+router.post('/process', requireAuth, controller.processPayment);
 
 /**
  * @route   POST /api/payment-transactions/:id/refund
@@ -122,7 +130,7 @@ router.post('/process',requireAuth, controller.processPayment);
  * @params  id - Transaction ID
  * @body    RefundRequest (without transactionId)
  */
-router.post('/:id/refund',requireAuth, controller.processRefund);
+router.post('/:id/refund', requireAuth, controller.processRefund);
 
 /**
  * @route   PATCH /api/payment-transactions/:id/status

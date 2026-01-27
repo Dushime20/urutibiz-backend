@@ -4,10 +4,10 @@
 
 import { PaymentTransactionRepository } from '../repositories/PaymentTransactionRepository.knex';
 import { getDatabase } from '../config/database';
-import { 
-  PaymentTransactionData, 
-  CreatePaymentTransactionData, 
-  UpdatePaymentTransactionData, 
+import {
+  PaymentTransactionData,
+  CreatePaymentTransactionData,
+  UpdatePaymentTransactionData,
   PaymentTransactionFilters,
   PaymentTransactionSearchParams,
   PaymentTransactionStats,
@@ -93,6 +93,17 @@ export class PaymentTransactionService {
     }
 
     return await this.repository.findByUserId(userId);
+  }
+
+  /**
+   * Get received transactions by user ID (where user is the owner of the booked product)
+   */
+  async getReceivedTransactionsByUserId(userId: string): Promise<PaymentTransactionData[]> {
+    if (!userId) {
+      throw new PaymentTransactionError('User ID is required', 'INVALID_USER_ID');
+    }
+
+    return await this.repository.findReceivedByUserId(userId);
   }
 
   /**
@@ -243,7 +254,7 @@ export class PaymentTransactionService {
     }
 
     const allTransactions = await statsQuery.orderBy('pt.created_at', 'desc');
-    
+
     // Parse metadata for stats transactions
     const parsedAllTransactions = allTransactions.map((t: any) => {
       if (t.metadata) {
@@ -260,16 +271,16 @@ export class PaymentTransactionService {
 
     const completedTransactions = parsedAllTransactions.filter(t => t.status === 'completed');
     const totalEarnings = completedTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-    
+
     const thisMonth = new Date();
     const thisMonthTransactions = completedTransactions.filter(t => {
       const date = new Date(t.processed_at || t.created_at);
-      return date.getMonth() === thisMonth.getMonth() && 
-             date.getFullYear() === thisMonth.getFullYear();
+      return date.getMonth() === thisMonth.getMonth() &&
+        date.getFullYear() === thisMonth.getFullYear();
     });
     const thisMonthEarnings = thisMonthTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
-    const pendingPayments = parsedAllTransactions.filter(t => 
+    const pendingPayments = parsedAllTransactions.filter(t =>
       t.status === 'pending' || t.status === 'processing'
     ).length;
 
@@ -300,7 +311,7 @@ export class PaymentTransactionService {
     await this.validateTransactionUpdates(updates);
 
     const transaction = await this.repository.update(id, updates);
-    
+
     if (!transaction) {
       throw new PaymentTransactionError('Transaction not found', 'TRANSACTION_NOT_FOUND');
     }
@@ -323,12 +334,12 @@ export class PaymentTransactionService {
    * Update transaction status
    */
   async updateTransactionStatus(
-    id: string, 
-    status: PaymentStatus, 
+    id: string,
+    status: PaymentStatus,
     updates?: Partial<UpdatePaymentTransactionData>
   ): Promise<PaymentTransactionData> {
     const transaction = await this.getTransactionById(id);
-    
+
     if (!transaction) {
       throw new PaymentTransactionError('Transaction not found', 'TRANSACTION_NOT_FOUND');
     }
@@ -384,9 +395,9 @@ export class PaymentTransactionService {
 
       // Sync booking with payment transaction (update payment_status and auto-confirm if payment completed)
       if (updatedTransaction?.booking_id) {
-          await this.syncBookingWithPaymentTransaction(updatedTransaction);
+        await this.syncBookingWithPaymentTransaction(updatedTransaction);
         updatedTransaction = await this.getTransactionById(transaction.id);
-        }
+      }
 
       if (updatedTransaction) {
         await this.sendPaymentNotifications(updatedTransaction);
@@ -402,11 +413,11 @@ export class PaymentTransactionService {
       };
     } catch (error) {
       console.error('Payment processing error:', error);
-      
+
       if (error instanceof PaymentTransactionError || error instanceof PaymentProviderError) {
         throw error;
       }
-      
+
       throw new PaymentTransactionError('Payment processing failed', 'PROCESSING_ERROR', { error: error instanceof Error ? error.message : String(error) });
     }
   }
@@ -417,7 +428,7 @@ export class PaymentTransactionService {
   async processRefund(request: RefundRequest): Promise<RefundResponse> {
     try {
       const originalTransaction = await this.getTransactionById(request.transaction_id);
-      
+
       if (!originalTransaction) {
         throw new PaymentTransactionError('Original transaction not found', 'TRANSACTION_NOT_FOUND');
       }
@@ -428,7 +439,7 @@ export class PaymentTransactionService {
 
       // Determine refund amount
       const refundAmount = request.amount || originalTransaction.amount;
-      
+
       if (refundAmount > originalTransaction.amount) {
         throw new PaymentTransactionError('Refund amount cannot exceed original amount', 'INVALID_REFUND_AMOUNT');
       }
@@ -488,11 +499,11 @@ export class PaymentTransactionService {
       };
     } catch (error) {
       console.error('Refund processing error:', error);
-      
+
       if (error instanceof PaymentTransactionError) {
         throw error;
       }
-      
+
       throw new PaymentTransactionError('Refund processing failed', 'REFUND_ERROR', { error: error instanceof Error ? error.message : String(error) });
     }
   }
@@ -514,9 +525,9 @@ export class PaymentTransactionService {
   async getTransactionStats(filters?: PaymentTransactionFilters): Promise<PaymentTransactionStats> {
     // Log filters for debugging
     console.log('[PaymentTransactionService] getTransactionStats filters:', JSON.stringify(filters, null, 2));
-    
+
     const transactions = await this.repository.findAll(filters);
-    
+
     // Log transaction count and amounts for debugging
     console.log('[PaymentTransactionService] Found transactions:', transactions.length);
     console.log('[PaymentTransactionService] Transaction amounts:', transactions.map(t => ({
@@ -536,13 +547,13 @@ export class PaymentTransactionService {
     let completedAmount = 0; // Only completed transactions
     let pendingAmount = 0; // Only pending transactions
     let allStatusAmount = 0; // All transactions regardless of status
-    
+
     transactions.forEach(t => {
       // Handle null, undefined, or empty values
       if (t.amount == null || (typeof t.amount === 'string' && t.amount === '')) {
         return;
       }
-      
+
       // Convert to number - handle both string and number types
       let amount: number;
       if (typeof t.amount === 'string') {
@@ -550,16 +561,16 @@ export class PaymentTransactionService {
       } else {
         amount = Number(t.amount);
       }
-      
+
       // Validate the number is not NaN or Infinity
       if (isNaN(amount) || !isFinite(amount)) {
         console.warn(`[PaymentTransactionService] Invalid amount found: ${t.amount} for transaction ${t.id}`);
         return;
       }
-      
+
       // Add to all status amount
       allStatusAmount += amount;
-      
+
       // Add to status-specific amounts
       if (t.status === 'completed') {
         completedAmount += amount;
@@ -569,7 +580,7 @@ export class PaymentTransactionService {
         totalAmount += amount; // Include pending in total
       }
     });
-    
+
     const totalCount = transactions.length;
     const averageAmount = totalCount > 0 ? totalAmount / totalCount : 0;
 
@@ -630,7 +641,7 @@ export class PaymentTransactionService {
     }
 
     const transaction = await this.getTransactionById(id);
-    
+
     if (!transaction) {
       throw new PaymentTransactionError('Transaction not found', 'TRANSACTION_NOT_FOUND');
     }
@@ -703,7 +714,7 @@ export class PaymentTransactionService {
     if (request.booking_id && request.transaction_type === 'booking_payment') {
       const BookingService = (await import('./BookingService')).default;
       const bookingResult = await BookingService.getById(request.booking_id);
-      
+
       if (!bookingResult.success || !bookingResult.data) {
         throw new PaymentTransactionError('Booking not found', 'BOOKING_NOT_FOUND');
       }
@@ -841,8 +852,8 @@ export class PaymentTransactionService {
     completedAmount: number;
     pendingAmount: number;
   }> {
-    const trends: Record<string, { 
-      count: number; 
+    const trends: Record<string, {
+      count: number;
       amount: number;
       completedCount: number;
       pendingCount: number;
@@ -855,12 +866,12 @@ export class PaymentTransactionService {
     if (filters) {
       const createdAfter = (filters as any).created_after || (filters as any).date_from;
       const createdBefore = (filters as any).created_before || (filters as any).date_to;
-      
+
       if (createdAfter && createdBefore) {
         try {
           const startDate = createdAfter instanceof Date ? createdAfter : new Date(createdAfter);
           const endDate = createdBefore instanceof Date ? createdBefore : new Date(createdBefore);
-          
+
           // Validate dates
           if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
             const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -879,15 +890,15 @@ export class PaymentTransactionService {
       if (!created) return;
       const d: Date = created instanceof Date ? created : new Date(created);
       if (isNaN(d.getTime())) return;
-      
+
       // Use daily or monthly granularity
-      const dateKey = useDaily 
+      const dateKey = useDaily
         ? d.toISOString().substring(0, 10) // YYYY-MM-DD
         : d.toISOString().substring(0, 7); // YYYY-MM
 
       if (!trends[dateKey]) {
-        trends[dateKey] = { 
-          count: 0, 
+        trends[dateKey] = {
+          count: 0,
           amount: 0,
           completedCount: 0,
           pendingCount: 0,
@@ -895,20 +906,20 @@ export class PaymentTransactionService {
           pendingAmount: 0
         };
       }
-      
+
       trends[dateKey].count++;
-      
+
       // Parse amount
-      const amount = typeof transaction.amount === 'string' 
-        ? parseFloat(transaction.amount) 
+      const amount = typeof transaction.amount === 'string'
+        ? parseFloat(transaction.amount)
         : Number(transaction.amount) || 0;
-      
+
       if (!isNaN(amount) && isFinite(amount)) {
         // Add to total amount for both pending and completed
         if (transaction.status === 'completed' || transaction.status === 'pending') {
           trends[dateKey].amount += amount;
         }
-        
+
         // Add to status-specific amounts
         if (transaction.status === 'completed') {
           trends[dateKey].completedCount++;
@@ -927,11 +938,11 @@ export class PaymentTransactionService {
         const dateLabel = useDaily
           ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
           : date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-        
-        return { 
+
+        return {
           date: dateKey,
           dateLabel,
-          ...data 
+          ...data
         };
       })
       .sort((a, b) => a.date.localeCompare(b.date));
@@ -1003,7 +1014,7 @@ export class PaymentTransactionService {
     if (transaction.status === 'completed' && booking.status === 'pending') {
       updateData.status = 'confirmed';
       updateData.confirmed_at = new Date();
-      
+
       // Note: Conflict checking is handled automatically by BookingService.isProductAvailable()
       // which checks for overlapping confirmed/in_progress bookings. The bookings table itself
       // serves as the source of truth for date conflicts - no need to update product_availability.
@@ -1013,9 +1024,9 @@ export class PaymentTransactionService {
     // Handle refunds - cancel booking if fully refunded (main payment transaction)
     if (transaction.status === 'refunded' && booking.status !== 'cancelled') {
       // Check if this is the main payment transaction
-      const isMainPayment = transaction.transaction_type === 'booking_payment' || 
-                            transaction.transaction_type === 'security_deposit';
-      
+      const isMainPayment = transaction.transaction_type === 'booking_payment' ||
+        transaction.transaction_type === 'security_deposit';
+
       if (isMainPayment) {
         updateData.status = 'cancelled';
         updateData.cancelled_at = new Date();
@@ -1040,9 +1051,9 @@ export class PaymentTransactionService {
 
       const payer = transaction.user_id
         ? await db('users')
-            .select('id', 'first_name', 'last_name', 'email')
-            .where('id', transaction.user_id)
-            .first()
+          .select('id', 'first_name', 'last_name', 'email')
+          .where('id', transaction.user_id)
+          .first()
         : null;
 
       let bookingContext: any = null;

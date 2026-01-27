@@ -4,9 +4,9 @@
 
 import { Request, Response } from 'express';
 import { PaymentTransactionService } from '../services/PaymentTransactionService';
-import { 
-  ProcessPaymentRequest, 
-  RefundRequest, 
+import {
+  ProcessPaymentRequest,
+  RefundRequest,
   PaymentTransactionSearchParams
 } from '../types/paymentTransaction.types';
 import { PaymentTransactionError, PaymentProviderError } from '../types/paymentTransaction.types';
@@ -90,7 +90,7 @@ export class PaymentTransactionController {
         sort_by: (req.query.sortBy as any) || 'id',
         sort_order: (req.query.sortOrder as 'asc' | 'desc') || 'desc',
         search: req.query.search as string,
-        
+
         // Filters
         user_id: req.query.userId as string,
         booking_id: req.query.bookingId as string,
@@ -144,6 +144,25 @@ export class PaymentTransactionController {
   };
 
   /**
+   * Get received transactions by user ID
+   * GET /api/payment-transactions/received/:userId
+   */
+  public getReceivedTransactions = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId } = req.params;
+      const transactions = await this.service.getReceivedTransactionsByUserId(userId);
+
+      res.json({
+        success: true,
+        data: transactions,
+        count: transactions.length
+      });
+    } catch (error) {
+      this.handleError(res, error, 'Failed to retrieve received transactions');
+    }
+  };
+
+  /**
    * Get payment transactions for an inspector
    * GET /api/v1/payment-transactions/inspector/:inspectorId
    */
@@ -152,7 +171,7 @@ export class PaymentTransactionController {
       const { inspectorId } = req.params;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
-      const status = req.query.status 
+      const status = req.query.status
         ? (Array.isArray(req.query.status) ? req.query.status : [req.query.status]) as any
         : undefined;
       const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
@@ -266,7 +285,7 @@ export class PaymentTransactionController {
     try {
       const authReq = req as AuthenticatedRequest;
       const userId = authReq.user?.id;
-      
+
       if (!userId) {
         res.status(401).json({
           success: false,
@@ -304,7 +323,7 @@ export class PaymentTransactionController {
     try {
       const authReq = req as AuthenticatedRequest;
       const userId = authReq.user?.id;
-      
+
       if (!userId) {
         res.status(401).json({
           success: false,
@@ -344,7 +363,7 @@ export class PaymentTransactionController {
       const authReq = req as AuthenticatedRequest;
       const authenticatedUserId = authReq.user?.id;
       const { userId } = req.params;
-      
+
       if (!authenticatedUserId) {
         res.status(401).json({
           success: false,
@@ -389,7 +408,7 @@ export class PaymentTransactionController {
     try {
       const authReq = req as AuthenticatedRequest;
       const userId = authReq.user?.id;
-      
+
       if (!userId) {
         res.status(401).json({
           success: false,

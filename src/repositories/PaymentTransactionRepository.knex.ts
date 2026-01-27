@@ -3,10 +3,10 @@
 // =====================================================
 
 import { getDatabase } from '../config/database';
-import { 
-  PaymentTransactionData, 
-  CreatePaymentTransactionData, 
-  UpdatePaymentTransactionData, 
+import {
+  PaymentTransactionData,
+  CreatePaymentTransactionData,
+  UpdatePaymentTransactionData,
   PaymentTransactionFilters,
   PaymentTransactionSearchParams,
   TransactionSummary,
@@ -152,13 +152,13 @@ export class PaymentTransactionRepository {
       }
       const createdAfter = (filters as any).created_after || (filters as any).date_from;
       const createdBefore = (filters as any).created_before || (filters as any).date_to;
-      
+
       // Log date filters
       console.log('[PaymentTransactionRepository] Date filters:', {
         created_after: createdAfter,
         created_before: createdBefore
       });
-      
+
       if (createdAfter) {
         const dateAfter = createdAfter instanceof Date ? createdAfter : new Date(createdAfter);
         console.log('[PaymentTransactionRepository] Applying created_after filter:', dateAfter.toISOString());
@@ -179,7 +179,7 @@ export class PaymentTransactionRepository {
     console.log('[PaymentTransactionRepository] SQL Bindings:', sqlQuery.bindings);
 
     const transactions = await query.orderBy('created_at', 'desc');
-    
+
     // Log results
     console.log('[PaymentTransactionRepository] Found transactions:', transactions.length);
     if (transactions.length > 0) {
@@ -269,6 +269,31 @@ export class PaymentTransactionRepository {
   }
 
   /**
+   * Find transactions where the user is the receiver (owner of the booked product)
+   */
+  async findReceivedByUserId(userId: string): Promise<PaymentTransactionData[]> {
+    const transactions = await this.db('payment_transactions as pt')
+      .join('bookings as b', 'pt.booking_id', 'b.id')
+      .where('b.owner_id', userId)
+      .select('pt.*')
+      .orderBy('pt.created_at', 'desc');
+
+    return transactions.map(t => {
+      if (t.metadata) {
+        try {
+          if (typeof t.metadata === 'string') {
+            t.metadata = JSON.parse(t.metadata);
+          }
+        } catch (error) {
+          console.log('⚠️ Warning: Could not parse metadata JSON:', t.metadata);
+          t.metadata = null;
+        }
+      }
+      return t as PaymentTransactionData;
+    });
+  }
+
+  /**
    * Find transactions by user ID
    */
   async findByUserId(userId: string): Promise<PaymentTransactionData[]> {
@@ -323,7 +348,7 @@ export class PaymentTransactionRepository {
    */
   async update(id: string, updates: UpdatePaymentTransactionData): Promise<PaymentTransactionData | null> {
     const updateData: any = { ...updates };
-    
+
     // Handle metadata serialization
     if (updates.metadata) {
       updateData.metadata = JSON.stringify(updates.metadata);
@@ -362,7 +387,7 @@ export class PaymentTransactionRepository {
   async delete(id: string): Promise<boolean> {
     const result = await this.db('payment_transactions')
       .where('id', id)
-      .update({ 
+      .update({
         deleted_at: new Date(),
         updated_at: new Date()
       });
@@ -386,7 +411,7 @@ export class PaymentTransactionRepository {
    */
   async getTransactionSummary(userId: string): Promise<TransactionSummary | null> {
     const transactions = await this.findByUserId(userId);
-    
+
     if (transactions.length === 0) return null;
 
     const completedTransactions = transactions.filter(t => t.status === 'completed');

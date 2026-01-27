@@ -1,4 +1,4 @@
-import Groq from 'groq-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import logger from '../utils/logger';
 import { ProductFilters, ProductCondition } from '../types/product.types';
 import CategoryService from './category.service';
@@ -9,16 +9,14 @@ class AISearchService {
   private categories: Category[] = [];
   private lastCategoryFetch: number = 0;
   private readonly CATEGORY_CACHE_TTL = 300000; // 5 minutes
-  private groq: Groq | null = null;
+  private genAI: GoogleGenerativeAI | null = null;
 
   constructor() {
-    if (config.ai.groqApiKey) {
-      this.groq = new Groq({
-        apiKey: config.ai.groqApiKey
-      });
-      logger.info('[AISearchService] Groq AI initialized');
+    if (config.ai.geminiApiKey) {
+      this.genAI = new GoogleGenerativeAI(config.ai.geminiApiKey);
+      logger.info('[AISearchService] Gemini AI initialized');
     } else {
-      logger.warn('[AISearchService] Groq API key missing, AI search will fallback to regex');
+      logger.warn('[AISearchService] Gemini API key missing, AI search will fallback to regex');
     }
   }
 
@@ -39,13 +37,13 @@ class AISearchService {
 
   /**
    * Alibaba-style deep search: Parse natural language into structured filters
-   * Uses Groq AI (Llama 3) for semantic understanding, falls back to regex
+   * Uses Google Gemini for semantic understanding, falls back to regex
    */
   async parseNaturalLanguageQuery(prompt: string): Promise<Partial<ProductFilters> & { keywords?: string[] }> {
     await this.ensureCategoriesLoaded();
 
     // 1. Try AI Parsing first
-    if (this.groq) {
+    if (this.genAI) {
       try {
         const aiResult = await this.parseWithAI(prompt);
         if (aiResult) {
@@ -63,12 +61,13 @@ class AISearchService {
   }
 
   /**
-   * Parse query using Groq AI (Llama 3)
+   * Parse query using Google Gemini
    */
   private async parseWithAI(prompt: string): Promise<Partial<ProductFilters> & { keywords?: string[] } | null> {
-    if (!this.groq) return null;
+    if (!this.genAI) return null;
 
     const categoryNames = this.categories.map(c => c.name).join(', ');
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const systemPrompt = `
       You are an e-commerce search parser. Extract structured search filters from the user's natural language query.
@@ -82,110 +81,91 @@ class AISearchService {
       - category_id (string, optional): ID of the BEST matching category from the list above. Return null if no good match.
       - condition (string, optional): One of: 'new', 'like_new', 'good', 'fair', 'poor'
       - keywords (string[]): Cleaned search keywords (remove stopwords, price mentions, location mentions)
-      - location (object, optional): { latitude: number, longitude: number, radius: number } ONLY if explicit specific location found.
-      - location_text (string, optional): Extracted location name like "Kigali", "Gisenyi"
+      - location_text (string, optional): Extracted location name like "Kigali", "Nairobi"
       
-      Example: "cheap red car in Kigali under 5M"
-      Output: { "max_price": 5000000, "currency": "RWF", "location_text": "Kigali", "keywords": ["red", "car"], "category_id": "cars_id..." }
+      Example: "cheap red car in Nairobi under 5M"
+      Output: { "max_price": 5000000, "currency": "KES", "location_text": "Nairobi", "keywords": ["red", "car"], "category_id": "cars_id..." }
     `;
 
     try {
-      const completion = await this.groq.chat.completions.create({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt }
-        ],
-        model: 'llama-3.1-8b-instant',
-        temperature: 0.1,
-        response_format: { type: 'json_object' }
-      });
+      const result = await model.generateContent([systemPrompt, prompt]);
+      const response = await result.response;
+      let text = response.text().trim();
 
-      const content = completion.choices[0]?.message?.content;
-      if (!content) return null;
+      // Clean up markdown if AI returned it
+      if (text.startsWith('```json')) {
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      } else if (text.startsWith('```')) {
+        text = text.replace(/```/g, '').trim();
+      }
 
-      const result = JSON.parse(content);
+      const parsedJson = JSON.parse(text);
       const filters: any = {};
 
-      if (result.min_price) filters.min_price = result.min_price;
-      if (result.max_price) filters.max_price = result.max_price;
-      if (result.currency) filters.currency = result.currency;
+      if (parsedJson.min_price) filters.min_price = parsedJson.min_price;
+      if (parsedJson.max_price) filters.max_price = parsedJson.max_price;
+      if (parsedJson.currency) filters.currency = parsedJson.currency;
 
       // Map category name back to ID if AI didn't return ID directly
-      if (result.category_id) {
-        // Did AI return a name instead of ID? Let's check.
-        const cat = this.categories.find(c => c.id === result.category_id || c.name.toLowerCase() === result.category_id.toLowerCase());
+      if (parsedJson.category_id) {
+        const cat = this.categories.find(c => c.id === parsedJson.category_id || c.name.toLowerCase() === parsedJson.category_id.toLowerCase());
         if (cat) filters.category_id = cat.id;
-      }
-      // Fallback: fuzzy match category from keywords if ID missing but category inferred
-      else if (result.category_name) {
-        const cat = this.categories.find(c => c.name.toLowerCase() === result.category_name.toLowerCase());
+      } else if (parsedJson.category_name) {
+        const cat = this.categories.find(c => c.name.toLowerCase() === parsedJson.category_name.toLowerCase());
         if (cat) filters.category_id = cat.id;
       }
 
-      if (result.condition) filters.condition = result.condition;
+      if (parsedJson.condition) filters.condition = parsedJson.condition;
 
-      // Pass location text to search param if not structured
-      if (result.location_text) {
-        // If we can't geocode here, we might append to keywords or handle in controller
-        // For now, let's keep it in keywords if not handled separately
-        if (!filters.search) filters.search = "";
-        // filters.search += " " + result.location_text; 
+      if (parsedJson.keywords && Array.isArray(parsedJson.keywords) && !filters.category_id) {
+        filters.search = parsedJson.keywords.join(' ');
       }
 
-      // Only add search keywords if no category was matched
-      // When category is found, return all products in that category without additional filters
-      if (result.keywords && Array.isArray(result.keywords) && !filters.category_id) {
-        filters.search = result.keywords.join(' ');
+      // If location text is found, we could potentially geocode it, but for now we'll log it
+      if (parsedJson.location_text) {
+        logger.info(`[AISearchService] Location detected: ${parsedJson.location_text}`);
       }
 
-      logger.info('[AISearchService] Groq Parsed:', { original: prompt, result });
+      logger.info('[AISearchService] Gemini Parsed:', { original: prompt, result: parsedJson });
       return filters;
 
     } catch (error) {
-      console.error('Groq API Error:', error);
+      logger.error('[AISearchService] Gemini API Error:', error);
       return null;
     }
   }
 
   /**
-   * Regex-based fallback parser (Original Logic)
+   * Regex-based fallback parser
    */
   private parseWithRegex(prompt: string): Partial<ProductFilters> & { keywords?: string[] } {
     const filters: Partial<ProductFilters> = {};
     let searchTerms = prompt.toLowerCase();
 
-    // Extract Location: "in Kigali", "at Kigali", "from Kigali"
+    // Extract Location: "in Kigali", "at Nairobi", "from Gisenyi"
     const locationMatch = searchTerms.match(/\b(?:in|at|from|near)\s+([a-z]+(?:\s+[a-z]+)?)/i);
     if (locationMatch) {
       searchTerms = searchTerms.replace(locationMatch[0], locationMatch[1]);
     }
 
-    // Extract Price with currency: "at least 30000 rwf", "minimum 30000"
-    const minPriceMatch = searchTerms.match(/(?:at least|minimum|min|over|above|>)\s?(\d+)\s?(?:rwf|usd|\$)?/i);
+    // Extract Price with currency
+    const minPriceMatch = searchTerms.match(/(?:at least|minimum|min|over|above|>)\s?(\d+)\s?(?:rwf|usd|kes|\$)?/i);
     if (minPriceMatch) {
       filters.min_price = parseInt(minPriceMatch[1]);
       searchTerms = searchTerms.replace(minPriceMatch[0], '');
     }
 
-    const maxPriceMatch = searchTerms.match(/(?:under|below|<|max|maximum)\s?(\d+)\s?(?:rwf|usd|\$)?/i);
+    const maxPriceMatch = searchTerms.match(/(?:under|below|<|max|maximum)\s?(\d+)\s?(?:rwf|usd|kes|\$)?/i);
     if (maxPriceMatch) {
       filters.max_price = parseInt(maxPriceMatch[1]);
       searchTerms = searchTerms.replace(maxPriceMatch[0], '');
     }
 
-    const rangePriceMatch = searchTerms.match(/(\d+)\s?(?:-|to)\s?(\d+)\s?(?:rwf|usd|\$)?/i);
+    const rangePriceMatch = searchTerms.match(/(\d+)\s?(?:-|to)\s?(\d+)\s?(?:rwf|usd|kes|\$)?/i);
     if (rangePriceMatch && !filters.min_price && !filters.max_price) {
       filters.min_price = parseInt(rangePriceMatch[1]);
       filters.max_price = parseInt(rangePriceMatch[2]);
       searchTerms = searchTerms.replace(rangePriceMatch[0], '');
-    }
-
-    if (!filters.min_price && !filters.max_price) {
-      const costMatch = searchTerms.match(/(?:cost|price|worth)\s?(\d+)\s?(?:rwf|usd|\$)?/i);
-      if (costMatch) {
-        filters.min_price = parseInt(costMatch[1]);
-        searchTerms = searchTerms.replace(costMatch[0], '');
-      }
     }
 
     // Match Categories
@@ -230,13 +210,11 @@ class AISearchService {
       }
     }
 
-    // Cleanup and remove common words
     searchTerms = searchTerms
       .replace(/\b(i want|i need|looking for|find me|buy|which is|that is|for|rent|sale|to)\b/g, '')
       .replace(/\s+/g, ' ')
       .trim();
 
-    // When category is found, skip search keywords to return all products in that category
     if (searchTerms.length > 2 && !matchedCategory) {
       filters.search = searchTerms;
     }

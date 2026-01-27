@@ -5,13 +5,13 @@ import { ProductData, CreateProductData, UpdateProductData } from '@/types/produ
 class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProductData, UpdateProductData> {
   protected readonly tableName = 'products';
   protected readonly modelClass = Product;
-  
+
   constructor() {
     super();
-    
+
     // Configure search fields for the optimized search functionality
     this.searchFields = ['title', 'description'];
-    
+
     // Configure cache settings for products
     this.defaultCacheTTL = 600; // 10 minutes
     this.cacheKeyPrefix = 'product';
@@ -69,11 +69,11 @@ class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProdu
         // Description: 1 point
         relevanceExpr += ` + (CASE WHEN products.description ILIKE '%${escaped}%' THEN 1 ELSE 0 END)`;
       });
-      
+
       // Popularity & Quality Boost (Deep Search refinement)
       relevanceExpr += ` + (COALESCE(products.view_count, 0) * 0.001)`; // 1 point per 1000 views
       relevanceExpr += ` + (COALESCE(products.average_rating, 0) * 0.5)`; // 0.5 point per star
-      
+
       selectFields.push(db.raw(`(${relevanceExpr}) as relevance_score`));
     }
 
@@ -101,6 +101,14 @@ class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProdu
         });
       }
 
+      // Deep Search: Technical Specifications Filtering
+      if (otherCriteria.specifications) {
+        const specs = otherCriteria.specifications;
+        if (Object.keys(specs).length > 0) {
+          qb.whereRaw('products.specifications @> ?', [JSON.stringify(specs)]);
+        }
+      }
+
       // Price Filtering
       if (min_price !== undefined) qb.where('products.price', '>=', min_price);
       if (max_price !== undefined) qb.where('products.price', '<=', max_price);
@@ -122,7 +130,7 @@ class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProdu
           }
         }
       });
-      
+
       // Exclude soft-deleted products from public queries
       qb.whereNot('products.status', 'deleted');
     };
@@ -156,7 +164,7 @@ class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProdu
 
     // 5. Handle Sorting
     let finalSortBy = `products.${sortBy}`;
-    
+
     // Fix: If sorting by relevance but no search term, fallback to created_at
     // "relevance" column only exists as a computed column when searching
     if (sortBy === 'relevance' || sortBy === 'relevance_score') {
@@ -188,9 +196,9 @@ class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProdu
         hasNext: page * limit < total,
         hasPrev: page > 1
       },
-      metadata: { 
-        tableName: this.tableName, 
-        operation: 'Alibaba Deep Search', 
+      metadata: {
+        tableName: this.tableName,
+        operation: 'Alibaba Deep Search',
         count: entities.length,
         searchParams: { search, min_price, max_price, geoLoc },
         relatedCategories // Pass these back for frontend suggestions

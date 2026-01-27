@@ -102,6 +102,10 @@ export interface ProductFilters {
     longitude: number;
     radius: number;
   };
+  location_text?: string;
+  specifications?: Record<string, any>;
+  sort?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface ProductPricing {

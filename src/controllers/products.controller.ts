@@ -179,7 +179,7 @@ import { Request, Response } from 'express';
 import { BaseController } from './BaseController';
 import ProductService from '@/services/product.service'
 import UserVerificationService from '@/services/userVerification.service';
-import { 
+import {
   AuthenticatedRequest,
   UpdateProductData,
   ProductFilters,
@@ -221,7 +221,7 @@ interface OptionalAuthRequest extends Request {
  */
 const normalizeProductFilters = (query: any): Partial<ProductFilters> & { sort?: string; sortOrder?: 'asc' | 'desc' } => {
   const filters: any = {};
-  
+
   // Fast string validation
   if (query.search && typeof query.search === 'string' && query.search.trim().length > 0) {
     filters.search = query.search.trim().toLowerCase();
@@ -229,7 +229,7 @@ const normalizeProductFilters = (query: any): Partial<ProductFilters> & { sort?:
     // Handle 'q' from header search
     filters.search = query.q.trim().toLowerCase();
   }
-  
+
   // Fast set-based validation
   if (query.condition && VALID_CONDITIONS.has(query.condition)) {
     filters.condition = query.condition;
@@ -240,7 +240,7 @@ const normalizeProductFilters = (query: any): Partial<ProductFilters> & { sort?:
   if (query.currency && VALID_CURRENCIES.has(query.currency)) {
     filters.currency = query.currency;
   }
-  
+
   // Numeric validation with fast parsing - support both snake_case and camelCase
   const minP = query.min_price || query.priceMin;
   if (minP) {
@@ -252,22 +252,22 @@ const normalizeProductFilters = (query: any): Partial<ProductFilters> & { sort?:
     const price = parseFloat(maxP);
     if (!isNaN(price) && price >= 0) filters.max_price = price;
   }
-  
+
   // Location optimization - support lat/lng/radiusKm from frontend
   const lat = query.latitude || query.lat;
   const lng = query.longitude || query.lng;
   const rad = query.radius || query.radiusKm;
-  
+
   if (lat && lng) {
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lng);
     const radius = parseFloat(rad) || 10;
-    
+
     if (!isNaN(latitude) && !isNaN(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180) {
       filters.location = { latitude, longitude, radius };
     }
   }
-  
+
   if (query.country_id && typeof query.country_id === 'string') {
     filters.country_id = query.country_id;
   }
@@ -278,12 +278,22 @@ const normalizeProductFilters = (query: any): Partial<ProductFilters> & { sort?:
     filters.owner_id = query.owner_id;
   }
 
+  // Location text from AI search
+  if (query.location_text && typeof query.location_text === 'string') {
+    filters.location_text = query.location_text;
+    if (filters.search) {
+      filters.search += ' ' + query.location_text.toLowerCase();
+    } else {
+      filters.search = query.location_text.toLowerCase();
+    }
+  }
+
   // Sort parameters
   if (query.sort) {
     filters.sort = query.sort;
     filters.sortOrder = query.sortOrder === 'asc' ? 'asc' : 'desc';
   }
-  
+
   return filters;
 };
 
@@ -295,18 +305,19 @@ const normalizeProductFilters = (query: any): Partial<ProductFilters> & { sort?:
  */
 const convertFiltersToQuery = (filters: Partial<ProductFilters> & { sort?: string; sortOrder?: 'asc' | 'desc' }): any => {
   const query: any = {};
-  
+
   if (filters.owner_id) query.owner_id = filters.owner_id;
   if (filters.category_id) query.category_id = filters.category_id;
   if (filters.status) query.status = filters.status;
   if (filters.condition) query.condition = filters.condition;
   if (filters.search) query.search = filters.search;
-  
+
   // Include deep search filters
   if (filters.min_price !== undefined) query.min_price = filters.min_price;
   if (filters.max_price !== undefined) query.max_price = filters.max_price;
   if (filters.location) query.location = filters.location;
-  
+  if (filters.specifications) query.specifications = filters.specifications;
+
   return query;
 };
 
@@ -322,20 +333,20 @@ export class ProductsController extends BaseController {
     try {
       const owner_id = req.user.id;
       const product_data = { ...req.body };
-      
+
       // Map old condition values to new enum values for backward compatibility
       if (product_data.condition) {
         const conditionMapping: Record<string, string> = {
           'used': 'good',          // Map old 'used' to 'good'
           'refurbished': 'like_new' // Map old 'refurbished' to 'like_new'
         };
-        
+
         if (conditionMapping[product_data.condition]) {
           console.log(`[DEBUG] Mapping old condition value "${product_data.condition}" to "${conditionMapping[product_data.condition]}"`);
           product_data.condition = conditionMapping[product_data.condition];
         }
       }
-      
+
       // Force pickup_methods to be a plain JSON array
       if (product_data.pickup_methods) {
         product_data.pickup_methods = JSON.parse(JSON.stringify(product_data.pickup_methods));
@@ -367,28 +378,28 @@ export class ProductsController extends BaseController {
         const NotificationEngine = (await import('../services/notification/NotificationEngine')).default;
         const UserRepository = (await import('../repositories/UserRepository')).default;
         const { NotificationType, NotificationPriority } = await import('../services/notification/types');
-        
+
         // Get all admin users
         const admins = await UserRepository.findByRole('admin', 100);
-        
+
         if (!admins || admins.length === 0) {
           console.log('No admin users found to notify');
           return;
         }
-        
+
         // Get owner info for notification
         const ownerResult = await UserRepository.findById(owner_id);
         const owner = ownerResult?.success && ownerResult?.data ? ownerResult.data : null;
-        const ownerName = owner?.firstName 
-          ? `${owner.firstName}${owner.lastName ? ' ' + owner.lastName : ''}` 
+        const ownerName = owner?.firstName
+          ? `${owner.firstName}${owner.lastName ? ' ' + owner.lastName : ''}`
           : 'A user';
         const productTitle = created.data?.title || 'New product';
-        
+
         // Send notification to each admin
         const notificationPromises = admins.map((admin: any) => {
           const adminId = admin.id || admin.data?.id;
           if (!adminId) return Promise.resolve();
-          
+
           return NotificationEngine.sendNotification({
             type: NotificationType.PRODUCT_CREATED,
             recipientId: adminId,
@@ -412,7 +423,7 @@ export class ProductsController extends BaseController {
             return null;
           });
         });
-        
+
         // Send notifications in parallel (don't wait for all to complete)
         Promise.all(notificationPromises).catch((error) => {
           console.error('Error sending notifications to admins:', error);
@@ -443,11 +454,11 @@ export class ProductsController extends BaseController {
   public getProducts = this.asyncHandler(async (req: Request, res: Response) => {
     const startTime = Date.now();
     console.log('[ProductsController] getProducts called', { query: req.query });
-    
+
     try {
       const { page, limit } = this.getPaginationParams(req);
       let filters = normalizeProductFilters(req.query);
-      
+
       // Check if this is an AI search (search param starts with "🔍 AI Search:")
       if (filters.search && filters.search.includes('🔍 ai search:')) {
         // Extract the actual prompt from the search string
@@ -455,13 +466,13 @@ export class ProductsController extends BaseController {
         if (promptMatch && promptMatch[1]) {
           const prompt = promptMatch[1].trim();
           console.log('[ProductsController] AI Search detected, prompt:', prompt);
-          
+
           // Use AI search service to parse the prompt
           const AISearchService = (await import('@/services/aiSearch.service')).default;
           const aiFilters = await AISearchService.parseNaturalLanguageQuery(prompt);
-          
+
           console.log('[ProductsController] AI Filters derived:', aiFilters);
-          
+
           // Merge AI filters with existing filters
           filters = { ...filters, ...aiFilters };
           // Remove the AI search prefix from search term
@@ -472,23 +483,23 @@ export class ProductsController extends BaseController {
           }
         }
       }
-      
+
       // SIMPLE E-RENTAL LOGIC: Always return only approved (active) products for public
       // This ensures only admin-approved products are visible in the marketplace
       // Admins should use /admin/products endpoint to see all products
       if (!filters.status) {
         filters.status = 'active';
       }
-      
+
       console.log('[ProductsController] Filters applied:', filters, 'page:', page, 'limit:', limit);
-      
+
       // Optional: Get user ID if authenticated (for favorite status only)
       const userId = (req as any).user?.id;
-      
+
       // Check cache
       const cacheKey = `products_${JSON.stringify({ filters, page, limit, userId })}`;
       const cached = productCache.get(cacheKey);
-      
+
       if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.PRODUCT_LIST * 1000) {
         console.log('[ProductsController] Returning cached data');
         return this.formatPaginatedResponse(res, 'Products retrieved successfully (cached)', cached.data);
@@ -497,7 +508,7 @@ export class ProductsController extends BaseController {
       // Convert filters to query format
       const query = convertFiltersToQuery(filters);
       console.log('[ProductsController] Query object:', query);
-      
+
       // Check database connection first
       try {
         const { getDatabase } = await import('@/config/database');
@@ -511,11 +522,11 @@ export class ProductsController extends BaseController {
         console.error('[ProductsController] Database connection check failed:', dbError);
         return ResponseHelper.error(res, 'Database connection error: ' + (dbError?.message || 'Unknown error'), 503);
       }
-      
+
       // Fetch products from database
       console.log('[ProductsController] Starting database query...');
       const queryStartTime = Date.now();
-      
+
       let result;
       try {
         const { sort, sortOrder } = filters;
@@ -527,12 +538,12 @@ export class ProductsController extends BaseController {
         console.error('[ProductsController] Database query failed after', queryTime, 'ms:', queryError);
         return ResponseHelper.error(res, 'Database query failed: ' + (queryError?.message || 'Unknown error'), 500);
       }
-      
+
       if (!result || !result.success) {
         console.error('[ProductsController] Query returned error:', result?.error);
         return ResponseHelper.error(res, result?.error || 'Failed to fetch products', 500);
       }
-      
+
       if (!result.data) {
         console.warn('[ProductsController] No data returned from query');
         // Return empty result instead of error
@@ -569,21 +580,21 @@ export class ProductsController extends BaseController {
 
       const totalTime = Date.now() - startTime;
       console.log('[ProductsController] Request completed in', totalTime, 'ms');
-      
+
       return this.formatPaginatedResponse(res, 'Products retrieved successfully', enhancedData);
     } catch (error: any) {
       const totalTime = Date.now() - startTime;
       console.error('[ProductsController] Error in getProducts after', totalTime, 'ms:', error);
       const errorMessage = error?.message || 'Internal server error';
-      
+
       if (errorMessage.includes('timeout')) {
         return ResponseHelper.error(res, 'Request timeout - database may be slow or unavailable', 504);
       }
-      
+
       if (errorMessage.includes('Database') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('not initialized')) {
         return ResponseHelper.error(res, 'Database connection error. Please check your database configuration.', 503);
       }
-      
+
       return ResponseHelper.error(res, errorMessage, 500);
     }
   });
@@ -600,10 +611,10 @@ export class ProductsController extends BaseController {
 
     try {
       const AISearchService = (await import('@/services/aiSearch.service')).default;
-      
+
       // 1. Parse prompt into filters
       const aiFilters = await AISearchService.parseNaturalLanguageQuery(prompt);
-      
+
       console.log('[ProductsController] AI Filters derived:', aiFilters);
 
       // 2. Normalize and combine with defaults
@@ -612,10 +623,13 @@ export class ProductsController extends BaseController {
 
       // 3. Convert to query
       const query = convertFiltersToQuery(filters);
-      
+
       // 4. Execute Search
       const { page, limit } = this.getPaginationParams(req);
-      const result = await ProductService.getPaginated(query, page, limit);
+      const sortBy = filters.sort || 'created_at';
+      const sortOrder = filters.sortOrder || 'desc';
+
+      const result = await ProductService.getPaginated(query, page, limit, sortBy, sortOrder);
 
       if (!result.success) {
         return ResponseHelper.error(res, result.error || 'Search failed', 500);
@@ -644,14 +658,14 @@ export class ProductsController extends BaseController {
    */
   public getProduct = this.asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    
+
     // Check if user is authenticated for favorite status
     const userId = (req as any).user?.id;
-    
+
     // Performance: Check cache first (include userId for personalized caching)
     const cacheKey = `product_${id}_${userId || 'anonymous'}`;
     const cached = productCache.get(cacheKey);
-    
+
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.PRODUCT_DETAILS * 1000) {
       return ResponseHelper.success(res, 'Product retrieved successfully (cached)', cached.data);
     }
@@ -684,7 +698,7 @@ export class ProductsController extends BaseController {
    */
   public updateProduct = this.asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     if (this.handleValidationErrors(req as any, res)) return;
-    
+
     const { id } = req.params;
     const user_id = req.user.id;
 
@@ -734,7 +748,7 @@ export class ProductsController extends BaseController {
 
     // Performance: Direct status update
     const deleted_product = await ProductService.update(id, { status: 'inactive' });
-    
+
     // Performance: Invalidate caches
     this.invalidateProductCaches(product_result.data.owner_id, id);
 
@@ -754,7 +768,7 @@ export class ProductsController extends BaseController {
     // Performance: Generate cache key
     const cacheKey = `user_products_${user_id}_${status || 'all'}_${page}_${limit}`;
     const cached = productCache.get(cacheKey);
-    
+
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.PRODUCT_LIST * 1000) {
       return this.formatPaginatedResponse(res, 'User products retrieved successfully (cached)', cached.data);
     }
@@ -802,7 +816,7 @@ export class ProductsController extends BaseController {
     // Performance: Check availability cache
     const cacheKey = `availability_${id}_${start_date}_${end_date}`;
     const cached = availabilityCache.get(cacheKey);
-    
+
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.AVAILABILITY * 1000) {
       return ResponseHelper.success(res, 'Availability checked successfully (cached)', cached.data);
     }
@@ -896,7 +910,7 @@ export class ProductsController extends BaseController {
     // Performance: Check analytics cache
     const cacheKey = `analytics_${id}`;
     const cached = analyticsCache.get(cacheKey);
-    
+
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.ANALYTICS * 1000) {
       return ResponseHelper.success(res, 'Product analytics retrieved successfully (cached)', cached.data);
     }
@@ -935,7 +949,7 @@ export class ProductsController extends BaseController {
     // Performance: Generate search cache key
     const cacheKey = `search_${JSON.stringify({ search_criteria, page, limit })}`;
     const cached = productCache.get(cacheKey);
-    
+
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL.PRODUCT_LIST * 1000) {
       return this.formatPaginatedResponse(res, 'Search completed successfully (cached)', cached.data);
     }
@@ -966,7 +980,7 @@ export class ProductsController extends BaseController {
     // Lower default threshold (0.3 instead of 0.5) to find more similar products
     // This ensures exact matches and very similar products are returned
     const similarityThreshold = parseFloat(threshold as string) || 0.3;
-    
+
     // Category filtering options
     // category_boost: Boost products in same category (default: true)
     // category_id: Optional filter to specific category
@@ -979,7 +993,7 @@ export class ProductsController extends BaseController {
 
     const filesReq = req as any;
     const crypto = require('crypto');
-    
+
     if (filesReq.file) {
       // Image uploaded as file
       const fs = require('fs');
@@ -988,22 +1002,22 @@ export class ProductsController extends BaseController {
       console.log(`   - File path: ${filePath}`);
       console.log(`   - Original name: ${filesReq.file.originalname}`);
       console.log(`   - File size: ${filesReq.file.size} bytes`);
-      
+
       // Read the file
       const buffer = fs.readFileSync(filePath);
-      
+
       // Verify buffer is not empty
       if (!buffer || buffer.length === 0) {
         return this.handleBadRequest(res, 'Uploaded image file is empty or invalid');
       }
-      
+
       imageBuffer = buffer;
-      
+
       // Calculate hash to verify each image is unique
       const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
       console.log(`   - Image hash: ${imageHash.substring(0, 32)}...`);
       console.log(`   - Buffer size: ${buffer.length} bytes`);
-      
+
       // Clean up uploaded file after reading (optional, to save disk space)
       try {
         fs.unlinkSync(filePath);
@@ -1015,7 +1029,7 @@ export class ProductsController extends BaseController {
       // Image provided as URL
       imageUrl = req.body.image_url;
       console.log(`📤 Image URL received: ${imageUrl}`);
-      
+
       // Calculate hash of URL for logging
       const urlHash = crypto.createHash('sha256').update(imageUrl).digest('hex');
       console.log(`   - URL hash: ${urlHash.substring(0, 32)}...`);
@@ -1026,17 +1040,17 @@ export class ProductsController extends BaseController {
     try {
       // Use production-grade image search service (Alibaba.com approach)
       const imageSearchService = (await import('../services/imageSearch.service')).default;
-      
+
       console.log(`🔍 Starting image search with:`);
       console.log(`   - Image type: ${imageBuffer ? 'Buffer' : 'URL'}`);
       console.log(`   - Threshold: ${similarityThreshold}`);
       console.log(`   - Page: ${pageNum}, Limit: ${limitNum}`);
-      
+
       // DISABLE CACHING to ensure fresh results for each image
       if (!imageBuffer && !imageUrl) {
         return this.handleBadRequest(res, 'No image provided');
       }
-      
+
       const searchResults = await imageSearchService.searchByImage(
         imageBuffer || imageUrl!,
         {
@@ -1049,7 +1063,7 @@ export class ProductsController extends BaseController {
           categoryFilter: categoryFilter
         }
       );
-      
+
       console.log(`✅ Image search completed:`);
       console.log(`   - Results found: ${searchResults.items.length}`);
       console.log(`   - Cache hit: ${searchResults.metadata.cache_hit}`);
@@ -1119,7 +1133,7 @@ export class ProductsController extends BaseController {
    */
   private async prepareUpdateData(body: any): Promise<UpdateProductData> {
     const update_data: UpdateProductData = {};
-    
+
     // Performance: Direct assignment for defined values only
     if (body.title !== undefined) update_data.title = body.title;
     if (body.description !== undefined) update_data.description = body.description;
@@ -1138,7 +1152,7 @@ export class ProductsController extends BaseController {
     if (body.pickup_available !== undefined) (update_data as any).pickup_available = body.pickup_available;
     if (body.delivery_available !== undefined) (update_data as any).delivery_available = body.delivery_available;
     if (body.location !== undefined) (update_data as any).location = body.location;
-    
+
     // Handle features array update
     if (body.features && Array.isArray(body.features)) {
       const current_product = await ProductService.getById(body.id); // Fetch current product to get existing features
@@ -1163,7 +1177,7 @@ export class ProductsController extends BaseController {
     const start_date_obj = new Date(start_date);
     const end_date_obj = new Date(end_date);
     const total_days = Math.max(1, Math.ceil((end_date_obj.getTime() - start_date_obj.getTime()) / (1000 * 60 * 60 * 24)));
-    
+
     const subtotal = base_price * total_days;
     const platform_fee = subtotal * 0.1;
     const tax_amount = subtotal * 0.08;
@@ -1204,7 +1218,7 @@ export class ProductsController extends BaseController {
    */
   private async calculateProductAnalytics(product_id: string) {
     const db = require('@/config/database').getDatabase();
-    
+
     // Performance: Single query with aggregations
     const [views, bookings] = await Promise.all([
       db('product_views').count('* as count').where({ product_id: product_id }).first(),
@@ -1238,7 +1252,7 @@ export class ProductsController extends BaseController {
       criteria_used: Object.keys(criteria).length,
       search_type: 'optimized'
     };
-    
+
     return {
       data: [],
       page,
@@ -1256,7 +1270,7 @@ export class ProductsController extends BaseController {
    */
   private async fetchProductReviews(product_id: string, page: number, limit: number) {
     const db = require('@/config/database').getDatabase();
-    
+
     // Get reviews for this product by joining with bookings
     const [reviews, total_count] = await Promise.all([
       db('reviews')
@@ -1273,7 +1287,7 @@ export class ProductsController extends BaseController {
         .orderBy('reviews.created_at', 'desc')
         .limit(limit)
         .offset((page - 1) * limit),
-      
+
       db('reviews')
         .count('reviews.id as count')
         .join('bookings', 'reviews.booking_id', 'bookings.id')
@@ -1302,14 +1316,14 @@ export class ProductsController extends BaseController {
       if (key.startsWith('products_') || key.startsWith('user_products_')) return true;
       return false;
     });
-    
+
     for (const key of keys_to_delete) {
       productCache.delete(key);
     }
 
     // Also clear availability cache for the product
     if (product_id) {
-      const availability_keys = Array.from(availabilityCache.keys()).filter(key => 
+      const availability_keys = Array.from(availabilityCache.keys()).filter(key =>
         key.includes(product_id)
       );
       for (const key of availability_keys) {
@@ -1326,7 +1340,7 @@ export class ProductsController extends BaseController {
     const expiredKeys = Array.from(cache.entries())
       .filter(([_, entry]) => (now - entry.timestamp) > ttlSeconds * 1000)
       .map(([key]) => key);
-    
+
     for (const key of expiredKeys) {
       cache.delete(key);
     }
@@ -1383,9 +1397,9 @@ export class ProductsController extends BaseController {
       const conflictingBookings = await db('bookings')
         .where({ product_id: productId })
         .whereIn('status', ['confirmed', 'in_progress', 'pending'])
-        .where(function() {
+        .where(function () {
           this.whereRaw('DATE(start_date) <= ?', [dateStr])
-              .andWhereRaw('DATE(end_date) >= ?', [dateStr]);
+            .andWhereRaw('DATE(end_date) >= ?', [dateStr]);
         })
         .first();
 

@@ -70,21 +70,37 @@ class AISearchService {
     const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const systemPrompt = `
-      You are an e-commerce search parser. Extract structured search filters from the user's natural language query.
+      You are an Alibaba-style Deep Search engine. Your goal is to parse natural language into deep, structured search filters.
       
       Available Categories: ${categoryNames}
       
-      Return ONLY a JSON object with these fields (no markdown, no explanation):
-      - min_price (number, optional): inferred minimum price
-      - max_price (number, optional): inferred maximum price
-      - currency (string, optional): inferred currency (default to RWF if local context implies)
-      - category_id (string, optional): ID of the BEST matching category from the list above. Return null if no good match.
-      - condition (string, optional): One of: 'new', 'like_new', 'good', 'fair', 'poor'
-      - keywords (string[]): Cleaned search keywords (remove stopwords, price mentions, location mentions)
-      - location_text (string, optional): Extracted location name like "Kigali", "Nairobi"
+      Extract the following Deep Search attributes (Return ONLY a JSON object):
+      - min_price (number, optional): Minimum price intent.
+      - max_price (number, optional): Maximum price intent.
+      - currency (string, optional): Local currency (RWF, KES, USD, etc.).
+      - category_id (string, optional): ID of the exact or best-matching category.
+      - condition (string, optional): 'new', 'like_new', 'good', 'fair', 'poor'.
+      - location_text (string, optional): Specific location mentioned (city/neighborhood).
+      - specifications (object, optional): Key-value pairs of technical attributes (e.g., color, brand, material, size, model).
+      - keywords (string[]): Cleaned, high-intent keywords for semantic search (exclude stop words).
+      - sort (string, optional): User's sorting intent. One of: 'price_asc', 'price_desc', 'rating', 'newest'.
       
-      Example: "cheap red car in Nairobi under 5M"
-      Output: { "max_price": 5000000, "currency": "KES", "location_text": "Nairobi", "keywords": ["red", "car"], "category_id": "cars_id..." }
+      Strict Rules:
+      1. If the user says "cheap", "affordable", or "budget", set 'sort' to 'price_asc'.
+      2. If the user says "best", "top rated", or "premium", set 'sort' to 'rating'.
+      3. If the user says "newest" or "latest", set 'sort' to 'newest'.
+      4. Avoid including price or category words in the 'keywords' array.
+      
+      Example: "I need a cheap red Toyota car in Nairobi under 5M"
+      Output: { 
+        "max_price": 5000000, 
+        "currency": "KES", 
+        "location_text": "Nairobi", 
+        "keywords": ["car"], 
+        "category_id": "cars_id...",
+        "sort": "price_asc",
+        "specifications": { "brand": "Toyota", "color": "red" }
+      }
     `;
 
     try {
@@ -106,27 +122,34 @@ class AISearchService {
       if (parsedJson.max_price) filters.max_price = parsedJson.max_price;
       if (parsedJson.currency) filters.currency = parsedJson.currency;
 
-      // Map category name back to ID if AI didn't return ID directly
+      // Map category ID or name
       if (parsedJson.category_id) {
         const cat = this.categories.find(c => c.id === parsedJson.category_id || c.name.toLowerCase() === parsedJson.category_id.toLowerCase());
-        if (cat) filters.category_id = cat.id;
-      } else if (parsedJson.category_name) {
-        const cat = this.categories.find(c => c.name.toLowerCase() === parsedJson.category_name.toLowerCase());
         if (cat) filters.category_id = cat.id;
       }
 
       if (parsedJson.condition) filters.condition = parsedJson.condition;
+      if (parsedJson.location_text) filters.location_text = parsedJson.location_text;
+      if (parsedJson.specifications) filters.specifications = parsedJson.specifications;
 
-      if (parsedJson.keywords && Array.isArray(parsedJson.keywords) && !filters.category_id) {
+      // Map sort intent to controller-friendly format
+      if (parsedJson.sort) {
+        if (parsedJson.sort === 'price_asc') {
+          filters.sort = 'price';
+          filters.sortOrder = 'asc';
+        } else if (parsedJson.sort === 'price_desc') {
+          filters.sort = 'price';
+          filters.sortOrder = 'desc';
+        } else {
+          filters.sort = parsedJson.sort;
+        }
+      }
+
+      if (parsedJson.keywords && Array.isArray(parsedJson.keywords)) {
         filters.search = parsedJson.keywords.join(' ');
       }
 
-      // If location text is found, we could potentially geocode it, but for now we'll log it
-      if (parsedJson.location_text) {
-        logger.info(`[AISearchService] Location detected: ${parsedJson.location_text}`);
-      }
-
-      logger.info('[AISearchService] Gemini Parsed:', { original: prompt, result: parsedJson });
+      logger.info('[AISearchService] Alibaba Deep Search Parsed:', { original: prompt, result: parsedJson });
       return filters;
 
     } catch (error) {

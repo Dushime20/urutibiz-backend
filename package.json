@@ -17,6 +17,7 @@
     "format": "prettier --write src/**/*.ts",
     "type-check": "tsc --noEmit",
     "db:migrate": "knex migrate:latest",
+    "db:repair-migrations": "ts-node -r tsconfig-paths/register scripts/repair-migrations.ts",
     "db:migrate:all": "ts-node -r tsconfig-paths/register scripts/run-all-migrations.ts",
     "db:fix-columns": "ts-node -r tsconfig-paths/register scripts/fix-missing-columns.ts",
     "db:rollback": "knex migrate:rollback",

@@ -1,6 +1,7 @@
 import { OptimizedBaseRepository } from './BaseRepository.optimized';
 import Product from '@/models/Product.model';
 import { ProductData, CreateProductData, UpdateProductData } from '@/types/product.types';
+import logger from '../utils/logger';
 
 class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProductData, UpdateProductData> {
   protected readonly tableName = 'products';
@@ -21,7 +22,13 @@ class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProdu
    * Overridden findPaginated to support search by Product Name OR Category Name
    */
   async findPaginated(
-    criteria: Partial<ProductData> & { search?: string; min_price?: number; max_price?: number; location?: { latitude: number; longitude: number; radius: number } } = {},
+    criteria: Partial<ProductData> & {
+      search?: string;
+      min_price?: number;
+      max_price?: number;
+      location?: { latitude: number; longitude: number; radius: number };
+      text_embedding?: number[];
+    } = {},
     page: number = 1,
     limit: number = 20,
     sortBy: string = 'created_at',
@@ -31,7 +38,7 @@ class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProdu
     const db = getDatabase();
 
     const offset = (page - 1) * limit;
-    const { search, min_price, max_price, location: geoLoc, ...otherCriteria } = criteria as any;
+    const { search, min_price, max_price, location: geoLoc, text_embedding, ...otherCriteria } = criteria as any;
 
     // 1. Base Query Construction
     let query = db(this.tableName)
@@ -75,6 +82,13 @@ class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProdu
       relevanceExpr += ` + (COALESCE(products.average_rating, 0) * 0.5)`; // 0.5 point per star
 
       selectFields.push(db.raw(`(${relevanceExpr}) as relevance_score`));
+    }
+
+    // Step 3 & 5: Semantic Score (pgvector cosine similarity)
+    if (text_embedding && Array.isArray(text_embedding) && text_embedding.length > 0) {
+      const vectorStr = `[${text_embedding.join(',')}]`;
+      // In pgvector, <=> is cosine distance, so 1 - <=> is similarity
+      selectFields.push(db.raw(`(1 - (products.text_embedding <=> ?)) as semantic_score`, [vectorStr]));
     }
 
     // Distance calculation if geoLoc is provided
@@ -160,15 +174,47 @@ class ProductRepository extends OptimizedBaseRepository<ProductData, CreateProdu
     }
 
     const countResult = await countQuery;
-    const total = parseInt((countResult as any)?.count || '0', 10);
+    let total = parseInt((countResult as any)?.count || '0', 10);
+
+    // Step 4: Soft Filtering Recovery
+    // If no results match the strict filters, relax them to maintain recall
+    if (total === 0 && (min_price || max_price || geoLoc || otherCriteria.category_id)) {
+      logger.info('[ProductRepository] Zero results with strict filters, relaxing for better recall...');
+      query = db(this.tableName)
+        .leftJoin('categories', 'products.category_id', 'categories.id')
+        .leftJoin('product_images', 'products.id', 'product_images.product_id')
+        .select(selectFields)
+        .groupBy('products.id', 'categories.name');
+
+      // Relax filters: Keep only keywords and text embedding, remove price/location constraints
+      if (search) {
+        const keywords = search.split(/\s+/).filter((k: string) => k.length > 0);
+        keywords.forEach((word: string) => {
+          const pattern = `%${word}%`;
+          query.where((builder: any) => {
+            builder.where('products.title', 'ILIKE', pattern)
+              .orWhere('categories.name', 'ILIKE', pattern);
+          });
+        });
+      }
+      query.whereNot('products.status', 'deleted');
+
+      const relaxedCount = await db(this.tableName).count('id as count').whereNot('status', 'deleted').first();
+      total = parseInt((relaxedCount as any)?.count || '0', 10);
+    }
 
     // 5. Handle Sorting
     let finalSortBy = `products.${sortBy}`;
 
     // Fix: If sorting by relevance but no search term, fallback to created_at
     // "relevance" column only exists as a computed column when searching
-    if (sortBy === 'relevance' || sortBy === 'relevance_score') {
-      if (search) {
+    // Fix: If sorting by relevance but no search term, fallback to created_at
+    // "relevance" column only exists as a computed column when searching
+    if (sortBy === 'relevance' || sortBy === 'relevance_score' || sortBy === 'relevancy') {
+      if (text_embedding) {
+        finalSortBy = 'semantic_score';
+        sortOrder = 'desc'; // Force desc for similarity
+      } else if (search) {
         finalSortBy = 'relevance_score';
       } else {
         finalSortBy = 'products.created_at';

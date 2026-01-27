@@ -106,6 +106,7 @@ export interface ProductFilters {
   specifications?: Record<string, any>;
   sort?: string;
   sortOrder?: 'asc' | 'desc';
+  text_embedding?: number[];
 }
 
 export interface ProductPricing {

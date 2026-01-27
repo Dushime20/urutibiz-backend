@@ -317,6 +317,7 @@ const convertFiltersToQuery = (filters: Partial<ProductFilters> & { sort?: strin
   if (filters.max_price !== undefined) query.max_price = filters.max_price;
   if (filters.location) query.location = filters.location;
   if (filters.specifications) query.specifications = filters.specifications;
+  if (filters.text_embedding) query.text_embedding = filters.text_embedding;
 
   return query;
 };
@@ -636,8 +637,23 @@ export class ProductsController extends BaseController {
       }
 
       // 5. Enhance with metadata about the AI interpretation
+      const products = result.data.data.map((item: any) => {
+        let match_reason = 'Matched based on overall semantic similarity';
+        if (item.semantic_score > 0.8) match_reason = 'High semantic match to your descriptive search';
+        if (item.category_id === aiFilters.category_id) match_reason += ' and category match';
+        const aiSpecs = aiFilters.specifications;
+        if (item.specifications && aiSpecs) {
+          const matchedSpecs = Object.keys(aiSpecs).filter(k =>
+            item.specifications[k]?.toString().toLowerCase() === aiSpecs[k]?.toString().toLowerCase()
+          );
+          if (matchedSpecs.length > 0) match_reason += ` and technical specs (${matchedSpecs.join(', ')})`;
+        }
+        return { ...item, match_reason };
+      });
+
       const responseData = {
         ...result.data,
+        data: products,
         aiInterpretation: {
           originalPrompt: prompt,
           derivedFilters: aiFilters

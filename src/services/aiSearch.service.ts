@@ -70,37 +70,30 @@ class AISearchService {
     const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const systemPrompt = `
-      You are an Alibaba-style Deep Search engine. Your goal is to parse natural language into deep, structured search filters.
+      You are an Alibaba-style Deep Search Architect. Your role is query understanding (STAGE 1).
+      Analyze the user's natural language query and extract structured intent.
       
       Available Categories: ${categoryNames}
       
-      Extract the following Deep Search attributes (Return ONLY a JSON object):
-      - min_price (number, optional): Minimum price intent.
-      - max_price (number, optional): Maximum price intent.
-      - currency (string, optional): Local currency (RWF, KES, USD, etc.).
-      - category_id (string, optional): ID of the exact or best-matching category.
-      - condition (string, optional): 'new', 'like_new', 'good', 'fair', 'poor'.
-      - location_text (string, optional): Specific location mentioned (city/neighborhood).
-      - specifications (object, optional): Key-value pairs of technical attributes (e.g., color, brand, material, size, model).
-      - keywords (string[]): Cleaned, high-intent keywords for semantic search (exclude stop words).
-      - sort (string, optional): User's sorting intent. One of: 'price_asc', 'price_desc', 'rating', 'newest'.
+      Extract the following (Return ONLY a JSON object):
+      - primary_intent: (e.g., "buy", "find", "compare")
+      - filters: {
+          category_id: (best matching ID),
+          location_text: (location name),
+          min_price: (number),
+          max_price: (number),
+          currency: (string, e.g., "RWF"),
+          condition: (new, like_new, good, fair, poor),
+          attributes: { (key-value pairs of features/specs like red, toyota, 8GB) }
+        }
+      - semantic_query: (Cleaned descriptive phrase for vector search, e.g. "camera that works well at night")
+      - keywords: (Array of core product keywords)
+      - sort_intent: (price_asc, price_desc, rating, newest)
       
-      Strict Rules:
-      1. If the user says "cheap", "affordable", or "budget", set 'sort' to 'price_asc'.
-      2. If the user says "best", "top rated", or "premium", set 'sort' to 'rating'.
-      3. If the user says "newest" or "latest", set 'sort' to 'newest'.
-      4. Avoid including price or category words in the 'keywords' array.
+      Strict Rule: Identify multiple intents if present (e.g., "car and a house"). 
+      For multi-intent queries, merge them into a single coherent semantic_query but keep keywords separate.
       
-      Example: "I need a cheap red Toyota car in Nairobi under 5M"
-      Output: { 
-        "max_price": 5000000, 
-        "currency": "KES", 
-        "location_text": "Nairobi", 
-        "keywords": ["car"], 
-        "category_id": "cars_id...",
-        "sort": "price_asc",
-        "specifications": { "brand": "Toyota", "color": "red" }
-      }
+      Output MUST be valid JSON.
     `;
 
     try {
@@ -116,32 +109,34 @@ class AISearchService {
       }
 
       const parsedJson = JSON.parse(text);
-      const filters: any = {};
 
-      if (parsedJson.min_price) filters.min_price = parsedJson.min_price;
-      if (parsedJson.max_price) filters.max_price = parsedJson.max_price;
-      if (parsedJson.currency) filters.currency = parsedJson.currency;
+      // Map to ProductFilters for the rest of the app
+      const filters: Partial<ProductFilters> = {};
+      const rawFilters = parsedJson.filters || {};
 
-      // Map category ID or name
-      if (parsedJson.category_id) {
-        const cat = this.categories.find(c => c.id === parsedJson.category_id || c.name.toLowerCase() === parsedJson.category_id.toLowerCase());
+      if (rawFilters.min_price) filters.min_price = rawFilters.min_price;
+      if (rawFilters.max_price) filters.max_price = rawFilters.max_price;
+      if (rawFilters.currency) filters.currency = rawFilters.currency;
+
+      if (rawFilters.category_id) {
+        const cat = this.categories.find(c => c.id === rawFilters.category_id || c.name.toLowerCase() === rawFilters.category_id.toLowerCase());
         if (cat) filters.category_id = cat.id;
       }
 
-      if (parsedJson.condition) filters.condition = parsedJson.condition;
-      if (parsedJson.location_text) filters.location_text = parsedJson.location_text;
-      if (parsedJson.specifications) filters.specifications = parsedJson.specifications;
+      if (rawFilters.condition) filters.condition = rawFilters.condition;
+      if (rawFilters.location_text) filters.location_text = rawFilters.location_text;
+      if (rawFilters.attributes) filters.specifications = rawFilters.attributes;
 
-      // Map sort intent to controller-friendly format
-      if (parsedJson.sort) {
-        if (parsedJson.sort === 'price_asc') {
+      // Handle sorting
+      if (parsedJson.sort_intent) {
+        if (parsedJson.sort_intent === 'price_asc') {
           filters.sort = 'price';
           filters.sortOrder = 'asc';
-        } else if (parsedJson.sort === 'price_desc') {
+        } else if (parsedJson.sort_intent === 'price_desc') {
           filters.sort = 'price';
           filters.sortOrder = 'desc';
         } else {
-          filters.sort = parsedJson.sort;
+          filters.sort = parsedJson.sort_intent;
         }
       }
 
@@ -149,13 +144,41 @@ class AISearchService {
         filters.search = parsedJson.keywords.join(' ');
       }
 
-      logger.info('[AISearchService] Alibaba Deep Search Parsed:', { original: prompt, result: parsedJson });
+      // Semantic query for vector search (Step 2)
+      if (parsedJson.semantic_query) {
+        try {
+          filters.text_embedding = await this.generateTextEmbedding(parsedJson.semantic_query);
+        } catch (e) {
+          logger.warn('[AISearchService] Semantic embedding failed, using fallback keyword mapping');
+        }
+      }
+
+      logger.info('[AISearchService] Alibaba Deep Search Result:', {
+        intent: parsedJson.primary_intent,
+        semantic: parsedJson.semantic_query,
+        filters: filters
+      });
+
       return filters;
 
     } catch (error) {
-      logger.error('[AISearchService] Gemini API Error:', error);
+      logger.error('[AISearchService] Gemini parsing or embedding failed:', error);
       return null;
     }
+  }
+
+  /**
+   * STEP 2: Semantic Representation
+   * Convert descriptive phrase into a vector embedding
+   */
+  private async generateTextEmbedding(text: string): Promise<number[]> {
+    if (!this.genAI) throw new Error('Gemini not initialized');
+
+    // text-embedding-004 is current standard
+    const model = this.genAI.getGenerativeModel({ model: "text-embedding-004" });
+    const result = await model.embedContent(text);
+    const embedding = result.embedding;
+    return embedding.values;
   }
 
   /**

@@ -184,39 +184,75 @@ class AISearchService {
   }
 
   /**
-   * Regex-based fallback parser
+   * Regex-based fallback parser with enhanced detection
    */
   private parseWithRegex(prompt: string): Partial<ProductFilters> & { keywords?: string[] } {
     const filters: Partial<ProductFilters> = {};
     let searchTerms = prompt.toLowerCase();
 
-    // Extract Location: "in Kigali", "at Nairobi", "from Gisenyi"
-    const locationMatch = searchTerms.match(/\b(?:in|at|from|near)\s+([a-z]+(?:\s+[a-z]+)?)/i);
+    // Extract Location: "in Kigali", "at Nairobi", "from Gisenyi", "near Musanze"
+    const locationMatch = searchTerms.match(/\b(?:in|at|from|near|around)\s+([a-z]+(?:\s+[a-z]+)?)/i);
     if (locationMatch) {
-      searchTerms = searchTerms.replace(locationMatch[0], locationMatch[1]);
+      filters.location_text = locationMatch[1];
+      searchTerms = searchTerms.replace(locationMatch[0], '');
     }
 
-    // Extract Price with currency
-    const minPriceMatch = searchTerms.match(/(?:at least|minimum|min|over|above|>)\s?(\d+)\s?(?:rwf|usd|kes|\$)?/i);
+    // Extract Currency
+    const currencyMatch = searchTerms.match(/\b(rwf|usd|frw|kes|\$|€|£)/i);
+    if (currencyMatch) {
+      const currencyMap: { [key: string]: string } = {
+        'rwf': 'RWF',
+        'frw': 'RWF',
+        'usd': 'USD',
+        '$': 'USD',
+        'kes': 'KES',
+        '€': 'EUR',
+        '£': 'GBP'
+      };
+      filters.currency = currencyMap[currencyMatch[1].toLowerCase()] || 'RWF';
+    }
+
+    // Extract Price with enhanced patterns
+    // Pattern 1: "at least X", "minimum X", "over X", "above X"
+    const minPriceMatch = searchTerms.match(/(?:at least|minimum|min|over|above|more than|>)\s?(\d+(?:,\d{3})*(?:\.\d+)?)\s?(?:k|thousand|million|rwf|usd|frw|kes|\$)?/i);
     if (minPriceMatch) {
-      filters.min_price = parseInt(minPriceMatch[1]);
+      let price = parseFloat(minPriceMatch[1].replace(/,/g, ''));
+      // Handle "k" or "thousand"
+      if (/k|thousand/i.test(minPriceMatch[0])) price *= 1000;
+      if (/million/i.test(minPriceMatch[0])) price *= 1000000;
+      filters.min_price = price;
       searchTerms = searchTerms.replace(minPriceMatch[0], '');
     }
 
-    const maxPriceMatch = searchTerms.match(/(?:under|below|<|max|maximum)\s?(\d+)\s?(?:rwf|usd|kes|\$)?/i);
+    // Pattern 2: "under X", "below X", "less than X", "max X"
+    const maxPriceMatch = searchTerms.match(/(?:under|below|less than|<|max|maximum)\s?(\d+(?:,\d{3})*(?:\.\d+)?)\s?(?:k|thousand|million|rwf|usd|frw|kes|\$)?/i);
     if (maxPriceMatch) {
-      filters.max_price = parseInt(maxPriceMatch[1]);
+      let price = parseFloat(maxPriceMatch[1].replace(/,/g, ''));
+      if (/k|thousand/i.test(maxPriceMatch[0])) price *= 1000;
+      if (/million/i.test(maxPriceMatch[0])) price *= 1000000;
+      filters.max_price = price;
       searchTerms = searchTerms.replace(maxPriceMatch[0], '');
     }
 
-    const rangePriceMatch = searchTerms.match(/(\d+)\s?(?:-|to)\s?(\d+)\s?(?:rwf|usd|kes|\$)?/i);
+    // Pattern 3: "between X and Y", "X to Y", "X-Y"
+    const rangePriceMatch = searchTerms.match(/(?:between\s)?(\d+(?:,\d{3})*(?:\.\d+)?)\s?(?:k|thousand|million)?\s?(?:-|to|and)\s?(\d+(?:,\d{3})*(?:\.\d+)?)\s?(?:k|thousand|million|rwf|usd|frw|kes|\$)?/i);
     if (rangePriceMatch && !filters.min_price && !filters.max_price) {
-      filters.min_price = parseInt(rangePriceMatch[1]);
-      filters.max_price = parseInt(rangePriceMatch[2]);
+      let minPrice = parseFloat(rangePriceMatch[1].replace(/,/g, ''));
+      let maxPrice = parseFloat(rangePriceMatch[2].replace(/,/g, ''));
+      if (/k|thousand/i.test(rangePriceMatch[0])) {
+        minPrice *= 1000;
+        maxPrice *= 1000;
+      }
+      if (/million/i.test(rangePriceMatch[0])) {
+        minPrice *= 1000000;
+        maxPrice *= 1000000;
+      }
+      filters.min_price = minPrice;
+      filters.max_price = maxPrice;
       searchTerms = searchTerms.replace(rangePriceMatch[0], '');
     }
 
-    // Match Categories
+    // Match Categories (longest match first)
     let matchedCategory: Category | null = null;
     let maxLen = 0;
 
@@ -237,34 +273,61 @@ class AISearchService {
       searchTerms = searchTerms.replace(regex, '');
     }
 
-    // Extract Condition
-    const conditions = ['new', 'like new', 'good', 'fair', 'poor', 'used', 'refurbished'];
-    for (const cond of conditions) {
-      const regex = new RegExp(`\\b${cond}\\b`, 'i');
+    // Extract Condition with more variations
+    const conditionMap: { [key: string]: ProductCondition } = {
+      'brand new': 'new',
+      'new': 'new',
+      'like new': 'like_new',
+      'almost new': 'like_new',
+      'excellent': 'like_new',
+      'good': 'good',
+      'used': 'good',
+      'fair': 'fair',
+      'poor': 'poor',
+      'refurbished': 'like_new',
+      'renewed': 'like_new'
+    };
+
+    for (const [keyword, condition] of Object.entries(conditionMap)) {
+      const regex = new RegExp(`\\b${keyword}\\b`, 'i');
       if (regex.test(searchTerms)) {
-        if (cond === 'used') {
-          filters.condition = 'good';
-        } else if (cond === 'refurbished') {
-          filters.condition = 'like_new';
-        } else {
-          const mapped = cond.replace(' ', '_');
-          const validConditions: ProductCondition[] = ['new', 'like_new', 'good', 'fair', 'poor'];
-          if ((validConditions as string[]).includes(mapped)) {
-            filters.condition = mapped as ProductCondition;
-          }
-        }
+        filters.condition = condition;
         searchTerms = searchTerms.replace(regex, '');
         break;
       }
     }
 
+    // Extract sorting intent
+    if (/\b(cheapest|lowest price|most affordable)\b/i.test(searchTerms)) {
+      filters.sort = 'price';
+      filters.sortOrder = 'asc';
+      searchTerms = searchTerms.replace(/\b(cheapest|lowest price|most affordable)\b/gi, '');
+    } else if (/\b(most expensive|highest price|premium)\b/i.test(searchTerms)) {
+      filters.sort = 'price';
+      filters.sortOrder = 'desc';
+      searchTerms = searchTerms.replace(/\b(most expensive|highest price|premium)\b/gi, '');
+    } else if (/\b(best rated|top rated|highest rated)\b/i.test(searchTerms)) {
+      filters.sort = 'rating';
+      filters.sortOrder = 'desc';
+      searchTerms = searchTerms.replace(/\b(best rated|top rated|highest rated)\b/gi, '');
+    } else if (/\b(newest|latest|recent)\b/i.test(searchTerms)) {
+      filters.sort = 'created_at';
+      filters.sortOrder = 'desc';
+      searchTerms = searchTerms.replace(/\b(newest|latest|recent)\b/gi, '');
+    }
+
+    // Clean up common filler words
     searchTerms = searchTerms
-      .replace(/\b(i want|i need|looking for|find me|buy|which is|that is|for|rent|sale|to)\b/g, '')
+      .replace(/\b(i want|i need|looking for|find me|show me|get me|buy|which is|that is|for|rent|rental|sale|to|a|an|the)\b/g, '')
       .replace(/\s+/g, ' ')
       .trim();
 
-    if (searchTerms.length > 2 && !matchedCategory) {
-      filters.search = searchTerms;
+    // Extract remaining keywords
+    if (searchTerms.length > 2) {
+      const keywords = searchTerms.split(' ').filter(word => word.length > 2);
+      if (keywords.length > 0) {
+        filters.search = keywords.join(' ');
+      }
     }
 
     logger.info('[AISearchService] Regex Parsed:', { original: prompt, parsed: filters });

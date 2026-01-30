@@ -107,13 +107,26 @@ export default class AuthController {
     let locationData: any = null;
     try {
       const location = await db('users')
-        .select('location', 'district', 'sector', 'cell', 'village', 'address_line')
+        .select(
+          'location', 
+          // Global address fields
+          'street_address', 'city', 'state_province', 'postal_code', 'country',
+          // Legacy fields
+          'district', 'sector', 'cell', 'village', 'address_line'
+        )
         .where({ id: user.id })
         .first();
 
       if (location) {
         locationData = {
           address: {
+            // Global address fields
+            street_address: location.street_address,
+            city: location.city,
+            state_province: location.state_province,
+            postal_code: location.postal_code,
+            country: location.country,
+            // Legacy fields
             district: location.district,
             sector: location.sector,
             cell: location.cell,

@@ -83,6 +83,12 @@ export interface UpdateUserData {
   cell?: string;
   village?: string;
   preferred_currency?: string;
+  // Global address fields (international standard)
+  street_address?: string;
+  city?: string;
+  state_province?: string;
+  postal_code?: string;
+  country?: string;
 }
 
 export interface UserFilters {

@@ -21,11 +21,15 @@ export interface UserVerification {
   verifiedAt?: string;
   notes?: string;
   createdAt: string;
-  // Address fields (optional)
-  addressLine?: string;
+  // Global address fields
+  street_address?: string;
   city?: string;
-  district?: string;
+  state_province?: string;
+  postal_code?: string;
   country?: string;
+  // Legacy address fields (for backward compatibility)
+  addressLine?: string;
+  district?: string;
   // OCR extracted fields (optional)
   ocrData?: Record<string, any>;
   // Selfie/liveness fields (optional)
@@ -39,11 +43,15 @@ export interface SubmitVerificationRequest {
   verificationType: VerificationType;
   documentNumber?: string;
   documentImageUrl?: string;
-  // Address fields (for address verification)
-  addressLine?: string;
+  // Global address fields
+  street_address?: string;
   city?: string;
-  district?: string;
+  state_province?: string;
+  postal_code?: string;
   country?: string;
+  // Legacy address fields (for backward compatibility)
+  addressLine?: string;
+  district?: string;
   // Selfie
   selfieImageUrl?: string;
 }
@@ -58,11 +66,15 @@ export interface UpdateVerificationRequest {
   verificationType?: VerificationType;
   documentNumber?: string;
   documentImageUrl?: string;
-  // Address fields (for address verification)
-  addressLine?: string;
+  // Global address fields
+  street_address?: string;
   city?: string;
-  district?: string;
+  state_province?: string;
+  postal_code?: string;
   country?: string;
+  // Legacy address fields (for backward compatibility)
+  addressLine?: string;
+  district?: string;
   // Selfie
   selfieImageUrl?: string;
 }

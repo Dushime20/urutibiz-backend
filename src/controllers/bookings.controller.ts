@@ -19,6 +19,9 @@ import Booking from '@/models/Booking.model';
 import { PaymentTransactionService } from '@/services/PaymentTransactionService';
 import BookingStatusHistoryService from '@/services/BookingStatusHistoryService';
 import paymentMethodService from '@/services/PaymentMethodService';
+import { BookingExpirationService } from '@/services/bookingExpiration.service';
+import RentalReminderService from '@/services/rentalReminder.service';
+import logger from '@/utils/logger';
 import { 
   AuthenticatedRequest,
   CreateBookingData,
@@ -436,6 +439,32 @@ export class BookingsController extends BaseController {
         req.body.reason,
         req.body.notes || 'Booking status updated'
       );
+
+      // Handle reminder system integration based on status change
+      try {
+        if (updateData.status === 'cancelled' || updateData.status === 'completed') {
+          // Cancel pending reminders when booking is cancelled or completed
+          await RentalReminderService.cancelPendingReminders(id, `Booking status changed to ${updateData.status}`);
+        } else if (updateData.status === 'returned') {
+          // Mark as returned early if returned before return date
+          await RentalReminderService.markBookingReturnedEarly(id, new Date());
+        }
+      } catch (error) {
+        logger.error(`Error handling reminder integration for booking ${id}:`, error);
+        // Don't fail the booking update if reminder handling fails
+      }
+    }
+
+    // Handle return date changes
+    if (updateData.return_date && updateData.return_date !== (booking as any).return_date) {
+      try {
+        // Reset reminder schedule when return date is updated
+        await RentalReminderService.resetReminderSchedule(id);
+        logger.info(`Reset reminder schedule for booking ${id} due to return date change`);
+      } catch (error) {
+        logger.error(`Error resetting reminder schedule for booking ${id}:`, error);
+        // Don't fail the booking update if reminder reset fails
+      }
     }
 
     // Performance: Invalidate related caches
@@ -899,6 +928,15 @@ export class BookingsController extends BaseController {
     }
 
     const confirmedBooking = await booking.updateStatus('confirmed', user_id);
+
+    // Set booking expiration for confirmed bookings
+    try {
+      await BookingExpirationService.setBookingExpiration(id);
+      console.log(`Expiration set for confirmed booking ${id}`);
+    } catch (error) {
+      console.error(`Failed to set expiration for confirmed booking ${id}:`, error);
+      // Don't fail the confirmation if expiration setting fails
+    }
 
     // Block product availability for confirmed booking dates
     await this.blockAvailabilityForBookingRange(confirmedBooking);
@@ -1564,6 +1602,17 @@ export class BookingsController extends BaseController {
         'Booking created'
       );
       await this.sendBookingCreatedNotifications(created.data.id);
+      
+      // Set booking expiration for confirmed bookings
+      if (created.data.status === 'confirmed') {
+        try {
+          await BookingExpirationService.setBookingExpiration(created.data.id);
+          console.log(`Expiration set for booking ${created.data.id}`);
+        } catch (error) {
+          console.error(`Failed to set expiration for booking ${created.data.id}:`, error);
+          // Don't fail the booking creation if expiration setting fails
+        }
+      }
     }
     
     // Performance: Invalidate related caches

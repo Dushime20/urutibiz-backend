@@ -70,13 +70,18 @@ export const authenticateToken: RequestHandler = async (req, _res, next) => {
     console.log('[AUTH] User from DB:', user ? 'User found' : 'User not found');
     
     if (!user) {
-      console.log('[AUTH] User not found in DB');
-      throw new UnauthorizedError('User not found');
+      console.log('[AUTH] ❌ User not found in DB - Token contains invalid user ID');
+      console.log('[AUTH] 💡 This usually means:');
+      console.log('[AUTH]    1. Database was reset/reseeded but old tokens are still in use');
+      console.log('[AUTH]    2. User was deleted from database');
+      console.log('[AUTH]    3. Token was created with a different JWT_SECRET');
+      console.log('[AUTH] 🔧 Solution: Clear localStorage and login again');
+      throw new UnauthorizedError('User not found. Please login again to get a fresh token.');
     }
     
     // Set user on request
     req.user = user;
-    console.log('[AUTH] User set on request:', user.id, user.email, user.role);
+    console.log('[AUTH] ✅ User authenticated:', user.id, user.email, user.role);
     
     next();
   } catch (error) {

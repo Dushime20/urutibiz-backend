@@ -530,6 +530,13 @@ export class UsersController extends BaseController {
       const location = await db('users')
         .select(
           'location',
+          // Global address fields
+          'street_address',
+          'city',
+          'state_province',
+          'postal_code',
+          'country',
+          // Legacy fields (for backward compatibility)
           'district',
           'sector',
           'cell',
@@ -546,6 +553,13 @@ export class UsersController extends BaseController {
       // Build location object with available data
       const locationData: any = {
         address: {
+          // Global address fields
+          street_address: location.street_address,
+          city: location.city,
+          state_province: location.state_province,
+          postal_code: location.postal_code,
+          country: location.country,
+          // Legacy fields
           district: location.district,
           sector: location.sector,
           cell: location.cell,
@@ -587,7 +601,12 @@ export class UsersController extends BaseController {
       }
 
       // Check if any address field has a value
-      const hasAddressData = location.district || 
+      const hasAddressData = location.street_address || 
+                            location.city || 
+                            location.state_province || 
+                            location.country ||
+                            // Legacy fields
+                            location.district || 
                             location.sector || 
                             location.cell || 
                             location.village || 
@@ -598,6 +617,13 @@ export class UsersController extends BaseController {
         hasAddressData,
         hasGeometry: !!locationData.geometry,
         hasCoordinates: !!locationData.coordinates,
+        // Global address fields
+        street_address: location.street_address,
+        city: location.city,
+        state_province: location.state_province,
+        postal_code: location.postal_code,
+        country: location.country,
+        // Legacy fields
         district: location.district,
         sector: location.sector,
         cell: location.cell,
@@ -678,9 +704,19 @@ export class UsersController extends BaseController {
       }
     }
     if (req.body.gender !== undefined) updateData.gender = req.body.gender;
+    
+    // Global address fields
+    if (req.body.street_address !== undefined) updateData.street_address = req.body.street_address;
+    if (req.body.city !== undefined) updateData.city = req.body.city;
+    if (req.body.state_province !== undefined) updateData.state_province = req.body.state_province;
+    if (req.body.postal_code !== undefined) updateData.postal_code = req.body.postal_code;
+    if (req.body.country !== undefined) updateData.country = req.body.country;
+    
+    // Legacy address fields (for backward compatibility)
     if (req.body.province !== undefined) updateData.province = req.body.province;
     if (req.body.addressLine !== undefined) updateData.addressLine = req.body.addressLine;
     if (req.body.address_line !== undefined) updateData.addressLine = req.body.address_line;
+    
     // Location: expect { latitude, longitude }
     const loc = req.body.location;
     if (loc && (loc.latitude || loc.lat) && (loc.longitude || loc.lng)) {
@@ -695,7 +731,7 @@ export class UsersController extends BaseController {
     if (req.body.profileImage !== undefined) updateData.profileImageUrl = req.body.profileImage;
     if (req.body.profileImagePublicId !== undefined) updateData.profileImagePublicId = req.body.profileImagePublicId;
     
-    // Location fields for Rwanda administrative structure
+    // Legacy Rwanda administrative structure fields (for backward compatibility)
     if (req.body.district !== undefined) updateData.district = req.body.district;
     if (req.body.sector !== undefined) updateData.sector = req.body.sector;
     if (req.body.cell !== undefined) updateData.cell = req.body.cell;

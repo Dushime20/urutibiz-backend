@@ -42,6 +42,8 @@ import validationRoutes from './validation.routes';
 import walletRoutes from './wallet.routes';
 import thirdPartyInspectionRoutes from './thirdPartyInspection.routes';
 import aiChatbotRoutes from './aiChatbot.routes';
+import bookingExpirationRoutes from './bookingExpiration.routes';
+import rentalReminderRoutes from './rentalReminder.routes';
 
 const router = Router();
 
@@ -130,6 +132,14 @@ router.use('/wallet', walletRoutes);
 console.log('🔧 Mounting Third-Party Inspection routes at /third-party-inspections');
 router.use('/third-party-inspections', thirdPartyInspectionRoutes);
 
+// Booking Expiration routes
+console.log('🔧 Mounting Booking Expiration routes at /booking-expiration');
+router.use('/booking-expiration', bookingExpirationRoutes);
+
+// Rental Reminder routes
+console.log('🔧 Mounting Rental Reminder routes at /rental-reminders');
+router.use('/rental-reminders', rentalReminderRoutes);
+
 // Placeholder routes - remove when actual routes are implemented
 router.get('/', (_req, res) => {
   res.status(200).json({
@@ -164,6 +174,8 @@ router.get('/', (_req, res) => {
       admin: '/api/v1/admin',
       analytics: '/api/v1/analytics',
       third_party_inspections: '/api/v1/third-party-inspections',
+      booking_expiration: '/api/v1/booking-expiration',
+      rental_reminders: '/api/v1/rental-reminders',
       chatbot: '/api/v1/chatbot',
     },
   });

@@ -15,18 +15,118 @@ const authToken = process.env.TWILIO_AUTH_TOKEN || 'your_auth_token';
 const twilioPhone = process.env.TWILIO_PHONE_NUMBER || 'your_twilio_phone_number';
 const twilioClient = twilio(accountSid, authToken);
 
-// Real SMS sender using Twilio
-async function sendSms(phoneNumber: string, message: string) {
+// Real SMS sender using Twilio with email fallback
+async function sendSms(phoneNumber: string, message: string, userId?: string) {
+  // Check if we're in development/demo mode or if Twilio credentials are invalid
+  const isDemoMode = process.env.NODE_ENV === 'demo' || process.env.NODE_ENV === 'development';
+  const hasTwilioCredentials = accountSid && authToken && twilioPhone && 
+                                accountSid !== 'your_account_sid' && 
+                                authToken !== 'your_auth_token';
+
+  // Try to send via SMS first if credentials are available
+  if (!isDemoMode && hasTwilioCredentials) {
+    try {
+      await twilioClient.messages.create({
+        body: message,
+        from: twilioPhone,
+        to: phoneNumber
+      });
+      console.log(`✅ [SMS] Sent to ${phoneNumber}`);
+      return;
+    } catch (err: any) {
+      console.error('⚠️ [SMS] Twilio failed, falling back to email:', err.message);
+      // Continue to email fallback
+    }
+  }
+
+  // Fallback: Send OTP via email to logged-in user
   try {
-    await twilioClient.messages.create({
-      body: message,
-      from: twilioPhone,
-      to: phoneNumber
-    });
-    console.log(`[SMS] Sent to ${phoneNumber}`);
-  } catch (err) {
-    console.error('[SMS] Failed to send:', err);
-    throw new Error('Failed to send SMS');
+    const { EmailService } = require('@/services/email.service');
+    const { getDatabase } = require('@/config/database');
+    const db = getDatabase();
+    
+    // Get user's email from userId (logged-in user)
+    let userEmail = null;
+    if (userId) {
+      try {
+        const user = await db('users').where('id', userId).first();
+        if (user) {
+          userEmail = user.email;
+        }
+      } catch (dbError) {
+        console.warn('Could not fetch user email from database:', dbError);
+      }
+    }
+
+    if (userEmail) {
+      const emailService = new EmailService();
+      
+      // Extract OTP from message
+      const otpMatch = message.match(/\b\d{6}\b/);
+      const otpCode = otpMatch ? otpMatch[0] : 'N/A';
+      
+      const emailContent = {
+        to: userEmail,
+        subject: 'Phone Verification Code - UrutiBiz',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+            <div style="background-color: #01aaa7; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+              <h1 style="color: white; margin: 0;">UrutiBiz</h1>
+            </div>
+            <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              <h2 style="color: #333; margin-top: 0;">Phone Verification Code</h2>
+              <p style="color: #666; font-size: 16px; line-height: 1.5;">
+                We received a request to verify your phone number: <strong>${phoneNumber}</strong>
+              </p>
+              <p style="color: #666; font-size: 14px;">
+                Since SMS delivery is unavailable, we're sending your verification code via email.
+              </p>
+              <div style="background-color: #f0f9ff; border-left: 4px solid #01aaa7; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; color: #666;">Your verification code is:</p>
+                <h1 style="color: #01aaa7; font-size: 36px; margin: 10px 0; letter-spacing: 5px;">${otpCode}</h1>
+              </div>
+              <p style="color: #666; font-size: 14px;">
+                This code will expire in 5 minutes. If you didn't request this code, please ignore this email.
+              </p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+              <p style="color: #999; font-size: 12px; text-align: center;">
+                This is an automated message, please do not reply to this email.
+              </p>
+            </div>
+          </div>
+        `,
+        text: `Your UrutiBiz phone verification code is: ${otpCode}. This code will expire in 5 minutes.`
+      };
+      
+      await emailService.sendEmail(emailContent);
+      
+      console.log('='.repeat(60));
+      console.log('📧 [EMAIL FALLBACK] OTP sent via email');
+      console.log(`User ID: ${userId}`);
+      console.log(`Phone: ${phoneNumber}`);
+      console.log(`Email: ${userEmail}`);
+      console.log(`OTP: ${otpCode}`);
+      console.log('='.repeat(60));
+      
+      return;
+    }
+  } catch (emailError) {
+    console.error('❌ [EMAIL FALLBACK] Failed to send email:', emailError);
+  }
+
+  // Last resort: Console logging for development
+  console.log('='.repeat(60));
+  console.log('📱 [CONSOLE FALLBACK - Development Mode]');
+  console.log(`User ID: ${userId || 'N/A'}`);
+  console.log(`To: ${phoneNumber}`);
+  console.log(`Message: ${message}`);
+  console.log('='.repeat(60));
+  
+  // Extract OTP from message if present
+  const otpMatch = message.match(/\b\d{6}\b/);
+  if (otpMatch) {
+    console.log(`🔑 OTP CODE: ${otpMatch[0]}`);
+    console.log('='.repeat(60));
   }
 }
 
@@ -122,10 +222,15 @@ export default class UserVerificationService {
         verification_type: data.verificationType,
         document_number: data.documentNumber,
         document_image_url: data.documentImageUrl,
-        address_line: data.addressLine,
+        // Global address fields
+        street_address: data.street_address,
         city: data.city,
-        district: data.district,
+        state_province: data.state_province,
+        postal_code: data.postal_code,
         country: data.country,
+        // Legacy fields (for backward compatibility)
+        address_line: data.addressLine,
+        district: data.district,
         selfie_image_url: data.selfieImageUrl,
         phone_number: userPhoneNumber, // Include user's phone number
         ocr_data: ocrData,
@@ -238,10 +343,15 @@ export default class UserVerificationService {
         verification_type: data.verificationType,
         document_number: data.documentNumber,
         document_image_url: data.documentImageUrl,
-        address_line: data.addressLine,
+        // Global address fields
+        street_address: data.street_address,
         city: data.city,
-        district: data.district,
+        state_province: data.state_province,
+        postal_code: data.postal_code,
         country: data.country,
+        // Legacy fields
+        address_line: data.addressLine,
+        district: data.district,
         selfie_image_url: data.selfieImageUrl,
         phone_number: userPhoneNumber, // Include user's phone number
         ocr_data: ocrData,
@@ -406,10 +516,15 @@ export default class UserVerificationService {
       verifiedAt: row.verified_at,
       notes: row.notes,
       createdAt: row.created_at,
-      addressLine: row.address_line,
+      // Global address fields
+      street_address: row.street_address,
       city: row.city,
-      district: row.district,
+      state_province: row.state_province,
+      postal_code: row.postal_code,
       country: row.country,
+      // Legacy fields
+      addressLine: row.address_line,
+      district: row.district,
       ocrData: row.ocr_data,
       selfieImageUrl: row.selfie_image_url,
       livenessScore: row.liveness_score,
@@ -434,10 +549,15 @@ export default class UserVerificationService {
         verification_type: data.verificationType,
         document_number: data.documentNumber,
         document_image_url: data.documentImageUrl,
-        address_line: data.addressLine,
+        // Global address fields
+        street_address: data.street_address,
         city: data.city,
-        district: data.district,
+        state_province: data.state_province,
+        postal_code: data.postal_code,
         country: data.country,
+        // Legacy fields
+        address_line: data.addressLine,
+        district: data.district,
         selfie_image_url: data.selfieImageUrl,
         verification_status: 'pending',
         ai_processing_status: 'queued',
@@ -545,18 +665,32 @@ export default class UserVerificationService {
     if (data.documentImageUrl !== undefined) {
       updateData.document_image_url = data.documentImageUrl;
     }
-    if (data.addressLine !== undefined) {
-      updateData.address_line = data.addressLine;
+    
+    // Global address fields
+    if (data.street_address !== undefined) {
+      updateData.street_address = data.street_address;
     }
     if (data.city !== undefined) {
       updateData.city = data.city;
     }
-    if (data.district !== undefined) {
-      updateData.district = data.district;
+    if (data.state_province !== undefined) {
+      updateData.state_province = data.state_province;
+    }
+    if (data.postal_code !== undefined) {
+      updateData.postal_code = data.postal_code;
     }
     if (data.country !== undefined) {
       updateData.country = data.country;
     }
+    
+    // Legacy address fields
+    if (data.addressLine !== undefined) {
+      updateData.address_line = data.addressLine;
+    }
+    if (data.district !== undefined) {
+      updateData.district = data.district;
+    }
+    
     if (data.selfieImageUrl !== undefined) {
       updateData.selfie_image_url = data.selfieImageUrl;
     }
@@ -751,8 +885,8 @@ export default class UserVerificationService {
       created_at: new Date()
     });
 
-    // Send OTP via SMS
-    await sendSms(newPhoneNumber, `Your verification code is: ${otp}`);
+    // Send OTP via SMS (with email fallback using logged-in user's email)
+    await sendSms(newPhoneNumber, `Your verification code is: ${otp}`, userId);
   }
 
   /**
@@ -760,12 +894,57 @@ export default class UserVerificationService {
    */
   static async verifyPhoneOtp(userId: string, newPhoneNumber: string, otp: string): Promise<void> {
     const db = getDatabase();
+    
+    // Check if we're in development/demo mode
+    const isDemoMode = process.env.NODE_ENV === 'demo' || process.env.NODE_ENV === 'development';
+    const DEMO_OTP = '123456'; // Universal demo OTP code
+    
+    // In demo mode, accept the demo OTP without checking database
+    if (isDemoMode && otp === DEMO_OTP) {
+      console.log('='.repeat(60));
+      console.log('🔓 [OTP - DEMO MODE ACCEPTED]');
+      console.log(`User: ${userId}`);
+      console.log(`Phone: ${newPhoneNumber}`);
+      console.log(`Demo OTP: ${DEMO_OTP} ✓`);
+      console.log('='.repeat(60));
+      
+      // Update phone number in user_verifications (latest verification)
+      await db('user_verifications')
+        .where({ user_id: userId })
+        .orderBy('created_at', 'desc')
+        .limit(1)
+        .update({ phone_number: newPhoneNumber });
+
+      // In demo mode, skip phone uniqueness check or handle gracefully
+      const existingUserWithPhone = await db('users')
+        .where('phone', newPhoneNumber)
+        .andWhereNot('id', userId)
+        .first();
+      
+      if (existingUserWithPhone) {
+        console.warn(`⚠️ [Demo Mode] Phone ${newPhoneNumber} already in use, but allowing for demo purposes`);
+      }
+
+      // Update user's phone number
+      await db('users')
+        .where({ id: userId })
+        .update({ phone: newPhoneNumber, phone_verified: true, updated_at: new Date() });
+
+      console.log(`✅ [Demo Mode] Phone verified for user ${userId}`);
+      return;
+    }
+    
+    // Production mode or real OTP: Check database
     const record = await db('phone_verification_otps')
       .where({ user_id: userId, phone_number: newPhoneNumber, otp_code: otp, verified: false })
       .andWhere('expires_at', '>', new Date())
       .first();
 
     if (!record) {
+      // In demo mode, provide helpful error message
+      if (isDemoMode) {
+        throw new Error(`Invalid or expired OTP. Use demo OTP: ${DEMO_OTP} for testing`);
+      }
       throw new Error('Invalid or expired OTP');
     }
 
@@ -791,7 +970,7 @@ export default class UserVerificationService {
     // Persist verified phone number onto users table as the canonical phone
     const affected = await db('users')
       .where({ id: userId })
-      .update({ phone: newPhoneNumber, updated_at: new Date() });
+      .update({ phone: newPhoneNumber, phone_verified: true, updated_at: new Date() });
     if (!affected) {
       console.warn(`[PhoneOTP] No user row updated for ${userId}.`);
     }

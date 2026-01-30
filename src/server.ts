@@ -63,6 +63,26 @@ async function startServer(): Promise<void> {
       logger.info(`💚 Health Check: http://localhost:${config.port}/health`);
       logger.info(`🌐 Frontend URL: ${config.frontendUrl}`);
 
+      // Start booking expiration cron service
+      try {
+        const { BookingExpirationCronService } = await import('./services/bookingExpirationCron.service');
+        BookingExpirationCronService.start();
+        logger.info('✅ Booking expiration cron service started');
+      } catch (error) {
+        logger.error('❌ Failed to start booking expiration cron service:', error);
+        // Don't block server startup
+      }
+
+      // Start rental reminder cron service
+      try {
+        const { RentalReminderCronService } = await import('./services/rentalReminderCron.service');
+        RentalReminderCronService.start();
+        logger.info('✅ Rental reminder cron service started');
+      } catch (error) {
+        logger.error('❌ Failed to start rental reminder cron service:', error);
+        // Don't block server startup
+      }
+
       // Load AI model and precompute embeddings in background (non-blocking)
       setTimeout(async () => {
         try {
@@ -94,6 +114,24 @@ async function startServer(): Promise<void> {
     // Graceful shutdown function
     const gracefulShutdown = async (signal: string) => {
       logger.info(`${signal} received. Starting graceful shutdown...`);
+      
+      // Stop booking expiration cron service
+      try {
+        const { BookingExpirationCronService } = await import('./services/bookingExpirationCron.service');
+        BookingExpirationCronService.stop();
+        logger.info('✅ Booking expiration cron service stopped');
+      } catch (error) {
+        logger.error('❌ Error stopping booking expiration cron service:', error);
+      }
+
+      // Stop rental reminder cron service
+      try {
+        const { RentalReminderCronService } = await import('./services/rentalReminderCron.service');
+        RentalReminderCronService.stop();
+        logger.info('✅ Rental reminder cron service stopped');
+      } catch (error) {
+        logger.error('❌ Error stopping rental reminder cron service:', error);
+      }
       
       if (app) {
         await app.shutdown();

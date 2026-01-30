@@ -39,6 +39,9 @@ export enum NotificationType {
   SYSTEM = 'system',
   SECURITY = 'security',
   
+  // Rental related
+  RENTAL_REMINDER = 'rental_reminder',
+  
   // Risk Management related
   RISK_COMPLIANCE_REQUIRED = 'risk_compliance_required',
   RISK_ESCALATION = 'risk_escalation',
@@ -65,6 +68,7 @@ export enum NotificationChannel {
 export enum NotificationPriority {
   LOW = 'low',
   NORMAL = 'normal',
+  MEDIUM = 'medium',
   HIGH = 'high',
   URGENT = 'urgent'
 }

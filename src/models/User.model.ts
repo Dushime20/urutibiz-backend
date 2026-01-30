@@ -26,6 +26,13 @@ export class User implements Partial<UserData> {
   public passwordHash?: string;
   public kyc_status: 'unverified' | 'verified' | 'rejected';
   public gender?: string;
+  // Global address fields
+  public street_address?: string;
+  public city?: string;
+  public state_province?: string;
+  public postal_code?: string;
+  public country?: string;
+  // Legacy fields (deprecated)
   public province?: string;
   public addressLine?: string;
   public location?: { latitude: number; longitude: number };
@@ -36,7 +43,7 @@ export class User implements Partial<UserData> {
   public twoFactorSecret?: string;
   public twoFactorBackupCodes?: string[];
   public twoFactorVerified?: boolean;
-  // Location fields for Rwanda administrative structure
+  // Legacy Rwanda-specific fields (deprecated)
   public district?: string;
   public sector?: string;
   public cell?: string;
@@ -65,7 +72,13 @@ export class User implements Partial<UserData> {
     // Profile image fields
     this.profileImageUrl = data.profileImageUrl;
     this.profileImagePublicId = data.profileImagePublicId;
-    // Location fields
+    // Global address fields
+    this.street_address = data.street_address;
+    this.city = data.city;
+    this.state_province = data.state_province;
+    this.postal_code = data.postal_code;
+    this.country = data.country;
+    // Legacy fields (for backward compatibility)
     this.district = data.district;
     this.sector = data.sector;
     this.cell = data.cell;
@@ -162,6 +175,13 @@ export class User implements Partial<UserData> {
       kyc_status: row.kyc_status, // <-- Ensure this is mapped
       profileImageUrl: row.profile_image_url,
       profileImagePublicId: row.profile_image_public_id,
+      // Global address fields
+      street_address: row.street_address,
+      city: row.city,
+      state_province: row.state_province,
+      postal_code: row.postal_code,
+      country: row.country,
+      // Legacy fields (for backward compatibility)
       district: row.district,
       sector: row.sector,
       cell: row.cell,

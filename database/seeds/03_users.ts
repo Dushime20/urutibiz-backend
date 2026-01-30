@@ -3,27 +3,47 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function seed(knex: Knex): Promise<void> {
-  // Delete existing entries
-  await knex('users').del();
+  // ⚠️ IMPORTANT: Don't delete existing users to preserve tokens and user data
+  // Instead, use upsert logic to insert only if user doesn't exist
+  
+  console.log('🌱 Starting user seed (preserving existing users)...');
 
   // Hash passwords
   const hashedPassword = await bcrypt.hash('password123', 10);
   const adminPassword = await bcrypt.hash('admin123', 10);
 
-  // Generate UUIDs for users
+  // Check if users already exist and get their IDs, or generate new ones
+  const existingUsers = await knex('users')
+    .select('id', 'email')
+    .whereIn('email', [
+      'john.doe@example.com',
+      'jane.smith@example.com',
+      'admin@urutibiz.com',
+      'moderator@urutibiz.com',
+      'inspector@urutibiz.com',
+      'mary.wilson@example.com',
+      'david.brown@example.com',
+      'sarah.jones@example.com'
+    ]);
+
+  const existingUserMap = new Map(existingUsers.map(u => [u.email, u.id]));
+
+  // Use existing IDs or generate new UUIDs
   const userIds = {
-    user1: uuidv4(),
-    user2: uuidv4(),
-    user3: uuidv4(),
-    user4: uuidv4(),
-    user5: uuidv4(),
-    user6: uuidv4(),
-    user7: uuidv4(),
-    user8: uuidv4()
+    user1: existingUserMap.get('john.doe@example.com') || uuidv4(),
+    user2: existingUserMap.get('jane.smith@example.com') || uuidv4(),
+    user3: existingUserMap.get('admin@urutibiz.com') || uuidv4(),
+    user4: existingUserMap.get('moderator@urutibiz.com') || uuidv4(),
+    user5: existingUserMap.get('inspector@urutibiz.com') || uuidv4(),
+    user6: existingUserMap.get('mary.wilson@example.com') || uuidv4(),
+    user7: existingUserMap.get('david.brown@example.com') || uuidv4(),
+    user8: existingUserMap.get('sarah.jones@example.com') || uuidv4()
   };
 
-  // Insert seed entries
-  await knex('users').insert([
+  console.log(`📊 Found ${existingUsers.length} existing users, will preserve their IDs`);
+
+  // Prepare users data
+  const usersToSeed = [
     {
       id: userIds.user1,
       email: 'john.doe@example.com',
@@ -84,6 +104,7 @@ export async function seed(knex: Knex): Promise<void> {
       id: userIds.user3,
       email: 'admin@urutibiz.com',
       phone_number: '+250788345678',
+      phone: '+250788345678',
       password_hash: adminPassword,
       role: 'admin',
       is_active: true,
@@ -92,18 +113,26 @@ export async function seed(knex: Knex): Promise<void> {
       preferred_currency: 'RWF',
       date_of_birth: '1980-01-01',
       gender: 'male',
+      // Global address fields
+      street_address: 'KG 789 St, Kimisagara',
+      city: 'Kigali',
+      state_province: 'Kigali City',
+      postal_code: '00000',
+      country: 'Rwanda',
+      // Legacy fields (for backward compatibility)
       province: 'rw-kigali',
       address_line: 'KG 789 St, Kimisagara',
-      email_verified: true,
-      phone_verified: true,
-      kyc_status: 'verified',
-      bio: 'System administrator for UrutiBiz platform',
       district: 'rw-kigali-nyarugenge',
       sector: 'Kimisagara',
       cell: 'Kimisagara',
       village: 'Kimisagara',
-      two_factor_enabled: true,
-      two_factor_verified: true,
+      // Verification status - FULLY VERIFIED
+      email_verified: true,
+      phone_verified: true,
+      kyc_status: 'verified',
+      bio: 'System administrator for UrutiBiz platform',
+      two_factor_enabled: false,
+      two_factor_verified: false,
       status: 'active',
       created_at: knex.fn.now(),
       updated_at: knex.fn.now()
@@ -248,7 +277,19 @@ export async function seed(knex: Knex): Promise<void> {
       created_at: knex.fn.now(),
       updated_at: knex.fn.now()
     }
-  ]);
+  ];
 
-  console.log('✅ Users seeded successfully');
+  // Use upsert logic: insert only if user doesn't exist
+  for (const user of usersToSeed) {
+    const existing = await knex('users').where('email', user.email).first();
+    
+    if (existing) {
+      console.log(`   ⏭️  Skipping ${user.email} (already exists with ID: ${existing.id})`);
+    } else {
+      await knex('users').insert(user);
+      console.log(`   ✅ Created ${user.email} (ID: ${user.id})`);
+    }
+  }
+
+  console.log('✅ Users seed completed - existing users preserved!');
 }

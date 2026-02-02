@@ -53,7 +53,7 @@ export class BookingExpirationService {
       ]);
 
       return {
-        booking_expiration_hours: parseInt(hoursRecord?.value || '4'),
+        booking_expiration_hours: parseInt(hoursRecord?.value || '2'),
         booking_expiration_enabled: enabledRecord?.value === 'true',
         booking_expiration_last_run: lastRunRecord?.booking_expiration_last_run
       };
@@ -105,7 +105,8 @@ export class BookingExpirationService {
   }
 
   /**
-   * Set expiration time for a booking when it's created
+   * Set expiration time for a booking when it's confirmed
+   * Uses confirmed_at timestamp as the base, or current time if not set
    */
   static async setBookingExpiration(bookingId: string): Promise<void> {
     try {
@@ -115,10 +116,23 @@ export class BookingExpirationService {
         return;
       }
 
-      const expiresAt = new Date();
+      const knex = getDatabase();
+      
+      // Get the booking to check confirmed_at timestamp
+      const booking = await knex('bookings')
+        .select('confirmed_at', 'status')
+        .where('id', bookingId)
+        .first();
+
+      if (!booking) {
+        throw new Error(`Booking ${bookingId} not found`);
+      }
+
+      // Calculate expiration from confirmed_at if available, otherwise use current time
+      const baseTime = booking.confirmed_at ? new Date(booking.confirmed_at) : new Date();
+      const expiresAt = new Date(baseTime);
       expiresAt.setHours(expiresAt.getHours() + settings.booking_expiration_hours);
 
-      const knex = getDatabase();
       await knex('bookings')
         .where('id', bookingId)
         .update({
@@ -126,7 +140,7 @@ export class BookingExpirationService {
           updated_at: knex.fn.now()
         });
 
-      logger.info(`Set expiration for booking ${bookingId} to ${expiresAt.toISOString()}`);
+      logger.info(`Set expiration for booking ${bookingId} to ${expiresAt.toISOString()} (base time: ${baseTime.toISOString()})`);
     } catch (error) {
       logger.error(`Error setting expiration for booking ${bookingId}:`, error);
       throw new Error('Failed to set booking expiration');

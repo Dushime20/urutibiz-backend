@@ -3,7 +3,7 @@ import { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   // Add booking expiration settings to system_settings table
   await knex.schema.alterTable('system_settings', (table) => {
-    table.integer('booking_expiration_hours').defaultTo(4).comment('Hours after which unbooked confirmed bookings expire');
+    table.integer('booking_expiration_hours').defaultTo(2).comment('Hours after which unbooked confirmed bookings expire');
     table.boolean('booking_expiration_enabled').defaultTo(true).comment('Enable/disable booking expiration');
     table.timestamp('booking_expiration_last_run').nullable().comment('Last time expiration cleanup was run');
   });
@@ -48,7 +48,7 @@ export async function up(knex: Knex): Promise<void> {
     await knex('system_settings').insert([
       {
         key: 'booking_expiration_hours',
-        value: '4',
+        value: '2',
         type: 'integer',
         category: 'booking',
         description: 'Hours after which unbooked confirmed bookings expire',

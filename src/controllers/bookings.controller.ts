@@ -21,6 +21,7 @@ import BookingStatusHistoryService from '@/services/BookingStatusHistoryService'
 import paymentMethodService from '@/services/PaymentMethodService';
 import { BookingExpirationService } from '@/services/bookingExpiration.service';
 import RentalReminderService from '@/services/rentalReminder.service';
+import { getDatabase } from '@/config/database';
 import logger from '@/utils/logger';
 import { 
   AuthenticatedRequest,
@@ -33,7 +34,6 @@ import { DeliveryService } from '@/services/delivery.service';
 import type { DeliveryMethod, DeliveryTimeWindow, DeliveryStatus } from '@/types/product.types';
 import { ResponseHelper } from '@/utils/response';
 import { v4 as uuidv4 } from 'uuid';
-import { getDatabase } from '@/config/database';
 import NotificationEngine from '@/services/notification/NotificationEngine';
 import { NotificationType, NotificationPriority } from '@/services/notification/types';
 
@@ -929,7 +929,17 @@ export class BookingsController extends BaseController {
 
     const confirmedBooking = await booking.updateStatus('confirmed', user_id);
 
-    // Set booking expiration for confirmed bookings
+    // Save the confirmed_at timestamp to database
+    const knex = getDatabase();
+    await knex('bookings')
+      .where('id', id)
+      .update({
+        status: 'confirmed',
+        confirmed_at: confirmedBooking.confirmed_at || knex.fn.now(),
+        updated_at: knex.fn.now()
+      });
+
+    // Set booking expiration for confirmed bookings (uses confirmed_at as base time)
     try {
       await BookingExpirationService.setBookingExpiration(id);
       console.log(`Expiration set for confirmed booking ${id}`);

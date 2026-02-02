@@ -96,6 +96,12 @@ export class Booking {
   public owner_confirmed_at?: Date;
   public owner_rejection_reason?: string;
   public owner_confirmation_notes?: string;
+  
+  // Timestamp fields for booking lifecycle
+  public confirmed_at?: Date;
+  public cancelled_at?: Date;
+  public started_at?: Date;
+  public completed_at?: Date;
 
   // In-memory storage for demo
   private static bookings: Booking[] = [];
@@ -147,6 +153,21 @@ export class Booking {
       (data as any).owner_rejection_reason || (data as any).ownerRejectionReason;
     this.owner_confirmation_notes =
       (data as any).owner_confirmation_notes || (data as any).ownerConfirmationNotes;
+    
+    // Initialize lifecycle timestamps
+    this.confirmed_at = (data as any).confirmed_at
+      ? new Date((data as any).confirmed_at)
+      : undefined;
+    this.cancelled_at = (data as any).cancelled_at
+      ? new Date((data as any).cancelled_at)
+      : undefined;
+    this.started_at = (data as any).started_at
+      ? new Date((data as any).started_at)
+      : undefined;
+    this.completed_at = (data as any).completed_at
+      ? new Date((data as any).completed_at)
+      : undefined;
+    
     this.timeline = [];
     this.messages = [];
     this.status_history = [];
@@ -332,6 +353,26 @@ export class Booking {
     this.last_modified_by = user_id;
     this.updated_at = new Date();
 
+    // Set confirmed_at timestamp when status changes to confirmed
+    if (status === 'confirmed' && !this.confirmed_at) {
+      this.confirmed_at = new Date();
+    }
+
+    // Set cancelled_at timestamp when status changes to cancelled
+    if (status === 'cancelled' && !this.cancelled_at) {
+      this.cancelled_at = new Date();
+    }
+
+    // Set started_at timestamp when status changes to in_progress
+    if (status === 'in_progress' && !this.started_at) {
+      this.started_at = new Date();
+    }
+
+    // Set completed_at timestamp when status changes to completed
+    if (status === 'completed' && !this.completed_at) {
+      this.completed_at = new Date();
+    }
+
     // Add timeline event
     const description = reason 
       ? `Status changed from ${oldStatus} to ${status}. Reason: ${reason}`
@@ -454,6 +495,18 @@ export class Booking {
         : this.owner_confirmed_at,
       owner_rejection_reason: this.owner_rejection_reason,
       owner_confirmation_notes: this.owner_confirmation_notes,
+      confirmed_at: this.confirmed_at instanceof Date 
+        ? this.confirmed_at.toISOString() 
+        : this.confirmed_at,
+      cancelled_at: this.cancelled_at instanceof Date 
+        ? this.cancelled_at.toISOString() 
+        : this.cancelled_at,
+      started_at: this.started_at instanceof Date 
+        ? this.started_at.toISOString() 
+        : this.started_at,
+      completed_at: this.completed_at instanceof Date 
+        ? this.completed_at.toISOString() 
+        : this.completed_at,
       createdAt: this.created_at instanceof Date ? this.created_at : new Date(this.created_at),
       updatedAt: this.updated_at instanceof Date ? this.updated_at : new Date(this.updated_at)
     };

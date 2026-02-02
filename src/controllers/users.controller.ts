@@ -759,7 +759,7 @@ export class UsersController extends BaseController {
     const db = require('@/config/database').getDatabase();
     
     // Performance: Single query with aggregations
-    const [productStats, bookingStats] = await Promise.all([
+    const [productStats, bookingStats, paymentStats] = await Promise.all([
       db('products')
         .select(
           db.raw('COUNT(*) as total_products'),
@@ -770,17 +770,25 @@ export class UsersController extends BaseController {
       
       db('bookings')
         .select(
-          db.raw('COUNT(*) as total_bookings'),
-          db.raw('SUM(CASE WHEN status = "completed" THEN total_amount ELSE 0 END) as total_earnings')
+          db.raw('COUNT(*) as total_bookings')
         )
         .where({ owner_id: userId })
+        .first(),
+      
+      // Calculate total earnings from completed payment transactions
+      db('payment_transactions')
+        .join('bookings', 'payment_transactions.booking_id', 'bookings.id')
+        .select(
+          db.raw('SUM(CASE WHEN payment_transactions.status = "completed" AND payment_transactions.transaction_type = "payment" THEN payment_transactions.amount ELSE 0 END) as total_earnings')
+        )
+        .where('bookings.owner_id', userId)
         .first()
     ]);
 
     return {
       totalProducts: productStats?.total_products || 0,
       totalBookings: bookingStats?.total_bookings || 0,
-      totalEarnings: bookingStats?.total_earnings || 0,
+      totalEarnings: parseFloat(paymentStats?.total_earnings || 0),
       averageRating: productStats?.average_rating || 0
     };
   }

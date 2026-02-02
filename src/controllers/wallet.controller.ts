@@ -166,48 +166,68 @@ export class WalletController {
         console.log(`[WalletController] Booking ${i+1}: ID=${b.id}, Status=${b.status}, Amount=${b.total_amount}`);
       });
 
-      // Get completed bookings with currency information
-      const completedBookings = await db('bookings')
-        .join('products', 'bookings.product_id', 'products.id')
-        .join('product_prices', function() {
-          this.on('product_prices.product_id', '=', 'products.id')
-              .andOn('product_prices.country_id', '=', 'products.country_id')
-              .andOn('product_prices.is_active', '=', db.raw('true'));
-        })
+      // Get completed payment transactions for this user
+      // Include two types:
+      // 1. Transactions where user is the owner of the booking (receiving rental payments)
+      // 2. Transactions where user is directly the user_id (receiving refunds, etc.)
+      
+      // Type 1: Payments received as product owner
+      const ownerPayments = await db('payment_transactions')
+        .join('bookings', 'payment_transactions.booking_id', 'bookings.id')
         .select(
-          'bookings.total_amount',
-          'product_prices.currency'
+          'payment_transactions.amount',
+          'payment_transactions.currency',
+          'payment_transactions.transaction_type',
+          'payment_transactions.status',
+          db.raw("'owner_payment' as source")
         )
         .where('bookings.owner_id', ownerId)
-        .where('bookings.status', 'completed');
+        .where('payment_transactions.status', 'completed')
+        .whereIn('payment_transactions.transaction_type', ['booking_payment', 'payment']); // Only actual payments
 
-      console.log(`[WalletController] Found ${completedBookings.length} completed bookings`);
+      // Type 2: Transactions received directly (refunds, etc.)
+      const directTransactions = await db('payment_transactions')
+        .select(
+          'payment_transactions.amount',
+          'payment_transactions.currency',
+          'payment_transactions.transaction_type',
+          'payment_transactions.status',
+          db.raw("'direct_transaction' as source")
+        )
+        .where('payment_transactions.user_id', ownerId)
+        .where('payment_transactions.status', 'completed')
+        .whereIn('payment_transactions.transaction_type', ['refund', 'partial_refund']); // Refunds received
+
+      // Combine both types
+      const completedPayments = [...ownerPayments, ...directTransactions];
+
+      console.log(`[WalletController] Found ${ownerPayments.length} owner payments and ${directTransactions.length} direct transactions`);
 
       // Group balances by currency
       const balancesByCurrency: Record<string, number> = {};
-      completedBookings.forEach(booking => {
-        const currency = booking.currency || 'RWF';
-        const amount = parseFloat(booking.total_amount || 0);
+      completedPayments.forEach(payment => {
+        const currency = payment.currency || 'RWF';
+        const amount = parseFloat(payment.amount || 0);
         balancesByCurrency[currency] = (balancesByCurrency[currency] || 0) + amount;
       });
 
       // Calculate total balance (sum of all currencies)
       const totalBalance = Object.values(balancesByCurrency).reduce((sum, amount) => sum + amount, 0);
       
-      // Get primary currency from all bookings (pending + completed)
-      const allBookingsWithCurrency = await db('bookings')
-        .join('products', 'bookings.product_id', 'products.id')
-        .join('product_prices', function() {
-          this.on('product_prices.product_id', '=', 'products.id')
-              .andOn('product_prices.country_id', '=', 'products.country_id')
-              .andOn('product_prices.is_active', '=', db.raw('true'));
+      // Get primary currency from completed payments
+      const primaryCurrencyPayment = await db('payment_transactions')
+        .select('payment_transactions.currency')
+        .where(function() {
+          this.where('payment_transactions.user_id', ownerId)
+            .orWhereIn('payment_transactions.booking_id', function() {
+              this.select('id').from('bookings').where('owner_id', ownerId);
+            });
         })
-        .select('product_prices.currency')
-        .where('bookings.owner_id', ownerId)
+        .where('payment_transactions.status', 'completed')
         .limit(1);
       
-      const primaryCurrency = allBookingsWithCurrency.length > 0 
-        ? allBookingsWithCurrency[0].currency || 'RWF'
+      const primaryCurrency = primaryCurrencyPayment.length > 0 
+        ? primaryCurrencyPayment[0].currency || 'RWF'
         : 'RWF';
       
       const balanceData = {
@@ -218,9 +238,18 @@ export class WalletController {
         last_updated: new Date().toISOString(),
         debug: {
           total_bookings: allBookings.length,
-          completed_bookings: completedBookings.length,
+          owner_payments: ownerPayments.length,
+          direct_transactions: directTransactions.length,
+          completed_payments: completedPayments.length,
           all_booking_statuses: allBookings.map(b => ({ id: b.id, status: b.status, amount: b.total_amount })),
-          currency_breakdown: balancesByCurrency
+          currency_breakdown: balancesByCurrency,
+          payment_breakdown: completedPayments.map(p => ({ 
+            amount: p.amount, 
+            currency: p.currency, 
+            type: p.transaction_type,
+            status: p.status,
+            source: p.source
+          }))
         }
       };
 

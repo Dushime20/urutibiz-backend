@@ -9,12 +9,14 @@ export interface BookingExpirationSettings {
 
 export interface ExpiredBooking {
   id: string;
-  reference_number?: string;
-  user_id?: string;
+  booking_number?: string;
+  renter_id?: string;
+  owner_id?: string;
   product_title?: string;
   created_at: Date;
   expires_at: Date;
   status: string;
+  payment_status?: string;
   total_amount?: number;
   booking_data: any;
 }
@@ -133,6 +135,7 @@ export class BookingExpirationService {
 
   /**
    * Find bookings that have expired and should be deleted
+   * Only expires confirmed bookings where payment is still pending/failed
    */
   static async findExpiredBookings(): Promise<ExpiredBooking[]> {
     try {
@@ -142,9 +145,11 @@ export class BookingExpirationService {
       const expiredBookings = await knex('bookings')
         .select([
           'bookings.id',
-          'bookings.reference_number',
-          'bookings.user_id',
+          'bookings.booking_number',
+          'bookings.renter_id',
+          'bookings.owner_id',
           'bookings.status',
+          'bookings.payment_status',
           'bookings.total_amount',
           'bookings.created_at',
           'bookings.expires_at',
@@ -153,8 +158,8 @@ export class BookingExpirationService {
         .leftJoin('products', 'bookings.product_id', 'products.id')
         .where('bookings.expires_at', '<=', now)
         .where('bookings.is_expired', false)
-        .where('bookings.status', 'confirmed') // Only confirmed but unpaid bookings
-        .whereNotIn('bookings.status', ['completed', 'paid', 'active', 'checked_in', 'checked_out']);
+        .where('bookings.status', 'confirmed') // Only confirmed bookings
+        .whereIn('bookings.payment_status', ['pending', 'failed']); // Only unpaid bookings
 
       return expiredBookings.map(booking => ({
         ...booking,
@@ -176,8 +181,8 @@ export class BookingExpirationService {
       const knex = getDatabase();
       await knex('booking_expiration_logs').insert({
         booking_id: booking.id,
-        booking_reference: booking.reference_number,
-        user_id: booking.user_id,
+        booking_reference: booking.booking_number,
+        user_id: booking.renter_id, // Use renter_id as the user who made the booking
         product_title: booking.product_title,
         booking_created_at: booking.created_at,
         booking_expires_at: booking.expires_at,

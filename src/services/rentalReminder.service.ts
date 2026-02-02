@@ -95,7 +95,7 @@ export class RentalReminderService {
         ])
         .leftJoin('products', 'bookings.product_id', 'products.id')
         .leftJoin('users', 'bookings.renter_id', 'users.id')
-        .whereIn('bookings.status', ['active', 'ongoing', 'confirmed'])
+        .whereIn('bookings.status', ['confirmed', 'in_progress']) // Valid enum values: confirmed or in_progress
         .where('bookings.reminders_enabled', true)
         .where('bookings.returned_early', false)
         .whereNull('bookings.actual_return_date')

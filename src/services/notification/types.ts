@@ -18,6 +18,7 @@ export enum NotificationType {
   BOOKING_CONFIRMED = 'booking_confirmed',
   BOOKING_CANCELLED = 'booking_cancelled',
   BOOKING_REMINDER = 'booking_reminder',
+  BOOKING_EXPIRED = 'booking_expired',
   
   // Payment related
   PAYMENT_RECEIVED = 'payment_received',

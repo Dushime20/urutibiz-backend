@@ -102,6 +102,11 @@ export class Booking {
   public cancelled_at?: Date;
   public started_at?: Date;
   public completed_at?: Date;
+  
+  // Expiration tracking
+  public expires_at?: Date;
+  public is_expired?: boolean;
+  public expired_at?: Date;
 
   // In-memory storage for demo
   private static bookings: Booking[] = [];
@@ -166,6 +171,15 @@ export class Booking {
       : undefined;
     this.completed_at = (data as any).completed_at
       ? new Date((data as any).completed_at)
+      : undefined;
+    
+    // Initialize expiration tracking
+    this.expires_at = (data as any).expires_at
+      ? new Date((data as any).expires_at)
+      : undefined;
+    this.is_expired = (data as any).is_expired ?? false;
+    this.expired_at = (data as any).expired_at
+      ? new Date((data as any).expired_at)
       : undefined;
     
     this.timeline = [];
@@ -507,6 +521,13 @@ export class Booking {
       completed_at: this.completed_at instanceof Date 
         ? this.completed_at.toISOString() 
         : this.completed_at,
+      expires_at: this.expires_at instanceof Date 
+        ? this.expires_at.toISOString() 
+        : this.expires_at,
+      is_expired: this.is_expired,
+      expired_at: this.expired_at instanceof Date 
+        ? this.expired_at.toISOString() 
+        : this.expired_at,
       createdAt: this.created_at instanceof Date ? this.created_at : new Date(this.created_at),
       updatedAt: this.updated_at instanceof Date ? this.updated_at : new Date(this.updated_at)
     };
@@ -614,7 +635,8 @@ export class Booking {
       completed: 0,
       cancelled: 0,
       disputed: 0,
-      cancellation_requested: 0
+      cancellation_requested: 0,
+      expired: 0
     };
     
     const insurance_stats: Record<InsuranceType, number> = {

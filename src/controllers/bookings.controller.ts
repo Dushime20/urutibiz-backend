@@ -51,7 +51,7 @@ const analyticsCache = new Map<string, { data: any; timestamp: number }>();
 const timelineCache = new Map<string, { data: any; timestamp: number }>();
 
 // Performance: Optimized validation sets
-const VALID_BOOKING_STATUSES = new Set(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled']);
+const VALID_BOOKING_STATUSES = new Set(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'disputed', 'cancellation_requested', 'expired']);
 const VALID_PAYMENT_STATUSES = new Set(['pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded']);
 
 // Performance: Concurrent booking management

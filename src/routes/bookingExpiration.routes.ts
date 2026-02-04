@@ -347,6 +347,95 @@ router.get('/logs/:logId', requireAuth, controller.getExpirationLogDetails);
 
 /**
  * @swagger
+ * /booking-expiration/logs/{logId}:
+ *   delete:
+ *     summary: Delete a specific expiration log (Admin only)
+ *     description: Delete a single booking expiration log entry
+ *     tags: [Booking Expiration]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: logId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Expiration log ID
+ *     responses:
+ *       200:
+ *         description: Expiration log deleted successfully
+ *       404:
+ *         description: Expiration log not found
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+router.delete('/logs/:logId', requireAuth, controller.deleteExpirationLog);
+
+/**
+ * @swagger
+ * /booking-expiration/logs:
+ *   delete:
+ *     summary: Clear all expiration logs (Admin only)
+ *     description: Delete all booking expiration log entries
+ *     tags: [Booking Expiration]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All expiration logs cleared successfully
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+router.delete('/logs', requireAuth, controller.clearAllExpirationLogs);
+
+/**
+ * @swagger
+ * /booking-expiration/logs/export:
+ *   get:
+ *     summary: Export expiration logs to CSV (Admin only)
+ *     description: Export booking expiration logs as CSV file with optional filters
+ *     tags: [Booking Expiration]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter logs from this date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter logs until this date
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search in booking reference, product title, or reason
+ *     responses:
+ *       200:
+ *         description: CSV file download
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
+router.get('/logs/export', requireAuth, controller.exportExpirationLogs);
+
+/**
+ * @swagger
  * /booking-expiration/set/{bookingId}:
  *   post:
  *     summary: Set expiration for a booking (Internal use)

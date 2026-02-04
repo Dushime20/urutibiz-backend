@@ -1,5 +1,9 @@
 import { getDatabase } from '../config/database';
 import logger from '../utils/logger';
+import NotificationEngine from './notification/NotificationEngine';
+import { NotificationType, NotificationPriority, NotificationChannel } from './notification/types';
+import { sendEmail } from '../utils/email';
+import { sendSMS } from '../utils/sms';
 
 export interface BookingExpirationSettings {
   booking_expiration_hours: number;
@@ -118,9 +122,9 @@ export class BookingExpirationService {
 
       const knex = getDatabase();
       
-      // Get the booking to check confirmed_at timestamp
+      // Get the booking to check owner confirmation status
       const booking = await knex('bookings')
-        .select('confirmed_at', 'status')
+        .select('confirmed_at', 'status', 'owner_confirmed', 'owner_confirmation_status', 'owner_confirmed_at')
         .where('id', bookingId)
         .first();
 
@@ -128,8 +132,14 @@ export class BookingExpirationService {
         throw new Error(`Booking ${bookingId} not found`);
       }
 
-      // Calculate expiration from confirmed_at if available, otherwise use current time
-      const baseTime = booking.confirmed_at ? new Date(booking.confirmed_at) : new Date();
+      // Only set expiration for owner-confirmed bookings
+      if (!booking.owner_confirmed || booking.owner_confirmation_status !== 'confirmed' || !booking.owner_confirmed_at) {
+        logger.info(`Booking ${bookingId} is not owner-confirmed yet, skipping expiration setup`);
+        return;
+      }
+
+      // Calculate expiration from owner_confirmed_at timestamp
+      const baseTime = new Date(booking.owner_confirmed_at);
       const expiresAt = new Date(baseTime);
       expiresAt.setHours(expiresAt.getHours() + settings.booking_expiration_hours);
 
@@ -149,7 +159,8 @@ export class BookingExpirationService {
 
   /**
    * Find bookings that have expired and should be deleted
-   * Only expires confirmed bookings where payment is still pending/failed
+   * Looks for bookings that have confirmed_at timestamp (regardless of status)
+   * and where payment is still pending/failed
    */
   static async findExpiredBookings(): Promise<ExpiredBooking[]> {
     try {
@@ -167,12 +178,16 @@ export class BookingExpirationService {
           'bookings.total_amount',
           'bookings.created_at',
           'bookings.expires_at',
+          'bookings.confirmed_at',
+          'bookings.owner_confirmed_at',
           'products.title as product_title'
         ])
         .leftJoin('products', 'bookings.product_id', 'products.id')
         .where('bookings.expires_at', '<=', now)
         .where('bookings.is_expired', false)
-        .where('bookings.status', 'confirmed') // Only confirmed bookings
+        .where('bookings.owner_confirmed', true) // Owner has confirmed
+        .where('bookings.owner_confirmation_status', 'confirmed') // Confirmation status is confirmed
+        .whereNotNull('bookings.owner_confirmed_at') // Has owner_confirmed_at timestamp
         .whereIn('bookings.payment_status', ['pending', 'failed']); // Only unpaid bookings
 
       return expiredBookings.map(booking => ({
@@ -197,6 +212,8 @@ export class BookingExpirationService {
         booking_id: booking.id,
         booking_reference: booking.booking_number,
         user_id: booking.renter_id, // Use renter_id as the user who made the booking
+        renter_id: booking.renter_id,
+        owner_id: booking.owner_id,
         product_title: booking.product_title,
         booking_created_at: booking.created_at,
         booking_expires_at: booking.expires_at,
@@ -235,6 +252,107 @@ export class BookingExpirationService {
     } catch (error) {
       logger.error(`Error marking booking ${bookingId} as expired:`, error);
       throw new Error('Failed to mark booking as expired');
+    }
+  }
+
+  /**
+   * Send notifications to renter when booking expires
+   * Sends: Email, In-App Notification, and SMS
+   */
+  static async notifyRenterOfExpiration(booking: ExpiredBooking): Promise<void> {
+    try {
+      if (!booking.renter_id) {
+        logger.warn(`No renter_id found for booking ${booking.id}, skipping notifications`);
+        return;
+      }
+
+      const knex = getDatabase();
+      
+      // Get renter details
+      const renter = await knex('users')
+        .select('id', 'email', 'phone', 'first_name', 'last_name', 'full_name')
+        .where('id', booking.renter_id)
+        .first();
+
+      if (!renter) {
+        logger.warn(`Renter ${booking.renter_id} not found for booking ${booking.id}`);
+        return;
+      }
+
+      const renterName = renter.full_name || `${renter.first_name || ''} ${renter.last_name || ''}`.trim() || 'Valued Customer';
+      const bookingNumber = booking.booking_number || booking.id;
+      const productTitle = booking.product_title || 'Product';
+
+      // 1. Send In-App Notification
+      try {
+        await NotificationEngine.sendNotification({
+          type: NotificationType.BOOKING_EXPIRED,
+          recipientId: booking.renter_id,
+          recipientEmail: renter.email,
+          recipientPhone: renter.phone,
+          priority: NotificationPriority.HIGH,
+          title: 'Booking Expired',
+          message: `Your booking #${bookingNumber} for "${productTitle}" has expired due to non-payment. Please create a new booking if you still wish to rent this item.`,
+          data: {
+            booking_id: booking.id,
+            booking_number: bookingNumber,
+            product_title: productTitle,
+            expired_at: new Date().toISOString(),
+            total_amount: booking.total_amount
+          },
+          metadata: {
+            action_url: `/my-account/bookings/${booking.id}`
+          },
+          channels: [NotificationChannel.IN_APP, NotificationChannel.PUSH]
+        });
+        logger.info(`Sent in-app notification to renter ${booking.renter_id} for expired booking ${booking.id}`);
+      } catch (error) {
+        logger.error(`Failed to send in-app notification for booking ${booking.id}:`, error);
+      }
+
+      // 2. Send Email Notification
+      if (renter.email) {
+        try {
+          await sendEmail({
+            to: renter.email,
+            subject: `Booking Expired - #${bookingNumber}`,
+            template: 'booking-expired',
+            data: {
+              renterName,
+              bookingNumber,
+              productTitle,
+              totalAmount: booking.total_amount,
+              expiresAt: booking.expires_at,
+              expiredAt: new Date().toISOString(),
+              bookingUrl: `${process.env.FRONTEND_URL}/my-account/bookings/${booking.id}`,
+              supportEmail: process.env.SUPPORT_EMAIL || 'support@urutibiz.com'
+            }
+          });
+          logger.info(`Sent email notification to ${renter.email} for expired booking ${booking.id}`);
+        } catch (error) {
+          logger.error(`Failed to send email notification for booking ${booking.id}:`, error);
+        }
+      }
+
+      // 3. Send SMS Notification
+      if (renter.phone) {
+        try {
+          const smsMessage = `UrutiBiz: Your booking #${bookingNumber} for "${productTitle}" has expired due to non-payment. Please create a new booking if you still wish to rent this item. Visit: ${process.env.FRONTEND_URL}/my-account/bookings`;
+          
+          await sendSMS({
+            to: renter.phone,
+            message: smsMessage
+          });
+          logger.info(`Sent SMS notification to ${renter.phone} for expired booking ${booking.id}`);
+        } catch (error) {
+          logger.error(`Failed to send SMS notification for booking ${booking.id}:`, error);
+        }
+      }
+
+      logger.info(`Successfully sent all notifications to renter ${booking.renter_id} for expired booking ${booking.id}`);
+    } catch (error) {
+      logger.error(`Error sending notifications for expired booking ${booking.id}:`, error);
+      // Don't throw - notification failure shouldn't stop the expiration process
     }
   }
 
@@ -316,9 +434,11 @@ export class BookingExpirationService {
           // Free up any reserved stock
           await this.freeReservedStock(booking);
 
-          // Hard delete the booking (or mark as expired based on preference)
-          await this.deleteExpiredBooking(booking.id);
-          // Alternative: await this.markBookingAsExpired(booking.id);
+          // Mark booking as expired (soft delete - keeps data for reference)
+          await this.markBookingAsExpired(booking.id);
+
+          // Send notifications to renter (email, in-app, SMS)
+          await this.notifyRenterOfExpiration(booking);
 
           result.expired_count++;
           result.processed_bookings.push(booking.id);
@@ -384,7 +504,9 @@ export class BookingExpirationService {
           .where('expires_at', '<=', knex.raw("NOW() + INTERVAL '2 hours'"))
           .where('expires_at', '>', knex.fn.now())
           .where('is_expired', false)
-          .where('status', 'confirmed')
+          .where('owner_confirmed', true) // Owner has confirmed
+          .where('owner_confirmation_status', 'confirmed') // Confirmation status is confirmed
+          .whereNotNull('owner_confirmed_at') // Has owner_confirmed_at timestamp
           .first()
       ]);
 

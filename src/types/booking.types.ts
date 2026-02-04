@@ -4,7 +4,7 @@
 
 import type { PickupMethod, ProductPricing, DeliveryMethod, DeliveryTimeWindow, DeliveryStatus } from './product.types';
 
-export type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'disputed' | 'cancellation_requested';
+export type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'disputed' | 'cancellation_requested' | 'expired';
 export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded' | 'partially_refunded';
 export type InsuranceType = 'basic' | 'standard' | 'premium' | 'none';
 export type ConditionType = 'excellent' | 'good' | 'fair' | 'poor' | 'damaged';
@@ -125,6 +125,11 @@ export interface BookingData {
   owner_confirmed_at?: string;
   owner_rejection_reason?: string;
   owner_confirmation_notes?: string;
+  
+  // Expiration tracking fields
+  expires_at?: string;
+  is_expired?: boolean;
+  expired_at?: string;
   
   createdAt: Date;
   updatedAt: Date;

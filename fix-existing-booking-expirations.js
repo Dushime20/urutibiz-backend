@@ -1,109 +1,122 @@
-require('dotenv').config();
-const { Client } = require('pg');
+#!/usr/bin/env node
 
-async function fixExistingBookingExpirations() {
-  const client = new Client({
+/**
+ * Fix existing bookings that have owner confirmation but no expiration time set
+ */
+
+const knex = require('knex');
+
+const db = knex({
+  client: 'postgresql',
+  connection: {
     host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5433'),
-    database: process.env.DB_NAME || 'urutibiz_db',
+    port: process.env.DB_PORT || 5433,
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || '12345',
-  });
+    database: process.env.DB_NAME || 'urutibiz_db'
+  }
+});
 
+async function fixExistingBookingExpirations() {
   try {
-    console.log('🔄 Connecting to database...');
-    await client.connect();
-    console.log('✅ Connected\n');
+    console.log('🔧 FIXING EXISTING BOOKING EXPIRATIONS...\n');
     
-    // Get expiration hours setting
-    const settingResult = await client.query(`
-      SELECT value FROM system_settings 
-      WHERE key = 'booking_expiration_hours' 
-        AND category = 'booking'
-    `);
-    const expirationHours = parseInt(settingResult.rows[0]?.value || '2');
+    // Get expiration hours from settings
+    const settingRecord = await db('system_settings')
+      .select('value')
+      .where('key', 'booking_expiration_hours')
+      .where('category', 'booking')
+      .first();
+    
+    const expirationHours = parseInt(settingRecord?.value || '2');
     console.log(`📋 Using expiration hours: ${expirationHours}\n`);
     
-    // Find confirmed bookings with pending/failed payment that need expiration fix
-    console.log('🔍 Finding confirmed bookings that need expiration fix...\n');
-    const bookingsToFix = await client.query(`
-      SELECT 
-        id,
-        booking_number,
-        status,
-        payment_status,
-        created_at,
-        confirmed_at,
-        expires_at,
-        EXTRACT(EPOCH FROM (expires_at - COALESCE(confirmed_at, created_at)))/3600 as current_hours_from_confirmation
-      FROM bookings
-      WHERE status = 'confirmed'
-        AND payment_status IN ('pending', 'failed')
-        AND expires_at IS NOT NULL
-        AND (
-          confirmed_at IS NULL 
-          OR EXTRACT(EPOCH FROM (expires_at - confirmed_at))/3600 != $1
-        )
-      ORDER BY created_at DESC;
-    `, [expirationHours]);
+    // Find bookings that are owner-confirmed but have no expiration time set
+    const bookingsToFix = await db('bookings')
+      .select([
+        'id', 
+        'booking_number', 
+        'status', 
+        'payment_status', 
+        'owner_confirmed', 
+        'owner_confirmation_status',
+        'confirmed_at',
+        'expires_at',
+        'created_at'
+      ])
+      .where('owner_confirmed', true)
+      .where('owner_confirmation_status', 'confirmed')
+      .whereNotNull('confirmed_at')
+      .whereNull('expires_at') // No expiration time set
+      .whereIn('payment_status', ['pending', 'failed']); // Only unpaid bookings
     
-    if (bookingsToFix.rows.length === 0) {
-      console.log('✅ No bookings need fixing. All expiration times are correct!');
+    console.log(`📊 Found ${bookingsToFix.length} bookings that need expiration times set\n`);
+    
+    if (bookingsToFix.length === 0) {
+      console.log('✅ No bookings need fixing!');
       return;
     }
     
-    console.log(`Found ${bookingsToFix.rows.length} bookings to fix:\n`);
-    
-    for (const booking of bookingsToFix.rows) {
-      console.log(`  Booking: ${booking.booking_number || booking.id}`);
-      console.log(`  Current expires_at: ${booking.expires_at}`);
-      console.log(`  Confirmed at: ${booking.confirmed_at || 'NOT SET'}`);
-      console.log(`  Hours from confirmation: ${booking.current_hours_from_confirmation?.toFixed(2) || 'N/A'}`);
+    for (const booking of bookingsToFix) {
+      console.log(`🔧 Fixing booking: ${booking.booking_number}`);
+      console.log(`   ID: ${booking.id}`);
+      console.log(`   Status: ${booking.status} | Payment: ${booking.payment_status}`);
+      console.log(`   Owner Confirmed: ${booking.owner_confirmed} (${booking.owner_confirmation_status})`);
+      console.log(`   Confirmed At: ${new Date(booking.confirmed_at).toLocaleString()}`);
       
-      // Calculate correct expiration time
-      const baseTime = booking.confirmed_at || booking.created_at;
-      const correctExpiresAt = new Date(baseTime);
-      correctExpiresAt.setHours(correctExpiresAt.getHours() + expirationHours);
+      // Calculate expiration time from confirmed_at
+      const confirmedAt = new Date(booking.confirmed_at);
+      const expiresAt = new Date(confirmedAt);
+      expiresAt.setHours(expiresAt.getHours() + expirationHours);
       
-      console.log(`  Should expire at: ${correctExpiresAt.toISOString()}`);
+      console.log(`   Setting Expires At: ${expiresAt.toLocaleString()}`);
       
-      // Update the booking
-      await client.query(`
-        UPDATE bookings 
-        SET expires_at = $1,
-            confirmed_at = COALESCE(confirmed_at, created_at),
-            updated_at = NOW()
-        WHERE id = $2
-      `, [correctExpiresAt, booking.id]);
+      // Update the booking with expiration time
+      await db('bookings')
+        .where('id', booking.id)
+        .update({
+          expires_at: expiresAt,
+          updated_at: db.fn.now()
+        });
       
-      console.log(`  ✅ Fixed!\n`);
+      // Check if already expired
+      const now = new Date();
+      const isExpired = now > expiresAt;
+      const hoursOverdue = isExpired ? (now - expiresAt) / (1000 * 60 * 60) : 0;
+      
+      if (isExpired) {
+        console.log(`   ⚠️  ALREADY EXPIRED by ${hoursOverdue.toFixed(2)} hours!`);
+      } else {
+        const hoursUntilExpiry = (expiresAt - now) / (1000 * 60 * 60);
+        console.log(`   ⏰ Expires in ${hoursUntilExpiry.toFixed(2)} hours`);
+      }
+      
+      console.log(`   ✅ Fixed!\n`);
     }
     
-    console.log(`\n✅ Successfully fixed ${bookingsToFix.rows.length} bookings`);
+    // Summary
+    console.log('📈 SUMMARY:');
+    console.log(`   Fixed ${bookingsToFix.length} bookings`);
     
-    // Show summary
-    console.log('\n📊 Summary of confirmed bookings with pending payment:');
-    const summary = await client.query(`
-      SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN expires_at < NOW() THEN 1 END) as already_expired,
-        COUNT(CASE WHEN expires_at >= NOW() THEN 1 END) as still_active
-      FROM bookings
-      WHERE status = 'confirmed'
-        AND payment_status IN ('pending', 'failed');
-    `);
+    // Check for any expired bookings after the fix
+    const now = new Date();
+    const expiredAfterFix = bookingsToFix.filter(booking => {
+      const confirmedAt = new Date(booking.confirmed_at);
+      const expiresAt = new Date(confirmedAt);
+      expiresAt.setHours(expiresAt.getHours() + expirationHours);
+      return now > expiresAt;
+    });
     
-    console.log(`  Total: ${summary.rows[0].total}`);
-    console.log(`  Already expired: ${summary.rows[0].already_expired}`);
-    console.log(`  Still active: ${summary.rows[0].still_active}`);
+    if (expiredAfterFix.length > 0) {
+      console.log(`   ⚠️  ${expiredAfterFix.length} bookings are already expired and should be processed`);
+      console.log('   💡 Run the expiration service to clean them up');
+    }
     
   } catch (error) {
     console.error('❌ Error:', error.message);
-    process.exit(1);
+    console.error(error.stack);
   } finally {
-    await client.end();
-    console.log('\n✅ Done');
-    process.exit(0);
+    await db.destroy();
   }
 }
 

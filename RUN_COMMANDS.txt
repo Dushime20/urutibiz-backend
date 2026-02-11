@@ -1,0 +1,422 @@
+=============================================================================
+URUTIBIZ BACKEND - DOCKER RUN COMMANDS
+=============================================================================
+Quick reference for running Docker commands
+Copy and paste these commands directly into your terminal
+=============================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 QUICK START (Choose ONE method)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+METHOD 1: Using Makefile (RECOMMENDED - Easiest)
+─────────────────────────────────────────────────
+make build-prod && make run-prod
+
+
+METHOD 2: Using Build Script (Windows)
+───────────────────────────────────────
+.\docker-build.ps1 -Environment production
+docker run -d --name urutibiz-backend-prod -p 10000:10000 --env-file .env.production urutibiz-backend:latest
+
+
+METHOD 3: Using Build Script (Linux/Mac)
+─────────────────────────────────────────
+chmod +x docker-build.sh
+./docker-build.sh production
+docker run -d --name urutibiz-backend-prod -p 10000:10000 --env-file .env.production urutibiz-backend:latest
+
+
+METHOD 4: Direct Docker Commands
+─────────────────────────────────
+docker build --target production -t urutibiz-backend:latest .
+docker run -d --name urutibiz-backend-prod -p 10000:10000 --env-file .env.production --restart unless-stopped urutibiz-backend:latest
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 BUILD COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Build Production Image
+──────────────────────
+make build-prod
+
+Build Development Image
+───────────────────────
+make build-dev
+
+Build Without Cache
+───────────────────
+make build-no-cache
+
+Build with Version Tag
+──────────────────────
+docker build --target production --build-arg APP_VERSION=1.0.0 -t urutibiz-backend:1.0.0 -t urutibiz-backend:latest .
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏃 RUN COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run Production Container
+─────────────────────────
+make run-prod
+
+Run Development Container
+─────────────────────────
+make run-dev
+
+Run with Custom Port
+────────────────────
+docker run -d --name urutibiz-backend-prod -p 8080:10000 --env-file .env.production urutibiz-backend:latest
+
+Run with Environment Variables
+──────────────────────────────
+docker run -d --name urutibiz-backend-prod -p 10000:10000 -e NODE_ENV=production -e PORT=10000 -e DB_HOST=postgres urutibiz-backend:latest
+
+Run with Volume Mounting (Development)
+───────────────────────────────────────
+docker run -it --rm --name urutibiz-backend-dev -p 3000:3000 -v ${PWD}/src:/app/src --env-file .env urutibiz-backend:dev
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐳 DOCKER COMPOSE COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Start All Services (Development)
+─────────────────────────────────
+docker-compose up -d
+
+Start All Services (Production)
+────────────────────────────────
+docker-compose -f docker-compose.prod.yml up -d
+
+Start with Rebuild
+──────────────────
+docker-compose up -d --build
+
+Stop All Services
+─────────────────
+docker-compose down
+
+Restart All Services
+────────────────────
+docker-compose restart
+
+View Logs
+─────────
+docker-compose logs -f
+
+View Backend Logs Only
+──────────────────────
+docker-compose logs -f backend
+
+Check Status
+────────────
+docker-compose ps
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 MONITORING COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+View Logs (Real-time)
+──────────────────────
+docker logs -f urutibiz-backend-prod
+
+View Last 100 Lines
+───────────────────
+docker logs --tail 100 urutibiz-backend-prod
+
+Check Health Status
+───────────────────
+docker inspect --format='{{.State.Health.Status}}' urutibiz-backend-prod
+
+Check Resource Usage
+────────────────────
+docker stats urutibiz-backend-prod
+
+List Running Containers
+───────────────────────
+docker ps
+
+Access Container Shell
+──────────────────────
+docker exec -it urutibiz-backend-prod sh
+
+Access as Root
+──────────────
+docker exec -it -u root urutibiz-backend-prod sh
+
+Run Command in Container
+────────────────────────
+docker exec urutibiz-backend-prod node --version
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🗄️ DATABASE COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run Migrations
+──────────────
+docker exec urutibiz-backend-prod npm run db:migrate
+
+Seed Database
+─────────────
+docker exec urutibiz-backend-prod npm run db:seed
+
+Access PostgreSQL Shell
+───────────────────────
+docker exec -it urutibiz-postgres-prod psql -U postgres -d urutibiz_db
+
+Backup Database
+───────────────
+docker exec urutibiz-postgres-prod pg_dump -U postgres urutibiz_db > backup.sql
+
+Restore Database
+────────────────
+docker exec -i urutibiz-postgres-prod psql -U postgres urutibiz_db < backup.sql
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧹 CLEANUP COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Stop Container
+──────────────
+docker stop urutibiz-backend-prod
+
+Remove Container
+────────────────
+docker rm urutibiz-backend-prod
+
+Stop and Remove
+───────────────
+docker stop urutibiz-backend-prod && docker rm urutibiz-backend-prod
+
+Remove Stopped Containers
+─────────────────────────
+docker container prune -f
+
+Remove Unused Images
+────────────────────
+docker image prune -f
+
+Remove Unused Volumes
+─────────────────────
+docker volume prune -f
+
+Complete Cleanup (CAREFUL!)
+───────────────────────────
+docker system prune -af --volumes
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 DEBUGGING COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Inspect Container
+─────────────────
+docker inspect urutibiz-backend-prod
+
+Check Container Processes
+─────────────────────────
+docker top urutibiz-backend-prod
+
+Test Health Endpoint
+────────────────────
+curl http://localhost:10000/health
+
+Test Health Script
+──────────────────
+docker exec urutibiz-backend-prod node healthcheck.js
+
+View Environment Variables
+──────────────────────────
+docker exec urutibiz-backend-prod env
+
+Check Image Size
+────────────────
+docker images urutibiz-backend
+
+View Image History
+──────────────────
+docker history urutibiz-backend:latest
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔐 SECURITY COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Scan for Vulnerabilities (Docker)
+──────────────────────────────────
+docker scan urutibiz-backend:latest
+
+Scan with Trivy
+───────────────
+trivy image urutibiz-backend:latest
+
+Scan with Snyk
+──────────────
+snyk container test urutibiz-backend:latest
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📤 REGISTRY COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Tag Image
+─────────
+docker tag urutibiz-backend:latest docker.io/urutibiz/urutibiz-backend:1.0.0
+
+Push to Registry
+────────────────
+docker push docker.io/urutibiz/urutibiz-backend:1.0.0
+
+Pull from Registry
+──────────────────
+docker pull docker.io/urutibiz/urutibiz-backend:latest
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 UPDATE & RESTART COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Restart Container
+─────────────────
+docker restart urutibiz-backend-prod
+
+Update and Restart
+──────────────────
+docker pull urutibiz-backend:latest
+docker stop urutibiz-backend-prod
+docker rm urutibiz-backend-prod
+docker run -d --name urutibiz-backend-prod -p 10000:10000 --env-file .env.production urutibiz-backend:latest
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 COMPLETE WORKFLOWS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WORKFLOW 1: First Time Setup
+─────────────────────────────
+make build-prod
+cp .env.example .env.production
+# Edit .env.production with your values
+make run-prod
+make health
+make logs
+
+
+WORKFLOW 2: Development
+───────────────────────
+make build-dev
+make run-dev
+# Make code changes
+make restart
+make down
+
+
+WORKFLOW 3: Production Deployment
+──────────────────────────────────
+make build-prod
+make scan
+make up-prod
+make db-migrate
+make health
+curl http://localhost:10000/health
+
+
+WORKFLOW 4: Update Production
+──────────────────────────────
+make build-prod
+make stop
+make rm
+make run-prod
+make db-migrate
+make health
+
+
+WORKFLOW 5: Troubleshooting
+────────────────────────────
+make logs
+make health
+make shell
+docker top urutibiz-backend-prod
+make stats
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 MAKEFILE SHORTCUTS (RECOMMENDED)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+make help           # Show all available commands
+make build-prod     # Build production image
+make run-prod       # Run production container
+make logs           # View logs
+make health         # Check health
+make shell          # Access shell
+make stop           # Stop container
+make clean          # Clean up
+make db-migrate     # Run migrations
+make restart-prod   # Restart production
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🆘 EMERGENCY COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Container Crashed
+─────────────────
+docker logs --tail 100 urutibiz-backend-prod
+docker restart urutibiz-backend-prod
+
+Out of Disk Space
+─────────────────
+docker system df
+docker system prune -af
+
+Port Already in Use (Windows)
+──────────────────────────────
+netstat -ano | findstr :10000
+
+Port Already in Use (Linux/Mac)
+────────────────────────────────
+lsof -i :10000
+
+Force Remove Container
+──────────────────────
+docker rm -f urutibiz-backend-prod
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📚 DOCUMENTATION FILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+QUICK_START.md                          # 5-minute quick start
+DOCKER_README.md                        # Complete documentation
+DOCKER_COMMANDS.md                      # All commands reference
+PRODUCTION_DEPLOYMENT_CHECKLIST.md     # Production checklist
+DOCKER_PRODUCTION_ISSUES.md            # Troubleshooting guide
+DOCKER_IMPROVEMENTS_SUMMARY.md         # What was improved
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ VERIFICATION CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After running, verify:
+□ Container is running: docker ps
+□ Health check passes: make health
+□ API responds: curl http://localhost:10000/health
+□ Logs look good: make logs
+□ No errors in logs
+
+
+=============================================================================
+END OF COMMANDS REFERENCE
+=============================================================================
+For detailed documentation, see DOCKER_README.md
+For quick start, see QUICK_START.md
+For help, run: make help
+=============================================================================

@@ -87,6 +87,10 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm ci --prefer-offline && \
     npm cache clean --force
 
+# Verify TypeScript is installed
+RUN ls -la node_modules/.bin/ && \
+    test -f node_modules/.bin/tsc || (echo "TypeScript not installed!" && exit 1)
+
 # Copy TypeScript configuration
 COPY --chown=nodejs:nodejs tsconfig*.json ./
 

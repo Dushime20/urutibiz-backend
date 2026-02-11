@@ -1,0 +1,393 @@
+═══════════════════════════════════════════════════════════════════════════════
+  COMPLETE DEPLOYMENT COMMANDS - COPY & PASTE READY
+═══════════════════════════════════════════════════════════════════════════════
+
+This file contains ALL commands needed for deployment.
+Copy and paste directly into your terminal.
+
+═══════════════════════════════════════════════════════════════════════════════
+  PART 1: WINDOWS LOCAL TESTING
+═══════════════════════════════════════════════════════════════════════════════
+
+# Step 1: Build Image
+.\docker-build.ps1 -Environment production
+
+# Step 2: Create Environment File
+Copy-Item .env.example .env.local
+notepad .env.local
+
+# Step 3: Start Database & Redis
+docker-compose up -d postgres redis
+
+# Step 4: Run Backend
+docker run -d --name urutibiz-backend-local -p 3000:3000 --env-file .env.local --network urutibiz-backend_urutibiz-network urutibiz-backend:latest
+
+# Step 5: Run Migrations
+docker exec urutibiz-backend-local npm run db:migrate
+
+# Step 6: Test
+curl http://localhost:3000/health
+
+# Step 7: View Logs
+docker logs -f urutibiz-backend-local
+
+# Step 8: Stop
+docker stop urutibiz-backend-local
+docker rm urutibiz-backend-local
+docker-compose down
+
+═══════════════════════════════════════════════════════════════════════════════
+  PART 2: LINUX SERVER INITIAL SETUP
+═══════════════════════════════════════════════════════════════════════════════
+
+# Connect to Server
+ssh root@YOUR_SERVER_IP
+
+# Update System
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl wget git vim nano htop
+
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo systemctl start docker
+sudo systemctl enable docker
+docker --version
+
+# Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+docker-compose --version
+
+# Create Application Directory
+sudo mkdir -p /opt/urutibiz
+cd /opt/urutibiz
+sudo chown -R $USER:$USER /opt/urutibiz
+
+# Clone Repository (or upload files)
+git clone https://github.com/your-username/urutibiz-backend.git
+cd urutibiz-backend
+
+═══════════════════════════════════════════════════════════════════════════════
+  PART 3: CONFIGURE PRODUCTION ENVIRONMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+# Create Production Environment File
+cp .env.example .env.production
+nano .env.production
+
+# Generate Strong Secrets
+openssl rand -base64 32  # For JWT_SECRET
+openssl rand -base64 32  # For JWT_REFRESH_SECRET
+openssl rand -hex 32     # For ENCRYPTION_KEY
+
+# Update .env.production with:
+# - Strong passwords
+# - Generated secrets
+# - Production domain
+# - API keys
+# Save: Ctrl+X, Y, Enter
+
+═══════════════════════════════════════════════════════════════════════════════
+  PART 4: BUILD AND DEPLOY
+═══════════════════════════════════════════════════════════════════════════════
+
+# Build Backend Docker Image
+chmod +x docker-build.sh
+./docker-build.sh production
+
+# Build Python Service Image
+cd python-service
+export DOCKER_BUILDKIT=1
+docker build -t urutibiz-python-service:latest .
+cd ..
+
+# Start Database First
+docker compose -f docker-compose.prod.yml up -d postgres redis
+sleep 10
+
+# Start Python Service (downloads 605MB model on first run - takes 5-10 min)
+docker compose -f docker-compose.prod.yml up -d python-service
+docker logs -f urutibiz-python-service-prod
+# Wait for "Service ready to accept requests" message
+
+# Start Backend
+docker compose -f docker-compose.prod.yml up -d backend
+
+# Run Migrations
+sleep 30
+docker exec urutibiz-backend-prod npm run db:migrate
+
+# Verify All Services
+docker ps
+docker logs urutibiz-backend-prod --tail 50
+docker logs urutibiz-python-service-prod --tail 50
+
+# Test Python Service
+curl http://localhost:8001/health
+
+═══════════════════════════════════════════════════════════════════════════════
+  PART 5: NGINX SETUP
+═══════════════════════════════════════════════════════════════════════════════
+
+# Install Nginx
+sudo apt install -y nginx
+sudo systemctl start nginx
+sudo systemctl enable nginx
+
+# Configure Firewall
+sudo apt install -y ufw
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw --force enable
+
+# Create Nginx Configuration
+sudo nano /etc/nginx/sites-available/urutibiz
+
+# Paste configuration (see DEPLOYMENT_STEP_BY_STEP.md Part D)
+# Save: Ctrl+X, Y, Enter
+
+# Enable Configuration
+sudo ln -s /etc/nginx/sites-available/urutibiz /etc/nginx/sites-enabled/
+sudo rm /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl reload nginx
+
+═══════════════════════════════════════════════════════════════════════════════
+  PART 6: SSL/HTTPS SETUP
+═══════════════════════════════════════════════════════════════════════════════
+
+# Install Certbot
+sudo apt install -y certbot python3-certbot-nginx
+
+# Obtain SSL Certificate (replace with your domain and email)
+sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com --email your-email@example.com --agree-tos --no-eff-email
+
+# Test Auto-Renewal
+sudo certbot renew --dry-run
+
+# Verify HTTPS
+curl https://yourdomain.com/health
+
+═══════════════════════════════════════════════════════════════════════════════
+  PART 7: CREATE MANAGEMENT SCRIPTS
+═══════════════════════════════════════════════════════════════════════════════
+
+# Create Backup Script
+cat > /opt/urutibiz/backup-db.sh << 'EOF'
+#!/bin/bash
+BACKUP_DIR="/opt/urutibiz/backups"
+DATE=$(date +%Y%m%d_%H%M%S)
+mkdir -p $BACKUP_DIR
+docker exec urutibiz-postgres-prod pg_dump -U urutibiz_user urutibiz_prod > $BACKUP_DIR/backup_$DATE.sql
+find $BACKUP_DIR -name "*.sql" -mtime +7 -delete
+echo "Backup completed: backup_$DATE.sql"
+EOF
+
+chmod +x /opt/urutibiz/backup-db.sh
+
+# Create Monitor Script
+cat > /opt/urutibiz/monitor.sh << 'EOF'
+#!/bin/bash
+echo "==================================="
+echo "UrutiBiz Backend Health Check"
+echo "==================================="
+docker ps --format "table {{.Names}}\t{{.Status}}"
+echo ""
+curl -sf https://yourdomain.com/health && echo "✓ Backend: OK" || echo "✗ Backend: FAILED"
+echo ""
+df -h / | tail -1
+free -h | grep Mem
+docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+EOF
+
+chmod +x /opt/urutibiz/monitor.sh
+
+# Create Deploy Script
+cat > /opt/urutibiz/deploy.sh << 'EOF'
+#!/bin/bash
+set -e
+cd /opt/urutibiz/urutibiz-backend
+echo "Pulling latest code..."
+git pull origin main
+echo "Backing up database..."
+/opt/urutibiz/backup-db.sh
+echo "Building image..."
+docker build --target production -t urutibiz-backend:latest .
+echo "Stopping containers..."
+docker compose -f docker-compose.prod.yml down
+echo "Starting containers..."
+docker compose -f docker-compose.prod.yml up -d
+sleep 30
+echo "Running migrations..."
+docker exec urutibiz-backend-prod npm run db:migrate
+echo "Checking health..."
+curl -sf https://yourdomain.com/health && echo "✓ Deployment successful!" || echo "✗ Health check failed!"
+docker image prune -f
+EOF
+
+chmod +x /opt/urutibiz/deploy.sh
+
+═══════════════════════════════════════════════════════════════════════════════
+  PART 8: CONFIGURE AUTO-START
+═══════════════════════════════════════════════════════════════════════════════
+
+# Create Systemd Service
+sudo nano /etc/systemd/system/urutibiz.service
+
+# Paste this content:
+[Unit]
+Description=UrutiBiz Backend Service
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/urutibiz/urutibiz-backend
+ExecStart=/usr/bin/docker compose -f docker-compose.prod.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.prod.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+
+# Save: Ctrl+X, Y, Enter
+
+# Enable Service
+sudo systemctl daemon-reload
+sudo systemctl enable urutibiz.service
+sudo systemctl start urutibiz.service
+
+# Schedule Daily Backups
+crontab -e
+# Add this line:
+0 2 * * * /opt/urutibiz/backup-db.sh >> /opt/urutibiz/backups/backup.log 2>&1
+
+═══════════════════════════════════════════════════════════════════════════════
+  PART 9: VERIFICATION COMMANDS
+═══════════════════════════════════════════════════════════════════════════════
+
+# Check All Services
+docker ps
+docker compose -f docker-compose.prod.yml ps
+
+# Check Health
+curl https://yourdomain.com/health
+curl http://localhost:8001/health  # Python service
+
+# Check Logs
+docker logs urutibiz-backend-prod --tail 50
+docker logs urutibiz-postgres-prod --tail 50
+docker logs urutibiz-python-service-prod --tail 50
+sudo tail -f /var/log/nginx/urutibiz_access.log
+
+# Check Resources
+docker stats
+df -h
+free -h
+
+# Run Monitor Script
+/opt/urutibiz/monitor.sh
+
+# Test Database
+docker exec -it urutibiz-postgres-prod psql -U urutibiz_user -d urutibiz_prod -c "\dt"
+
+# Test Python Service
+curl http://localhost:8001/health
+curl -X POST http://localhost:8001/extract-features -F "file=@test-image.jpg"
+
+# Test API Endpoints
+curl https://yourdomain.com/api/v1/health
+curl -X POST https://yourdomain.com/api/v1/auth/register -H "Content-Type: application/json" -d '{"email":"test@example.com","password":"Test123!","name":"Test"}'
+
+═══════════════════════════════════════════════════════════════════════════════
+  PART 10: DAILY MAINTENANCE COMMANDS
+═══════════════════════════════════════════════════════════════════════════════
+
+# View Logs
+docker logs -f urutibiz-backend-prod
+docker logs --tail 100 urutibiz-backend-prod
+
+# Restart Services
+docker restart urutibiz-backend-prod
+docker compose -f docker-compose.prod.yml restart
+
+# Backup Database
+/opt/urutibiz/backup-db.sh
+
+# Deploy Updates
+/opt/urutibiz/deploy.sh
+
+# Monitor Health
+/opt/urutibiz/monitor.sh
+
+# Check Disk Space
+df -h
+
+# Clean Docker
+docker system prune -f
+
+# View Nginx Logs
+sudo tail -f /var/log/nginx/urutibiz_error.log
+
+# Access Container Shell
+docker exec -it urutibiz-backend-prod sh
+
+# Access Database
+docker exec -it urutibiz-postgres-prod psql -U urutibiz_user -d urutibiz_prod
+
+═══════════════════════════════════════════════════════════════════════════════
+  EMERGENCY COMMANDS
+═══════════════════════════════════════════════════════════════════════════════
+
+# Restart Everything
+docker compose -f docker-compose.prod.yml restart
+
+# Stop Everything
+docker compose -f docker-compose.prod.yml down
+
+# Start Everything
+docker compose -f docker-compose.prod.yml up -d
+
+# Rebuild and Restart
+docker compose -f docker-compose.prod.yml up -d --build
+
+# Check What's Wrong
+docker logs urutibiz-backend-prod --tail 100
+sudo tail -100 /var/log/nginx/urutibiz_error.log
+docker stats
+
+# Restore Database Backup
+docker exec -i urutibiz-postgres-prod psql -U urutibiz_user -d urutibiz_prod < /opt/urutibiz/backups/backup_YYYYMMDD_HHMMSS.sql
+
+═══════════════════════════════════════════════════════════════════════════════
+  QUICK REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+Windows (Local):
+  Build:    .\docker-build.ps1 -Environment production
+  Run:      docker run -d --name urutibiz-backend-local -p 3000:3000 --env-file .env.local urutibiz-backend:latest
+  Logs:     docker logs -f urutibiz-backend-local
+  Stop:     docker stop urutibiz-backend-local && docker rm urutibiz-backend-local
+
+Linux (Production):
+  Deploy:   /opt/urutibiz/deploy.sh
+  Monitor:  /opt/urutibiz/monitor.sh
+  Backup:   /opt/urutibiz/backup-db.sh
+  Logs:     docker logs -f urutibiz-backend-prod
+  Restart:  docker compose -f docker-compose.prod.yml restart
+
+═══════════════════════════════════════════════════════════════════════════════
+  DOCUMENTATION FILES
+═══════════════════════════════════════════════════════════════════════════════
+
+1. DEPLOYMENT_STEP_BY_STEP.md     - Complete deployment guide
+2. WINDOWS_COMMANDS.md             - Windows-specific commands
+3. DOCKER_README.md                - Docker documentation
+4. PRODUCTION_DEPLOYMENT_CHECKLIST.md - Pre-deployment checklist
+
+═══════════════════════════════════════════════════════════════════════════════
+  END OF COMMANDS
+═══════════════════════════════════════════════════════════════════════════════

@@ -86,7 +86,7 @@ COPY --chown=nodejs:nodejs tsconfig*.json ./
 COPY --chown=nodejs:nodejs src ./src
 
 # Build the application
-RUN npm run build
+RUN npx tsc && npx tsc-alias
 
 # Verify build output
 RUN test -d dist && \

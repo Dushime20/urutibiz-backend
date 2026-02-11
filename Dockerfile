@@ -11,7 +11,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Base Image with Security Hardening
 # -----------------------------------------------------------------------------
-FROM node:18.20.5-alpine3.20 AS base
+FROM node:20-alpine3.20 AS base
 
 # Build arguments for flexibility
 ARG NODE_ENV=production
@@ -108,8 +108,7 @@ COPY --chown=nodejs:nodejs package*.json ./
 # Install ONLY production dependencies
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm ci --only=production --ignore-scripts --prefer-offline && \
-    npm cache clean --force && \
-    rm -rf /root/.npm /tmp/*
+    npm cache clean --force
 
 # -----------------------------------------------------------------------------
 # Stage 5: Production Image (Final)

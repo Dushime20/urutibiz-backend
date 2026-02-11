@@ -34,10 +34,10 @@ LABEL org.opencontainers.image.title="UrutiBiz Backend API" \
 RUN apk update && \
     apk upgrade --no-cache && \
     apk add --no-cache \
-        dumb-init=1.2.5-r3 \
-        curl=8.11.1-r0 \
-        ca-certificates=20240705-r0 \
-        tzdata=2024b-r0 && \
+        dumb-init \
+        curl \
+        ca-certificates \
+        tzdata && \
     rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
 
 # Set timezone to UTC (best practice for servers)

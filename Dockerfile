@@ -68,7 +68,7 @@ COPY --chown=nodejs:nodejs package*.json ./
 # --ignore-scripts prevents running potentially malicious scripts
 # --prefer-offline uses cache when available
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-    npm ci --ignore-scripts --prefer-offline && \
+    npm ci --prefer-offline && \
     npm cache clean --force
 
 # Verify package integrity

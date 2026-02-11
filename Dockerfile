@@ -77,7 +77,13 @@ RUN npm audit --audit-level=high || true
 # -----------------------------------------------------------------------------
 # Stage 3: Build Stage
 # -----------------------------------------------------------------------------
-FROM dependencies AS builder
+FROM base AS builder
+
+# Copy package files
+COPY --chown=nodejs:nodejs package*.json ./
+
+# Copy node_modules from dependencies stage
+COPY --from=dependencies --chown=nodejs:nodejs /app/node_modules ./node_modules
 
 # Copy TypeScript configuration
 COPY --chown=nodejs:nodejs tsconfig*.json ./
@@ -85,8 +91,8 @@ COPY --chown=nodejs:nodejs tsconfig*.json ./
 # Copy source code
 COPY --chown=nodejs:nodejs src ./src
 
-# Build the application
-RUN npx tsc && npx tsc-alias
+# Build the application using local binaries
+RUN ./node_modules/.bin/tsc && ./node_modules/.bin/tsc-alias
 
 # Verify build output
 RUN test -d dist && \

@@ -51,23 +51,11 @@ def load_model_with_retry(max_retries=3, retry_delay=5):
                 time.sleep(retry_delay)
                 retry_delay *= 2  # Exponential backoff
             
-            # Configure download settings for better reliability
-            download_kwargs = {
-                "resume_download": True,  # Resume interrupted downloads
-                "local_files_only": False,
-            }
-            
             logger.info("   📥 Downloading model files (this may take a while on first run)...")
             start_time = time.time()
             
-            model = CLIPModel.from_pretrained(
-                model_name,
-                **download_kwargs
-            )
-            processor = CLIPProcessor.from_pretrained(
-                model_name,
-                **download_kwargs
-            )
+            model = CLIPModel.from_pretrained(model_name)
+            processor = CLIPProcessor.from_pretrained(model_name)
             
             download_time = time.time() - start_time
             logger.info(f"   ✅ Model files downloaded in {download_time:.1f}s")

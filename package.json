@@ -34,7 +34,7 @@
     "db:test-direct": "ts-node scripts/test-db-direct.ts",
     "db:test-ubuntu-pgvector": "node scripts/test-ubuntu-pgvector-connection.js",
     "typecheck": "tsc --noEmit",
-    "clean": "npx rimraf dist",
+    "clean": "rm -rf dist",
     "prebuild": "npm run clean",
     "docker:build": "docker build -t urutibiz-backend .",
     "docker:run": "docker-compose up -d",

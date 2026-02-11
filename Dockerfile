@@ -82,8 +82,10 @@ FROM base AS builder
 # Copy package files
 COPY --chown=nodejs:nodejs package*.json ./
 
-# Copy node_modules from dependencies stage
-COPY --from=dependencies --chown=nodejs:nodejs /app/node_modules ./node_modules
+# Install ALL dependencies (needed for building)
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci --prefer-offline && \
+    npm cache clean --force
 
 # Copy TypeScript configuration
 COPY --chown=nodejs:nodejs tsconfig*.json ./
@@ -91,8 +93,8 @@ COPY --chown=nodejs:nodejs tsconfig*.json ./
 # Copy source code
 COPY --chown=nodejs:nodejs src ./src
 
-# Build the application using local binaries
-RUN ./node_modules/.bin/tsc && ./node_modules/.bin/tsc-alias
+# Build the application
+RUN npm run build
 
 # Verify build output
 RUN test -d dist && \

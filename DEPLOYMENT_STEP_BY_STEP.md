@@ -558,6 +558,17 @@ sudo ufw --force enable
 # Check status
 sudo ufw status
 ```
+# Create wheels directory for Python service
+mkdir -p python-service/wheels
+
+# Now start backend only (skip python service for now)
+docker compose -f docker-compose.prod.yml up -d backend
+
+# Check status
+docker compose -f docker-compose.prod.yml ps
+
+# Check backend logs
+docker compose -f docker-compose.prod.yml logs backend
 
 ### Step 3: Create Nginx Configuration
 

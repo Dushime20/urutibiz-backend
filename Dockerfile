@@ -149,6 +149,7 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 # Copy necessary runtime files
 COPY --chown=nodejs:nodejs package*.json ./
 COPY --chown=nodejs:nodejs healthcheck.js ./
+COPY --chown=nodejs:nodejs knexfile.js ./
 COPY --chown=nodejs:nodejs database ./database
 
 # Create necessary directories with proper permissions

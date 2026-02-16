@@ -43,6 +43,33 @@ services:
       timeout: 5s
       retries: 5
 
+  # Database Migration (runs once before API)
+  migration:
+    image: urutibiz-backend:latest
+    container_name: urutibiz-migration
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-urutibiz_db}
+      DB_USER: ${DB_USER:-urutibiz_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SSL: ${DB_SSL:-false}
+      NODE_ENV: production
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "⏳ Waiting for database to be ready..."
+        sleep 10
+        echo "🔄 Running database migrations..."
+        npm run db:migrate
+        echo "✅ Migrations completed"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - urutibiz-network
+    restart: "no"
+
   # Backend API
   api:
     image: urutibiz-backend:latest
@@ -125,6 +152,8 @@ services:
       - "${PORT:-10000}:${PORT:-10000}"
     
     depends_on:
+      migration:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -139,8 +168,8 @@ services:
       test: ["CMD", "node", "healthcheck.js"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 5
+      start_period: 120s
 
 volumes:
   postgres_data:

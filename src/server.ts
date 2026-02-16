@@ -171,7 +171,13 @@ async function startServer(): Promise<void> {
       logger.error('Error message:', error.message);
       logger.error('Stack trace:', error.stack);
       console.error('UNCAUGHT EXCEPTION:', error);
-      process.exit(1);
+      
+      // In production, log but don't crash immediately for non-critical errors
+      if (config.nodeEnv === 'production') {
+        logger.warn('⚠️ Production mode: Logging error but keeping server running');
+      } else {
+        process.exit(1);
+      }
     });
     
     // Handle unhandled promise rejections
@@ -179,7 +185,13 @@ async function startServer(): Promise<void> {
       logger.error('❌ Unhandled Rejection at:', promise);
       logger.error('Rejection reason:', reason);
       console.error('UNHANDLED REJECTION:', reason);
-      process.exit(1);
+      
+      // In production, log but don't crash immediately for non-critical errors
+      if (config.nodeEnv === 'production') {
+        logger.warn('⚠️ Production mode: Logging rejection but keeping server running');
+      } else {
+        process.exit(1);
+      }
     });
 
   } catch (error) {

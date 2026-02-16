@@ -1,9 +1,12 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database with PostGIS and pgvector
   postgres:
-    image: postgis/postgis:15-3.4-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    image: urutibiz-postgres:latest
     container_name: urutibiz-postgres
     environment:
       POSTGRES_DB: ${DB_NAME:-urutibiz_db}

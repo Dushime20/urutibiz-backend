@@ -33,7 +33,7 @@ services:
       target: production
     image: urutibiz-backend:prod
     container_name: urutibiz-backend-prod
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_ENV=production
       - PORT=10000

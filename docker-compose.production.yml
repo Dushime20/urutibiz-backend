@@ -45,7 +45,10 @@ services:
 
   # Database Migration (runs once before API)
   migration:
-    image: urutibiz-backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.migrations
+    image: urutibiz-migration:latest
     container_name: urutibiz-migration
     environment:
       DB_HOST: postgres
@@ -55,16 +58,6 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_SSL: ${DB_SSL:-false}
       NODE_ENV: production
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        echo "⏳ Waiting for database to be ready..."
-        sleep 10
-        echo "🔄 Installing ts-node for migrations..."
-        npm install --no-save ts-node typescript @types/node
-        echo "🔄 Running database migrations..."
-        npx knex migrate:latest
-        echo "✅ Migrations completed"
     depends_on:
       postgres:
         condition: service_healthy

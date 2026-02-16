@@ -1,0 +1,30 @@
+# Migration-specific Dockerfile
+# Includes dev dependencies needed to run TypeScript migrations
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY package*.json ./
+
+# Install ALL dependencies (including dev for ts-node)
+RUN npm ci
+
+# Copy source code and migrations
+COPY database ./database
+COPY knexfile.js ./
+COPY tsconfig.json ./
+
+# Set environment
+ENV NODE_ENV=production
+
+# Run migrations
+CMD ["npm", "run", "db:migrate"]

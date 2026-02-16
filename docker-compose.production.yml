@@ -75,7 +75,7 @@ services:
     environment:
       # Application
       NODE_ENV: production
-      PORT: ${PORT:-10000}
+      PORT: ${PORT:-3000}
       API_PREFIX: ${API_PREFIX:-/api/v1}
       
       # Frontend
@@ -147,7 +147,7 @@ services:
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
     
     ports:
-      - "${PORT:-10000}:${PORT:-10000}"
+      - "${PORT:-3000}:${PORT:-3000}"
     
     depends_on:
       migration:

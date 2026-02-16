@@ -150,6 +150,8 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --chown=nodejs:nodejs package*.json ./
 COPY --chown=nodejs:nodejs healthcheck.js ./
 COPY --chown=nodejs:nodejs knexfile.js ./
+
+# Copy database folder (migrations will be run from compiled dist/database if available, or source)
 COPY --chown=nodejs:nodejs database ./database
 
 # Create necessary directories with proper permissions

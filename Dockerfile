@@ -31,13 +31,16 @@ LABEL org.opencontainers.image.title="UrutiBiz Backend API" \
       maintainer="devops@urutibiz.com"
 
 # Install security updates and essential tools
+# Add glibc for onnxruntime-node compatibility
 RUN apk update && \
     apk upgrade --no-cache && \
     apk add --no-cache \
         dumb-init \
         curl \
         ca-certificates \
-        tzdata && \
+        tzdata \
+        gcompat \
+        libstdc++ && \
     rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
 
 # Set timezone to UTC (best practice for servers)

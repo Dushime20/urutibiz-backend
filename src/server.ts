@@ -166,13 +166,19 @@ async function startServer(): Promise<void> {
     
     // Handle uncaught exceptions
     process.on('uncaughtException', (error) => {
-      logger.error('❌ Uncaught Exception:', error);
+      logger.error('❌ Uncaught Exception:');
+      logger.error('Error name:', error.name);
+      logger.error('Error message:', error.message);
+      logger.error('Stack trace:', error.stack);
+      console.error('UNCAUGHT EXCEPTION:', error);
       process.exit(1);
     });
     
     // Handle unhandled promise rejections
     process.on('unhandledRejection', (reason, promise) => {
-      logger.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+      logger.error('❌ Unhandled Rejection at:', promise);
+      logger.error('Rejection reason:', reason);
+      console.error('UNHANDLED REJECTION:', reason);
       process.exit(1);
     });
 

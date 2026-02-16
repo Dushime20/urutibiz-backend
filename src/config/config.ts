@@ -2,8 +2,12 @@ import dotenv from 'dotenv';
 import { AppConfig, Environment } from '../types/database.types';
 import logger from '../utils/logger';
 
-// Load environment variables first
-dotenv.config();
+// Load environment variables first (optional in production Docker)
+try {
+  dotenv.config();
+} catch (error) {
+  // Ignore if .env file doesn't exist (production Docker uses env vars from docker-compose)
+}
 
 /**
  * Validates required environment variables

@@ -12,7 +12,13 @@ import { initializeCategoryRegulationModel } from './models/CategoryRegulation.m
 
 
 const config = getConfig();
-dotenv.config();
+
+// Load environment variables (optional in production Docker)
+try {
+  dotenv.config();
+} catch (error) {
+  // Ignore if .env file doesn't exist
+}
 
 async function startServer(): Promise<void> {
   let app: App | null = null;

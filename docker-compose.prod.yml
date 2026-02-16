@@ -36,7 +36,7 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - PORT=10000
+      - PORT=3000
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=${DB_NAME:-urutibiz_dev}
@@ -55,7 +55,7 @@ services:
       # Python Image Service URL (use service name for Docker internal communication)
       - PYTHON_IMAGE_SERVICE_URL=http://python-service:8001
     ports:
-      - "10000:10000"
+      - "3000:3000"
     depends_on:
       postgres:
         condition: service_healthy

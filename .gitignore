@@ -68,6 +68,11 @@ jspm_packages/
 .env.test.local
 .env.production.local
 
+# Firebase credentials (sensitive)
+firebase-credentials.json
+firebase-key.json
+*-firebase-*.json
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

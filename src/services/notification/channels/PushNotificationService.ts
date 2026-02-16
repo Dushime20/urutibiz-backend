@@ -168,19 +168,60 @@ export class PushNotificationService {
     try {
       if (this.config.provider !== 'firebase') return;
       if (admin.apps.length > 0) return;
+
+      // Try to load from GOOGLE_APPLICATION_CREDENTIALS file first
+      const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      if (credentialsPath) {
+        try {
+          const fs = require('fs');
+          const path = require('path');
+          const fullPath = path.resolve(credentialsPath);
+          
+          if (fs.existsSync(fullPath)) {
+            const serviceAccount = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+            admin.initializeApp({
+              credential: admin.credential.cert(serviceAccount)
+            });
+            this.logger.info('Firebase Admin initialized from credentials file', { path: credentialsPath });
+            return;
+          }
+        } catch (fileError) {
+          this.logger.warn('Failed to load Firebase credentials from file, trying environment variables', { 
+            error: fileError instanceof Error ? fileError.message : String(fileError) 
+          });
+        }
+      }
+
+      // Fallback to environment variables
       const { projectId, clientEmail, privateKey } = this.config.firebase || {};
       if (!projectId || !clientEmail || !privateKey) {
         this.logger.warn('Firebase credentials not set; push will fail until configured');
         return;
       }
+
+      // Handle private key with proper newline conversion
+      let formattedPrivateKey = String(privateKey);
+      
+      // If the key doesn't start with BEGIN, it might be base64 encoded
+      if (!formattedPrivateKey.includes('BEGIN PRIVATE KEY')) {
+        try {
+          formattedPrivateKey = Buffer.from(formattedPrivateKey, 'base64').toString('utf8');
+        } catch (decodeError) {
+          this.logger.warn('Failed to decode base64 private key, using as-is');
+        }
+      }
+      
+      // Replace literal \n with actual newlines
+      formattedPrivateKey = formattedPrivateKey.replace(/\\n/g, '\n');
+
       admin.initializeApp({
         credential: admin.credential.cert({
           projectId,
           clientEmail,
-          privateKey: String(privateKey).replace(/\\n/g, '\n')
+          privateKey: formattedPrivateKey
         })
       });
-      this.logger.info('Firebase Admin initialized for push notifications');
+      this.logger.info('Firebase Admin initialized for push notifications from environment variables');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error('Failed to initialize Firebase Admin', { error: errorMessage });

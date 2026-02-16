@@ -570,6 +570,12 @@ docker compose -f docker-compose.prod.yml ps
 # Check backend logs
 docker compose -f docker-compose.prod.yml logs backend
 
+# Make script executable
+chmod +x /opt/urutibiz/urutibiz-backend/python-service/rebuild.sh
+
+# Run it
+/opt/urutibiz/urutibiz-backend/python-service/rebuild.sh
+
 ### Step 3: Create Nginx Configuration
 
 ```bash

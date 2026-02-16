@@ -184,11 +184,11 @@ EXPOSE ${PORT}
 # Health check configuration
 # Interval: Check every 30 seconds
 # Timeout: Wait 10 seconds for response
-# Start period: Wait 60 seconds before first check (app startup time)
+# Start period: Wait 90 seconds before first check (app startup time)
 # Retries: Mark unhealthy after 3 consecutive failures
 HEALTHCHECK --interval=30s \
             --timeout=10s \
-            --start-period=60s \
+            --start-period=90s \
             --retries=3 \
             CMD node healthcheck.js || exit 1
 

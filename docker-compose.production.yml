@@ -103,6 +103,7 @@ services:
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
       FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
       PUSH_PROVIDER: ${PUSH_PROVIDER:-firebase}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/firebase-credentials.json
       
       # AI Services
       GEMINI_API_KEY: ${GEMINI_API_KEY}

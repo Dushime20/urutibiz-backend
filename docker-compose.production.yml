@@ -60,8 +60,10 @@ services:
       - |
         echo "⏳ Waiting for database to be ready..."
         sleep 10
+        echo "🔄 Installing ts-node for migrations..."
+        npm install --no-save ts-node typescript @types/node
         echo "🔄 Running database migrations..."
-        npm run db:migrate
+        npx knex migrate:latest
         echo "✅ Migrations completed"
     depends_on:
       postgres:

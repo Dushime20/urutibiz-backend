@@ -3,15 +3,16 @@
 # UrutiBiz Backend - Production-Grade Multi-Stage Dockerfile
 # =============================================================================
 # Author: DevOps Team
-# Version: 2.0.0
+# Version: 3.0.0
 # Description: Enterprise-grade Node.js TypeScript application container
 # Standards: Docker Best Practices, OWASP, CIS Benchmarks
+# Base: Debian Slim (for native binary compatibility with onnxruntime-node)
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 # Stage 1: Base Image with Security Hardening
 # -----------------------------------------------------------------------------
-FROM node:20-alpine3.20 AS base
+FROM node:20-slim AS base
 
 # Build arguments for flexibility
 ARG NODE_ENV=production
@@ -31,24 +32,24 @@ LABEL org.opencontainers.image.title="UrutiBiz Backend API" \
       maintainer="devops@urutibiz.com"
 
 # Install security updates and essential tools
-# Add glibc for onnxruntime-node compatibility
-RUN apk update && \
-    apk upgrade --no-cache && \
-    apk add --no-cache \
+# Debian-based for native glibc compatibility with ML/AI libraries
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
         dumb-init \
         curl \
         ca-certificates \
-        tzdata \
-        gcompat \
-        libstdc++ && \
-    rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
+        tzdata && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Set timezone to UTC (best practice for servers)
 ENV TZ=UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Create non-root user and group with specific UID/GID
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S -u 1001 -G nodejs -h /home/nodejs -s /bin/sh nodejs && \
+RUN groupadd -g 1001 nodejs && \
+    useradd -r -u 1001 -g nodejs -d /home/nodejs -s /bin/bash nodejs && \
     mkdir -p /home/nodejs && \
     chown -R nodejs:nodejs /home/nodejs
 
@@ -213,10 +214,13 @@ CMD ["node", "dist/server.js"]
 FROM dependencies AS development
 
 # Install development tools
-RUN apk add --no-cache \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
         git \
         bash \
-        vim
+        vim && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy source code
 COPY --chown=nodejs:nodejs . .

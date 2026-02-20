@@ -135,7 +135,7 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY}
       
       # Python Service
-      PYTHON_IMAGE_SERVICE_URL: ${PYTHON_IMAGE_SERVICE_URL:-http://python-service:8001}
+      PYTHON_IMAGE_SERVICE_URL: http://python-service:8001
       
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -156,6 +156,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      python-service:
+        condition: service_healthy
     
     restart: unless-stopped
     
@@ -169,10 +171,36 @@ services:
       retries: 5
       start_period: 120s
 
+  # Python AI Service for Image Embeddings
+  python-service:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    image: urutibiz-python-service:latest
+    container_name: urutibiz-python-service
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/.cache/huggingface
+    ports:
+      - "8001:8001"
+    volumes:
+      - python-model-cache:/app/.cache/huggingface
+    restart: unless-stopped
+    networks:
+      - urutibiz-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  python-model-cache:
     driver: local
 
 networks:

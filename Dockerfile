@@ -254,4 +254,4 @@ RUN npm run test:ci 2>/dev/null || echo "Tests skipped - jest not configured"
 
 USER nodejs
 
-CMD ["npm", "test"]
+CMD ["npm", "start"]

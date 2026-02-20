@@ -287,7 +287,7 @@ urutibiz-backend/
          └─> Should show:
              ✅ Firebase Admin initialized
              ✅ Database connection established
-             ✅ Server listening on port 10000
+             ✅ Server listening on port 3000
 ```
 
 ## 🔧 Troubleshooting Visual
@@ -322,7 +322,7 @@ Issue: Database connection fails
 
 Issue: Port already in use
     │
-    ├─> Check: netstat -tulpn | grep 10000
+    ├─> Check: netstat -tulpn | grep 3000
     │        └─> Shows what's using port
     │
     └─> Fix: Change PORT in .env or docker-compose

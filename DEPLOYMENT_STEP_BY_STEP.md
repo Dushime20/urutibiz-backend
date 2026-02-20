@@ -316,7 +316,7 @@ nano .env.production
 ```env
 # Application
 NODE_ENV=production
-PORT=10000
+PORT=3000
 API_PREFIX=/api/v1
 
 # Frontend
@@ -590,7 +590,7 @@ sudo nano /etc/nginx/sites-available/urutibiz
 ```nginx
 # Upstream backend
 upstream backend {
-    server localhost:10000;
+    server localhost:3000;
 }
 
 # Rate limiting

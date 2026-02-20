@@ -10,7 +10,7 @@ Complete production-ready Docker deployment setup for UrutiBiz Backend with all 
 │                                                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
 │  │   Nginx      │  │   Backend    │  │   Python     │  │
-│  │  (Port 80)   │→ │  (Port 10000)│→ │  (Port 8001) │  │
+│  │  (Port 80)   │→ │  (Port 3000) │→ │  (Port 8001) │  │
 │  └──────────────┘  └──────────────┘  └──────────────┘  │
 │         │                  │                  │          │
 │         └──────────────────┼──────────────────┘          │
@@ -111,7 +111,7 @@ docker-compose -f docker-compose.prod.yml exec backend npm run db:migrate
 
 ```bash
 # Check backend health
-curl http://localhost:10000/health
+curl http://localhost:3000/health
 
 # Check Python service health
 curl http://localhost:8001/health
@@ -124,7 +124,7 @@ docker-compose -f docker-compose.prod.yml exec postgres psql -U ${DB_USER} -d ${
 
 ### 1. Backend Service (Node.js/TypeScript)
 
-- **Port**: 10000
+- **Port**: 3000
 - **Image**: `urutibiz-backend:prod`
 - **Health Check**: `/health` endpoint
 - **Dependencies**: PostgreSQL, Redis, Python Service
@@ -230,7 +230,7 @@ docker inspect urutibiz-backend-prod | grep Health -A 10
 ### 2. Network Security
 - ✅ Services communicate via internal Docker network
 - ✅ Database and Redis ports not exposed externally
-- ✅ Only necessary ports exposed (80, 443, 10000)
+- ✅ Only necessary ports exposed (80, 443, 3000)
 
 ### 3. Container Security
 - ✅ All services run as non-root users

@@ -129,7 +129,7 @@ FROM base AS production
 
 # Build arguments
 ARG NODE_ENV=production
-ARG PORT=10000
+ARG PORT=3000
 
 # Environment variables
 ENV NODE_ENV=${NODE_ENV} \

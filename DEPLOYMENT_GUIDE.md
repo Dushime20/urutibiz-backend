@@ -121,7 +121,7 @@ nano .env
 ```env
 # Application
 NODE_ENV=production
-PORT=10000
+PORT=3000
 API_PREFIX=/api/v1
 
 # Frontend
@@ -286,7 +286,7 @@ nano /etc/nginx/sites-available/urutibiz
 
 ```nginx
 upstream backend {
-    server localhost:10000;
+    server localhost:3000;
 }
 
 limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/m;
@@ -761,7 +761,7 @@ docker compose -f docker-compose.production.yml up -d --build
 docker logs urutibiz-api
 
 # Check port conflicts
-netstat -tulpn | grep 10000
+netstat -tulpn | grep 3000
 
 # Restart container
 docker restart urutibiz-api

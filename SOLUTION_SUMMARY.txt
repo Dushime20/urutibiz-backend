@@ -64,13 +64,13 @@ docker logs urutibiz-api | grep -i firebase
 docker exec urutibiz-postgres psql -U urutibiz_user -d urutibiz_db -c "SELECT 1"
 
 # Test API
-curl http://localhost:10000/health
+curl http://localhost:3000/health
 
 EXPECTED RESULTS:
 =================
 ✅ Firebase Admin initialized from credentials file
 ✅ Database connection established
-✅ Server listening on port 10000
+✅ Server listening on port 3000
 ✅ Notification templates initialized successfully
 
 USEFUL COMMANDS:
@@ -103,7 +103,7 @@ If database fails:
   docker exec urutibiz-api ping postgres
 
 If port in use:
-  netstat -tulpn | grep 10000
+  netstat -tulpn | grep 3000
   # Change PORT in .env or docker-compose
 
 SECURITY NOTES:

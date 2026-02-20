@@ -59,7 +59,7 @@ docker logs urutibiz-api | grep -i firebase
 docker exec urutibiz-postgres psql -U urutibiz_user -d urutibiz_db -c "SELECT 1"
 
 # Test API health endpoint
-curl http://localhost:10000/health
+curl http://localhost:3000/health
 ```
 
 ---
@@ -131,7 +131,7 @@ docker exec urutibiz-api ping postgres
 ### Port Already in Use?
 ```bash
 # Find what's using the port
-netstat -tulpn | grep 10000
+netstat -tulpn | grep 3000
 
 # Change port in .env
 echo "PORT=10001" >> .env

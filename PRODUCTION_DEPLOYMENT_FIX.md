@@ -136,7 +136,7 @@ docker logs -f urutibiz-api
 docker exec -it urutibiz-postgres psql -U urutibiz_user -d urutibiz_db -c "SELECT 1"
 
 # 4. Test API health
-curl http://localhost:10000/health
+curl http://localhost:3000/health
 ```
 
 ## 🎯 Expected Results
@@ -144,7 +144,7 @@ curl http://localhost:10000/health
 After successful deployment, you should see:
 - ✅ `Firebase Admin initialized` (no errors)
 - ✅ `Database connection established`
-- ✅ `Server listening on port 10000`
+- ✅ `Server listening on port 3000`
 - ✅ No PEM format errors
 - ✅ Notification templates initialized
 
@@ -213,8 +213,8 @@ docker logs urutibiz-postgres
 
 ### If port conflicts:
 ```bash
-# Check what's using port 10000
-netstat -tulpn | grep 10000
+# Check what's using port 3000
+netstat -tulpn | grep 3000
 
 # Change port in .env or docker-compose
 PORT=10001

@@ -53,7 +53,7 @@ docker run --rm -it \
   --network urutibiz-backend_urutibiz-network \
   --env-file .env \
   -e NODE_ENV=production \
-  -e PORT=10000 \
+  -e PORT=3000 \
   -e DB_HOST=postgres \
   -e FIREBASE_PRIVATE_KEY="$FIREBASE_PRIVATE_KEY" \
   urutibiz-backend:latest

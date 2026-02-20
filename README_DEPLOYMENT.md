@@ -143,7 +143,7 @@ docker logs urutibiz-api | grep -i database
 # Test services
 docker exec urutibiz-postgres pg_isready -U urutibiz_user
 docker exec urutibiz-redis redis-cli ping
-curl http://localhost:10000/health
+curl http://localhost:3000/health
 ```
 
 ### Expected Results
@@ -151,7 +151,7 @@ curl http://localhost:10000/health
 ```
 ✅ Firebase Admin initialized from credentials file
 ✅ Database connection established
-✅ Server listening on port 10000
+✅ Server listening on port 3000
 ✅ Notification templates initialized successfully
 ```
 
@@ -217,7 +217,7 @@ docker exec urutibiz-api ping postgres
 
 ```bash
 # Check what's using the port
-netstat -tulpn | grep 10000
+netstat -tulpn | grep 3000
 
 # Change port in .env
 echo "PORT=10001" >> .env
@@ -248,7 +248,7 @@ docker-compose -f docker-compose.production.yml restart
             │ Both services healthy
             │
        ┌────▼────────────────┐
-       │   Backend API       │  Port 10000
+       │   Backend API       │  Port 3000
        │                     │
        │  ✅ Firebase init   │
        │  ✅ DB connected    │

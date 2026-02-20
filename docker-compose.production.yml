@@ -70,6 +70,10 @@ services:
 
   # Backend API
   api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
     image: urutibiz-backend:latest
     container_name: urutibiz-api
     environment:

@@ -226,12 +226,17 @@ class App {
     
     try {
       // Connect to database
+      console.log('Step 4.1: Connecting to database (from app.initialize)...');
       await connectDatabase();
+      console.log('Step 4.1: Database connected ✓');
       logger.info('✅ Database connected successfully (before handling any requests)');
       
       // Load API routes after database is connected
+      console.log('Step 4.2: Loading API routes...');
       await this.loadApiRoutes();
+      console.log('Step 4.2: API routes loaded ✓');
     } catch (error) {
+      console.error('Step 4 ERROR:', error);
       const errorMessage = `Database connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
       logger.error(`❌ ${errorMessage}`);
       errors.push({ service: 'database', error: errorMessage });
@@ -240,10 +245,13 @@ class App {
     }
 
     // Connect to Redis (optional, continue if it fails)
+    console.log('Step 4.3: Connecting to Redis...');
     try {
       await connectRedis();
+      console.log('Step 4.3: Redis connected ✓');
       logger.info('✅ Redis connected successfully');
     } catch (redisError) {
+      console.error('Step 4.3: Redis connection failed:', redisError);
       const errorMessage = `Redis connection failed: ${redisError instanceof Error ? redisError.message : 'Unknown error'}`;
       
       if (isDevelopment) {
@@ -254,7 +262,9 @@ class App {
       errors.push({ service: 'redis', error: errorMessage });
     }
 
+    console.log('Step 4.4: Setting isInitialized flag...');
     this.isInitialized = true;
+    console.log('Step 4.4: isInitialized set ✓');
 
     if (errors.length > 0 && !isDevelopment) {
       logger.warn(`Application initialized with ${errors.length} service(s) failing`);
@@ -275,19 +285,25 @@ class App {
     }
 
     // Initialize booking scheduler (only in production/staging, skip in demo/dev)
+    console.log('Step 4.5: Checking if booking scheduler should start...');
     if (!isDemoMode && this.config.nodeEnv !== 'test') {
+      console.log('Step 4.5: Starting booking scheduler...');
       try {
         await BookingSchedulerService.start();
+        console.log('Step 4.5: Booking scheduler started ✓');
         logger.info('✅ Booking scheduler started');
       } catch (schedulerError) {
+        console.error('Step 4.5: Booking scheduler failed:', schedulerError);
         const errorMessage = `Booking scheduler failed to start: ${schedulerError instanceof Error ? schedulerError.message : 'Unknown error'}`;
         logger.warn(`⚠️ ${errorMessage}`);
         errors.push({ service: 'booking_scheduler', error: errorMessage });
       }
     } else {
+      console.log('Step 4.5: Skipping booking scheduler ✓');
       logger.info('⏭️ Skipping booking scheduler (demo/dev/test mode)');
     }
 
+    console.log('Step 4.6: Application initialization complete ✓');
     logger.info('✅ Application initialized successfully');
     return { success: true, message: 'Application initialized successfully' };
   }

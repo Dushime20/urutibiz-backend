@@ -39,7 +39,9 @@ RUN apt-get update && \
         dumb-init \
         curl \
         ca-certificates \
-        tzdata && \
+        tzdata \
+        netcat-openbsd \
+        postgresql-client && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 

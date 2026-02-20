@@ -51,15 +51,34 @@ fi
 echo ""
 
 echo "=== Checking database connectivity ==="
-if command -v nc &> /dev/null; then
+MAX_RETRIES=30
+RETRY_COUNT=0
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     if nc -z $DB_HOST $DB_PORT 2>/dev/null; then
         echo "✅ Database is reachable at $DB_HOST:$DB_PORT"
+        
+        # Also verify PostgreSQL is actually ready to accept connections
+        if pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME >/dev/null 2>&1; then
+            echo "✅ PostgreSQL is ready to accept connections"
+            break
+        else
+            echo "⏳ PostgreSQL port is open but not ready yet (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+        fi
     else
-        echo "❌ Cannot reach database at $DB_HOST:$DB_PORT"
+        echo "⏳ Waiting for database at $DB_HOST:$DB_PORT (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
     fi
-else
-    echo "⚠️  netcat not available, skipping connectivity check"
-fi
+    
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    
+    if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+        echo "❌ Database is not reachable after $MAX_RETRIES attempts"
+        echo "❌ Cannot start application without database"
+        exit 1
+    fi
+    
+    sleep 2
+done
 echo ""
 
 echo "=== Starting application ==="

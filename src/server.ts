@@ -22,12 +22,18 @@ try {
 
 async function startServer(): Promise<void> {
   let app: App | null = null;
-  console.log('DB_HOST:', process.env.DB_HOST); 
+  console.log('=== SERVER STARTUP BEGIN ===');
+  console.log('DB_HOST:', process.env.DB_HOST);
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('PORT:', process.env.PORT);
   
   try {
+    console.log('Step 1: Connecting to database...');
     // Connect to the database before initializing the app
     await connectDatabase();
+    console.log('Step 1: Database connected ✓');
 
+    console.log('Step 2: Initializing Sequelize models...');
     // Initialize Sequelize models used by specific services (e.g., product prices)
     try {
       initProductPriceModel(sequelize);
@@ -35,15 +41,22 @@ async function startServer(): Promise<void> {
       initInsuranceProviderModel(sequelize);
       initializeCategoryRegulationModel(sequelize);
       await sequelize.authenticate();
+      console.log('Step 2: Sequelize models initialized ✓');
       // Do not sync schema automatically in production; rely on Knex migrations
     } catch (seqErr) {
+      console.error('Step 2: Sequelize initialization failed:', seqErr);
       logger.error('❌ Failed to initialize Sequelize models:', seqErr);
       // Continue startup; product price endpoints will fail if model is not available
     }
-    app = new App();
     
+    console.log('Step 3: Creating App instance...');
+    app = new App();
+    console.log('Step 3: App instance created ✓');
+    
+    console.log('Step 4: Initializing application...');
     // Initialize the application
     const initResult = await app.initialize();
+    console.log('Step 4: Application initialized ✓');
     
     if (!initResult.success) {
       logger.warn('Application initialization completed with warnings:', initResult.message);
@@ -54,10 +67,12 @@ async function startServer(): Promise<void> {
       }
     }
     
+    console.log('Step 5: Starting HTTP server...');
     // Start the server
     const server = app.getServer();
     
     server.listen(config.port, async () => {
+      console.log('Step 5: HTTP server listening ✓');
       logger.info(`🚀 UrutiBiz API server running on port ${config.port}`);
       logger.info(`📱 Environment: ${config.nodeEnv}`);
       logger.info(`🔗 API Base URL: http://localhost:${config.port}${config.apiPrefix}`);
@@ -195,6 +210,11 @@ async function startServer(): Promise<void> {
     });
 
   } catch (error) {
+    console.error('=== SERVER STARTUP FAILED ===');
+    console.error('Error type:', error?.constructor?.name);
+    console.error('Error message:', error instanceof Error ? error.message : String(error));
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
     logger.error('❌ Failed to start server:', error);
     
     if (app) {
@@ -209,5 +229,25 @@ async function startServer(): Promise<void> {
   }
 }
 
+// Catch any unhandled errors during module loading
+process.on('uncaughtException', (error) => {
+  console.error('=== UNCAUGHT EXCEPTION DURING STARTUP ===');
+  console.error('Error:', error);
+  console.error('Stack:', error.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('=== UNHANDLED REJECTION DURING STARTUP ===');
+  console.error('Reason:', reason);
+  console.error('Promise:', promise);
+  process.exit(1);
+});
+
 // Start the server
-startServer();
+console.log('=== CALLING startServer() ===');
+startServer().catch(error => {
+  console.error('=== startServer() THREW ERROR ===');
+  console.error(error);
+  process.exit(1);
+});

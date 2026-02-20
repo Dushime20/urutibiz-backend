@@ -150,9 +150,13 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --chown=nodejs:nodejs package*.json ./
 COPY --chown=nodejs:nodejs healthcheck.js ./
 COPY --chown=nodejs:nodejs knexfile.js ./
+COPY --chown=nodejs:nodejs docker-entrypoint.sh ./
 
 # Copy database folder (migrations will be run from compiled dist/database if available, or source)
 COPY --chown=nodejs:nodejs database ./database
+
+# Make entrypoint executable
+RUN chmod +x docker-entrypoint.sh
 
 # Create necessary directories with proper permissions
 RUN mkdir -p \
@@ -206,7 +210,7 @@ LABEL security.scan.date="${BUILD_DATE}" \
 
 # Use dumb-init as PID 1 for proper signal handling
 # This ensures graceful shutdown and proper zombie process reaping
-ENTRYPOINT ["dumb-init", "--"]
+ENTRYPOINT ["dumb-init", "--", "./docker-entrypoint.sh"]
 
 # Start the application
 CMD ["node", "dist/server.js"]

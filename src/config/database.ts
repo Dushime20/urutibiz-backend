@@ -51,8 +51,8 @@ const dbConfig: Knex.Config = {
     min: process.env.NODE_ENV === 'production' ? 5 : 2,
     max: config.database.maxConnections || (process.env.NODE_ENV === 'production' ? 25 : 20), // Increased from 10 to 20 for development
     
-    // Connection timeouts
-    createTimeoutMillis: config.database.connectionTimeoutMs || 5000,
+    // Connection timeouts - increased for production startup
+    createTimeoutMillis: config.database.connectionTimeoutMs || (process.env.NODE_ENV === 'production' ? 10000 : 5000),
     acquireTimeoutMillis: 30000,
     idleTimeoutMillis: config.database.idleTimeoutMs || 30000,
     
@@ -82,17 +82,22 @@ const dbConfig: Knex.Config = {
 // Create database instance
 let database: Knex | undefined;
 
-export const connectDatabase = async (): Promise<void> => {
-  try {
-    database = knex(dbConfig);
-    
-    // Set up pool monitoring
-    setupPoolMonitoring();
-    
-    // Test the connection with health check
-    const healthCheckStart = Date.now();
-    await database.raw('SELECT 1+1 as result, NOW() as timestamp');
-    const healthCheckTime = Date.now() - healthCheckStart;
+export const connectDatabase = async (maxRetries: number = 5, retryDelay: number = 3000): Promise<void> => {
+  let lastError: any;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      logger.info(`🔄 Database connection attempt ${attempt}/${maxRetries}...`);
+      
+      database = knex(dbConfig);
+      
+      // Set up pool monitoring
+      setupPoolMonitoring();
+      
+      // Test the connection with health check
+      const healthCheckStart = Date.now();
+      await database.raw('SELECT 1+1 as result, NOW() as timestamp');
+      const healthCheckTime = Date.now() - healthCheckStart;
     
     // Verify that the users table exists and has the expected structure
     try {
@@ -121,40 +126,65 @@ export const connectDatabase = async (): Promise<void> => {
     dbMetrics.lastHealthCheck = new Date();
     dbMetrics.avgQueryTime = healthCheckTime;
     
-    logger.info(`✅ Database connected successfully (health check: ${healthCheckTime}ms)`);
-  } catch (error) {
-    dbMetrics.connectionErrors++;
-    logger.error('❌ Failed to connect to database:', error);
+    logger.info(`✅ Database connected successfully on attempt ${attempt} (health check: ${healthCheckTime}ms)`);
+    return; // Success! Exit the retry loop
     
-    // In demo mode, retry connection with more lenient settings
-    if (process.env.NODE_ENV === 'demo') {
-      logger.warn('⚠️ Demo mode: Retrying database connection with lenient settings...');
+  } catch (error) {
+    lastError = error;
+    dbMetrics.connectionErrors++;
+    
+    // Clean up failed connection attempt
+    if (database) {
       try {
-        // Create a more lenient configuration for demo mode
-        const demoConfig = {
-          ...dbConfig,
-          pool: {
-            ...dbConfig.pool,
-            min: 1,
-            max: 5,
-            createTimeoutMillis: 10000,
-            acquireTimeoutMillis: 60000,
-            idleTimeoutMillis: 300000, // 5 minutes
-          },
-          acquireConnectionTimeout: 120000, // 2 minutes
-        };
-        
-        database = knex(demoConfig);
-        await database.raw('SELECT 1 as test');
-        logger.info('✅ Database connected successfully in demo mode');
-      } catch (retryError) {
-        logger.error('❌ Failed to connect to database even in demo mode:', retryError);
-        database = undefined;
+        await database.destroy();
+      } catch (destroyError) {
+        // Ignore cleanup errors
       }
-    } else {
-      throw error;
+      database = undefined;
+    }
+    
+    logger.warn(`❌ Database connection attempt ${attempt}/${maxRetries} failed:`, error);
+    
+    if (attempt < maxRetries) {
+      logger.info(`⏳ Retrying in ${retryDelay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
     }
   }
+}
+
+// All retries failed
+logger.error(`❌ Failed to connect to database after ${maxRetries} attempts`);
+logger.error('Last error:', lastError);
+
+// In demo mode, try one more time with lenient settings
+if (process.env.NODE_ENV === 'demo') {
+  logger.warn('⚠️ Demo mode: Attempting connection with lenient settings...');
+  try {
+    // Create a more lenient configuration for demo mode
+    const demoConfig = {
+      ...dbConfig,
+      pool: {
+        ...dbConfig.pool,
+        min: 1,
+        max: 5,
+        createTimeoutMillis: 10000,
+        acquireTimeoutMillis: 60000,
+        idleTimeoutMillis: 300000, // 5 minutes
+      },
+      acquireConnectionTimeout: 120000, // 2 minutes
+    };
+    
+    database = knex(demoConfig);
+    await database.raw('SELECT 1 as test');
+    logger.info('✅ Database connected successfully in demo mode');
+    return;
+  } catch (retryError) {
+    logger.error('❌ Failed to connect to database even in demo mode:', retryError);
+    database = undefined;
+  }
+}
+
+throw lastError || new Error('Failed to connect to database');
 };
 
 // Performance monitoring for database pool

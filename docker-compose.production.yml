@@ -146,8 +146,8 @@ services:
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
     
     volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
+      - uploads_data:/app/uploads
+      - logs_data:/app/logs
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
     
     ports:
@@ -206,6 +206,10 @@ volumes:
   redis_data:
     driver: local
   python-model-cache:
+    driver: local
+  uploads_data:
+    driver: local
+  logs_data:
     driver: local
 
 networks:

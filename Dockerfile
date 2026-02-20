@@ -163,7 +163,10 @@ RUN chmod +x docker-entrypoint.sh
 # Create necessary directories with proper permissions
 RUN mkdir -p \
         logs \
-        uploads \
+        uploads/temp \
+        uploads/products \
+        uploads/profiles \
+        uploads/documents \
         tmp \
         .npm-cache && \
     chown -R nodejs:nodejs \
@@ -172,6 +175,7 @@ RUN mkdir -p \
         tmp \
         .npm-cache && \
     chmod 755 logs uploads tmp && \
+    chmod 755 uploads/temp uploads/products uploads/profiles uploads/documents && \
     chmod 700 .npm-cache
 
 # Security: Remove unnecessary files

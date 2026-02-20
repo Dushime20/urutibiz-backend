@@ -78,7 +78,6 @@ export class BookingSchedulerService {
       await this.getDb()('users').insert({
         id: systemUserId,
         email: 'system@urutibiz.com',
-        username: 'system',
         first_name: 'System',
         last_name: 'Automation',
         role: 'system',

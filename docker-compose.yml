@@ -92,10 +92,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: development
+      target: production
     container_name: urutibiz-api
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - PORT=3000
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -135,9 +135,6 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}
     ports:
       - "3000:3000"
-    volumes:
-      - .:/app
-      - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,191 +1,306 @@
-# 🚀 UrutiBiz Backend - Production Deployment Guide
+# Production Deployment Guide - International Standards
 
-## Quick Start
+## Architecture Overview
+
+```
+Internet
+    ↓
+Nginx (Port 8081) - Reverse Proxy, Rate Limiting, Security
+    ↓
+Backend API (Port 3000) - Node.js Application
+    ↓
+PostgreSQL (Port 5432) + Redis (Port 6379)
+```
+
+## What's Included
+
+### Nginx Configuration Features
+
+✅ **Performance Optimizations**
+- HTTP/1.1 with keepalive connections
+- Gzip compression for all text-based content
+- Optimized buffer sizes and timeouts
+- Connection pooling to backend
+
+✅ **Security Features**
+- Rate limiting (5 req/min for auth, 100 req/min for API)
+- Connection limits (10 concurrent per IP)
+- Security headers (X-Frame-Options, CSP, etc.)
+- CORS configuration
+- Hidden server tokens
+- SSL/TLS ready (TLS 1.2 & 1.3)
+
+✅ **Monitoring & Logging**
+- Detailed access logs with timing information
+- Request ID tracking
+- Separate error logging
+- Health check endpoint (no rate limit)
+
+✅ **API Protection**
+- Strict rate limiting on auth endpoints
+- Request size limits (50MB max)
+- Timeout protection
+- DDoS mitigation
+
+✅ **WebSocket Support**
+- Full Socket.IO compatibility
+- Long-lived connections (24h timeout)
+- Proper upgrade headers
+
+## Deployment Steps
+
+### 1. Push Changes to Server
 
 ```bash
-# 1. Build all images
-docker build --target production -t urutibiz-backend:latest .
-docker build -f Dockerfile.migrations -t urutibiz-migration:latest .
-docker build -f Dockerfile.postgres -t urutibiz-postgres:latest .
-cd python-service && docker build -t urutibiz-python-service:latest . && cd ..
-
-# 2. Deploy everything
-docker-compose -f docker-compose.production.yml up -d
-
-# 3. Check status
-docker-compose -f docker-compose.production.yml ps
-
-# 4. View logs
-docker-compose -f docker-compose.production.yml logs -f
+# From your local machine
+git add .
+git commit -m "Add production-ready nginx configuration"
+git push origin main
 ```
 
-## Services Included
-
-### 1. PostgreSQL (with PostGIS + pgvector)
-- **Port**: 5432
-- **Image**: Custom built with Dockerfile.postgres
-- **Features**: Geographic data + AI embeddings support
-
-### 2. Redis
-- **Port**: 6379
-- **Image**: redis:7-alpine
-- **Purpose**: Caching and session storage
-
-### 3. Migration Service
-- **Runs**: Once before API starts
-- **Image**: Custom built with Dockerfile.migrations
-- **Purpose**: Runs all 147 database migrations
-
-### 4. Backend API
-- **Port**: 3000 (configurable via PORT in .env)
-- **Image**: urutibiz-backend:latest
-- **Features**: Full REST API + WebSocket support
-
-### 5. Python AI Service
-- **Port**: 8001
-- **Image**: urutibiz-python-service:latest
-- **Purpose**: Image embeddings for AI-powered search
-
-## Environment Variables
-
-Required in `.env` file:
-
-```env
-# Application
-PORT=3000
-NODE_ENV=production
-
-# Database
-DB_NAME=urutibiz_db
-DB_USER=urutibiz_user
-DB_PASSWORD=your_secure_password
-
-# Redis
-REDIS_PASSWORD=your_redis_password
-
-# JWT
-JWT_SECRET=your_jwt_secret_min_32_chars
-JWT_REFRESH_SECRET=your_refresh_secret_min_32_chars
-
-# Email (optional)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_email
-SMTP_PASS=your_password
-
-# Firebase (optional)
-FIREBASE_PROJECT_ID=your_project_id
-FIREBASE_CLIENT_EMAIL=your_service_account_email
-```
-
-## Nginx Configuration
-
-The backend runs on port 3000. Configure Nginx to proxy requests:
+### 2. On Server - Pull and Deploy
 
 ```bash
-# Copy nginx config
-sudo cp nginx-urutibiz.conf /etc/nginx/sites-available/urutibiz
+# SSH into server
+ssh root@38.242.224.199
 
-# Edit domain
-sudo nano /etc/nginx/sites-available/urutibiz
-# Change: server_name yourdomain.com;
+# Navigate to backend directory
+cd /opt/urutibiz/urutibiz-backend
 
-# Enable
-sudo ln -s /etc/nginx/sites-available/urutibiz /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+# Pull latest changes
+git pull origin main
+
+# Stop existing services
+docker-compose down
+
+# Rebuild and start all services
+docker-compose up -d --build
+
+# Verify all containers are running
+docker ps
 ```
 
-## Maintenance Commands
+### 3. Verify Deployment
 
 ```bash
-# View logs
-docker-compose -f docker-compose.production.yml logs -f api
-docker-compose -f docker-compose.production.yml logs -f python-service
+# Check nginx is running
+docker ps | grep nginx
 
-# Restart services
-docker-compose -f docker-compose.production.yml restart api
-docker-compose -f docker-compose.production.yml restart python-service
+# Check nginx logs
+docker logs urutibiz-nginx
 
-# Stop everything
-docker-compose -f docker-compose.production.yml down
+# Test health endpoint
+curl http://localhost:8081/api/v1/health
 
-# Stop and remove volumes (CAUTION: deletes data)
-docker-compose -f docker-compose.production.yml down -v
+# Test from external
+curl http://38.242.224.199:8081/api/v1/health
 
-# Rebuild and restart
-docker build --target production -t urutibiz-backend:latest .
-docker-compose -f docker-compose.production.yml up -d api
+# Check rate limiting (should get 429 after 5 requests)
+for i in {1..10}; do curl -X POST http://localhost:8081/api/v1/auth/login; done
 ```
 
-## Health Checks
+### 4. Monitor Services
 
 ```bash
-# Backend API
-curl http://localhost:3000/health
+# View all container logs
+docker-compose logs -f
 
-# Python Service
-curl http://localhost:8001/health
+# View only nginx logs
+docker logs -f urutibiz-nginx
 
-# Through Nginx (if configured)
-curl http://your-domain.com/health
+# View only backend logs
+docker logs -f urutibiz-api
+
+# Check resource usage
+docker stats
 ```
 
-## File Structure
+## Configuration Details
 
+### Rate Limits
+
+| Endpoint Type | Rate Limit | Burst | Use Case |
+|--------------|------------|-------|----------|
+| Auth endpoints | 5 req/min | 10 | Login, register, password reset |
+| API endpoints | 100 req/min | 50 | General API calls |
+| General | 200 req/min | 100 | Static files, other requests |
+| Connections | 10 concurrent | - | Per IP address |
+
+### Timeouts
+
+- Client body: 12s
+- Client header: 12s
+- Send: 10s
+- Proxy connect: 60s
+- Proxy send: 60s
+- Proxy read: 60s
+- WebSocket: 24h
+- Keepalive: 65s
+
+### Buffer Sizes
+
+- Client body buffer: 128KB
+- Max body size: 50MB
+- Client header buffer: 1KB
+- Large headers: 4 × 16KB
+
+## Security Checklist
+
+- [x] Rate limiting enabled
+- [x] Connection limits per IP
+- [x] Security headers configured
+- [x] Server tokens hidden
+- [x] CORS properly configured
+- [x] Request size limits
+- [x] Timeout protection
+- [x] Hidden files blocked
+- [x] SSL/TLS ready (when certificates added)
+- [x] Request ID tracking
+
+## Performance Optimizations
+
+- [x] Gzip compression
+- [x] HTTP keepalive
+- [x] Connection pooling
+- [x] Optimized buffers
+- [x] Static file caching (1 year)
+- [x] Proxy buffering
+- [x] Multi-accept connections
+- [x] Epoll event model
+
+## Monitoring Endpoints
+
+### Health Check
+```bash
+curl http://38.242.224.199:8081/api/v1/health
 ```
-urutibiz-backend/
-├── docker-compose.production.yml  ← Main production file (USE THIS)
-├── Dockerfile                     ← Backend API image
-├── Dockerfile.migrations          ← Migration runner image
-├── Dockerfile.postgres            ← PostgreSQL with extensions
-├── nginx-urutibiz.conf           ← Nginx configuration
-├── .env                          ← Environment variables
-├── python-service/
-│   └── Dockerfile                ← Python AI service
-└── database/
-    └── migrations/               ← All database migrations
+
+### Check Rate Limiting
+```bash
+# Test auth rate limit (should block after 5 requests)
+for i in {1..10}; do 
+  echo "Request $i:"
+  curl -w "\nHTTP Status: %{http_code}\n" \
+    -X POST http://38.242.224.199:8081/api/v1/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{}' 
+  sleep 1
+done
+```
+
+### View Logs
+```bash
+# Access logs
+docker exec urutibiz-nginx tail -f /var/log/nginx/access.log
+
+# Error logs
+docker exec urutibiz-nginx tail -f /var/log/nginx/error.log
 ```
 
 ## Troubleshooting
 
-### Container keeps restarting
+### Nginx won't start
 ```bash
-docker logs urutibiz-api --tail 100
+# Check configuration syntax
+docker exec urutibiz-nginx nginx -t
+
+# View error logs
+docker logs urutibiz-nginx
+
+# Restart nginx
+docker-compose restart nginx
 ```
 
-### Port not exposed
+### Backend not reachable
 ```bash
-docker ps --format "table {{.Names}}\t{{.Ports}}"
-# Should show: 0.0.0.0:3000->3000/tcp
+# Check if backend is running
+docker ps | grep api
+
+# Test backend directly
+curl http://localhost:3000/api/v1/health
+
+# Check network connectivity
+docker exec urutibiz-nginx ping api
 ```
 
-### Migration failed
-```bash
-docker logs urutibiz-migration
-# Check which migration failed and fix the issue
+### Rate limiting too strict
+Edit `nginx.conf` and adjust:
+```nginx
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=200r/m;  # Increase from 100
 ```
 
-### Python service not responding
+Then reload:
 ```bash
-docker logs urutibiz-python-service
-# First run downloads 605MB model, takes 5-10 minutes
+docker-compose restart nginx
 ```
 
-## Production Checklist
+### High memory usage
+```bash
+# Check resource usage
+docker stats
 
-- [ ] All environment variables set in `.env`
-- [ ] Strong passwords for DB and Redis
-- [ ] JWT secrets are random and secure (32+ chars)
-- [ ] Nginx configured and running
-- [ ] SSL certificate installed (optional but recommended)
-- [ ] Firewall configured (allow ports 80, 443, 22)
-- [ ] Backups scheduled
-- [ ] Monitoring set up
+# Adjust worker connections in nginx.conf
+worker_connections 1024;  # Reduce from 2048
+```
+
+## SSL/HTTPS Setup (Future)
+
+When you get SSL certificates:
+
+1. Add certificates to server
+2. Uncomment HTTPS server block in nginx.conf
+3. Update ports in docker-compose.yml
+4. Restart services
+
+## Backup & Recovery
+
+### Backup Configuration
+```bash
+# Backup nginx config
+cp nginx.conf nginx.conf.backup
+
+# Backup docker-compose
+cp docker-compose.yml docker-compose.yml.backup
+
+# Backup .env
+cp .env .env.backup
+```
+
+### Rollback
+```bash
+# Restore previous version
+git checkout HEAD~1 nginx.conf
+
+# Restart services
+docker-compose restart nginx
+```
+
+## Performance Benchmarking
+
+```bash
+# Install Apache Bench
+apt-get install apache2-utils
+
+# Test API performance
+ab -n 1000 -c 10 http://38.242.224.199:8081/api/v1/health
+
+# Test with rate limiting
+ab -n 100 -c 5 http://38.242.224.199:8081/api/v1/auth/login
+```
+
+## Next Steps
+
+1. ✅ Deploy nginx configuration
+2. ⏳ Monitor for 24 hours
+3. ⏳ Adjust rate limits based on usage
+4. ⏳ Add SSL certificates
+5. ⏳ Set up log rotation
+6. ⏳ Configure monitoring alerts
+7. ⏳ Set up automated backups
 
 ## Support
 
-For issues, check:
-1. Container logs: `docker logs <container-name>`
-2. Nginx logs: `/var/log/nginx/urutibiz_error.log`
-3. System logs: `journalctl -u docker`
+For issues or questions:
+- Check logs: `docker logs urutibiz-nginx`
+- Test configuration: `docker exec urutibiz-nginx nginx -t`
+- Restart services: `docker-compose restart`

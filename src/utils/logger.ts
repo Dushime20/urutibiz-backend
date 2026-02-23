@@ -81,14 +81,14 @@ const logger = winston.createLogger({
   ],
 });
 
-// If we're not in production, log to the console as well
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(
-    new winston.transports.Console({
-      format: consoleFormat,
-    })
-  );
-}
+// Log to the console in all environments (essential for Docker logs)
+logger.add(
+  new winston.transports.Console({
+    format: process.env.NODE_ENV === 'production'
+      ? winston.format.combine(winston.format.timestamp(), winston.format.json())
+      : consoleFormat,
+  })
+);
 
 // Create a stream object for Morgan HTTP request logging
 (logger as any).stream = {
@@ -127,7 +127,7 @@ export class Logger {
   private log(level: string, message: string, meta?: any): void {
     const timestamp = new Date().toISOString();
     const safeMeta = meta ? JSON.parse(this.safeStringify(meta)) : undefined;
-    
+
     const logEntry = {
       timestamp,
       level,

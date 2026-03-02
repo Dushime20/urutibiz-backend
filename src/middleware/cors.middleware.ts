@@ -7,17 +7,21 @@ export const corsMiddleware = cors({
     if (config.cors.origin.includes('*')) {
       return callback(null, true);
     }
-    
+
     // Allow requests with no origin (like mobile apps, curl requests, or same-origin requests)
     if (!origin) {
       return callback(null, true);
     }
-    
+
     // Check if origin is in allowed list
     if (config.cors.origin.includes(origin)) {
       return callback(null, true);
     }
-    
+
+    // Log the allowed check for debugging
+    console.debug(`[CORS] Checking origin: ${origin} against allowed: ${config.cors.origin.join(', ')}`);
+
+
     // In development, allow localhost and common development origins
     if (config.nodeEnv === 'development') {
       const devOrigins = [
@@ -32,7 +36,7 @@ export const corsMiddleware = cors({
         return callback(null, true);
       }
     }
-    
+
     // Allow same-domain requests (different ports on same IP)
     // This handles cases like frontend on :8080 and backend on :8081
     try {
@@ -44,19 +48,19 @@ export const corsMiddleware = cors({
           return null;
         }
       }).filter(Boolean) as URL[];
-      
+
       // Check if origin matches any allowed origin's hostname (ignoring port)
-      const matchesHostname = allowedUrls.some(allowedUrl => 
+      const matchesHostname = allowedUrls.some(allowedUrl =>
         allowedUrl.hostname === originUrl.hostname
       );
-      
+
       if (matchesHostname) {
         return callback(null, true);
       }
     } catch (e) {
       // If URL parsing fails, continue with strict check
     }
-    
+
     // Log the rejected origin for debugging
     console.warn(`[CORS] Rejected origin: ${origin}. Allowed origins: ${config.cors.origin.join(', ')}`);
     callback(new Error('Not allowed by CORS'));

@@ -13,15 +13,25 @@ require('dotenv').config();
 const accountSid = process.env.TWILIO_ACCOUNT_SID || 'your_account_sid';
 const authToken = process.env.TWILIO_AUTH_TOKEN || 'your_auth_token';
 const twilioPhone = process.env.TWILIO_PHONE_NUMBER || 'your_twilio_phone_number';
-const twilioClient = twilio(accountSid, authToken);
+
+let twilioClient: any = null;
+try {
+  if (accountSid.startsWith('AC')) {
+    twilioClient = twilio(accountSid, authToken);
+  } else {
+    console.warn('⚠️ [Twilio] TWILIO_ACCOUNT_SID must start with "AC". Twilio SMS is disabled.');
+  }
+} catch (error) {
+  console.warn('⚠️ [Twilio] Failed to initialize Twilio client:', (error as Error).message);
+}
 
 // Real SMS sender using Twilio with email fallback
 async function sendSms(phoneNumber: string, message: string, userId?: string) {
   // Check if we're in development/demo mode or if Twilio credentials are invalid
   const isDemoMode = process.env.NODE_ENV === 'demo' || process.env.NODE_ENV === 'development';
-  const hasTwilioCredentials = accountSid && authToken && twilioPhone && 
-                                accountSid !== 'your_account_sid' && 
-                                authToken !== 'your_auth_token';
+  const hasTwilioCredentials = accountSid && authToken && twilioPhone &&
+    accountSid !== 'your_account_sid' &&
+    authToken !== 'your_auth_token';
 
   // Try to send via SMS first if credentials are available
   if (!isDemoMode && hasTwilioCredentials) {
@@ -44,7 +54,7 @@ async function sendSms(phoneNumber: string, message: string, userId?: string) {
     const { EmailService } = require('@/services/email.service');
     const { getDatabase } = require('@/config/database');
     const db = getDatabase();
-    
+
     // Get user's email from userId (logged-in user)
     let userEmail = null;
     if (userId) {
@@ -60,11 +70,11 @@ async function sendSms(phoneNumber: string, message: string, userId?: string) {
 
     if (userEmail) {
       const emailService = new EmailService();
-      
+
       // Extract OTP from message
       const otpMatch = message.match(/\b\d{6}\b/);
       const otpCode = otpMatch ? otpMatch[0] : 'N/A';
-      
+
       const emailContent = {
         to: userEmail,
         subject: 'Phone Verification Code - UrutiBiz',
@@ -97,9 +107,9 @@ async function sendSms(phoneNumber: string, message: string, userId?: string) {
         `,
         text: `Your UrutiBiz phone verification code is: ${otpCode}. This code will expire in 5 minutes.`
       };
-      
+
       await emailService.sendEmail(emailContent);
-      
+
       console.log('='.repeat(60));
       console.log('📧 [EMAIL FALLBACK] OTP sent via email');
       console.log(`User ID: ${userId}`);
@@ -107,7 +117,7 @@ async function sendSms(phoneNumber: string, message: string, userId?: string) {
       console.log(`Email: ${userEmail}`);
       console.log(`OTP: ${otpCode}`);
       console.log('='.repeat(60));
-      
+
       return;
     }
   } catch (emailError) {
@@ -121,7 +131,7 @@ async function sendSms(phoneNumber: string, message: string, userId?: string) {
   console.log(`To: ${phoneNumber}`);
   console.log(`Message: ${message}`);
   console.log('='.repeat(60));
-  
+
   // Extract OTP from message if present
   const otpMatch = message.match(/\b\d{6}\b/);
   if (otpMatch) {
@@ -177,7 +187,7 @@ export default class UserVerificationService {
 
   static async submitVerification(userId: string, data: SubmitVerificationRequest): Promise<UserVerification> {
     const db = getDatabase();
-    
+
     // Note: Document number uniqueness check is done during face comparison step
     // (when both document and selfie are submitted)
 
@@ -212,9 +222,9 @@ export default class UserVerificationService {
     // Get user's phone number for verification record
     const user = await db('users').where({ id: userId }).first();
     const userPhoneNumber = user?.phone || user?.phone_number || null; // normalize phone source
-    
+
     console.log(`📱 User ${userId} phone number: ${userPhoneNumber}`);
-    
+
     const [row] = await db('user_verifications')
       .insert({
         id: uuidv4(),
@@ -251,7 +261,7 @@ export default class UserVerificationService {
   static async getUserVerificationStatus(userId: string) {
     const db = getDatabase();
     const verifications = await db('user_verifications').where({ user_id: userId });
-    
+
     const statusSummary = {
       overall_status: 'unverified',
       kyc_status: 'unverified',
@@ -291,12 +301,12 @@ export default class UserVerificationService {
 
   static async resubmitVerification(userId: string, verificationId: string, data: SubmitVerificationRequest): Promise<UserVerification> {
     const db = getDatabase();
-    
+
     // Check if the verification exists and belongs to the user
     const existing = await db('user_verifications')
       .where({ id: verificationId, user_id: userId })
       .first();
-    
+
     if (!existing) {
       throw new Error('Verification not found or access denied');
     }
@@ -312,7 +322,7 @@ export default class UserVerificationService {
     if (data.selfieImageUrl && data.verificationType === 'selfie') {
       livenessScore = await runLivenessCheck(data.selfieImageUrl);
     }
-    
+
     aiProfileScore = 0;
     try {
       if (data.documentImageUrl && data.selfieImageUrl) {
@@ -333,9 +343,9 @@ export default class UserVerificationService {
     // Get user's phone number for verification record
     const user = await db('users').where({ id: userId }).first();
     const userPhoneNumber = user?.phone_number || user?.phone;
-    
+
     console.log(`📱 Resubmitting verification for user ${userId} with phone: ${userPhoneNumber}`);
-    
+
     // Update the verification record
     const [row] = await db('user_verifications')
       .where({ id: verificationId, user_id: userId })
@@ -370,7 +380,7 @@ export default class UserVerificationService {
   static async getUserVerificationDocuments(userId: string) {
     const db = getDatabase();
     const verifications = await db('user_verifications').where({ user_id: userId });
-    
+
     return verifications.map((v: any) => ({
       id: v.id,
       verification_type: v.verification_type,
@@ -390,7 +400,7 @@ export default class UserVerificationService {
     const verifications = await db('user_verifications')
       .where({ user_id: userId })
       .orderBy('created_at', 'desc');
-    
+
     return verifications.map((v: any) => ({
       id: v.id,
       verification_type: v.verification_type,
@@ -407,7 +417,7 @@ export default class UserVerificationService {
 
   static async reviewVerification(adminId: string, data: ReviewVerificationRequest, trx?: any): Promise<UserVerification> {
     const db = trx || getDatabase();
-    
+
     // Update the verification record
     const [row] = await db('user_verifications')
       .where({ id: data.verificationId })
@@ -417,34 +427,34 @@ export default class UserVerificationService {
         verified_at: new Date(),
         notes: data.notes
       }, '*');
-    
+
     // If approved or rejected, update user's id_verification_status and kyc_status
     if (row && (data.status === 'verified' || data.status === 'rejected')) {
       await db('users').where({ id: row.user_id }).update({
         id_verification_status: data.status
       });
-      
+
       // If all required types are verified, set kyc_status to 'verified', else 'pending_review'
       const isFullyVerified = await UserVerificationService.isUserFullyKycVerified(row.user_id);
       const newKycStatus = isFullyVerified ? 'verified' : 'pending_review';
-      
+
       // Update user status - if KYC is verified, also set phone_verified to true
       // since we have all verified information including phone number
       const updateData: any = {
         kyc_status: newKycStatus
       };
-      
+
       if (newKycStatus === 'verified') {
         // Use helper method to ensure phone verification is updated
         await UserVerificationService.updatePhoneVerificationOnKycComplete(row.user_id);
       }
-      
+
       await db('users').where({ id: row.user_id }).update(updateData);
-      
+
       // Send KYC status change notification
       await NotificationService.sendKycStatusChange(row.user_id, newKycStatus);
     }
-    
+
     return UserVerificationService.fromDb(row);
   }
 
@@ -455,7 +465,7 @@ export default class UserVerificationService {
     const row = await db('users')
       .where({ id: userId, kyc_status: 'verified' })
       .first();
-  
+
     return !!row; // true if found, false otherwise
   }
 
@@ -538,10 +548,10 @@ export default class UserVerificationService {
    */
   static async submitVerificationInitial(userId: string, data: SubmitVerificationRequest): Promise<UserVerification> {
     const db = getDatabase();
-    
+
     // Note: Document number uniqueness check is done during face comparison step
     // (when both document and selfie are submitted in updateVerification)
-    
+
     const [row] = await db('user_verifications')
       .insert({
         id: uuidv4(),
@@ -578,32 +588,32 @@ export default class UserVerificationService {
     profileScore?: number;
   }): Promise<void> {
     const db = getDatabase();
-    
+
     const updateData: any = {
       updated_at: new Date(),
     };
-    
+
     if (aiResults.ocrData) {
       updateData.ocr_data = JSON.stringify(aiResults.ocrData);
     }
-    
+
     if (aiResults.livenessScore !== undefined) {
       updateData.liveness_score = aiResults.livenessScore;
     }
-    
+
     if (aiResults.profileScore !== undefined) {
       updateData.ai_profile_score = aiResults.profileScore;
     }
-    
+
     // Determine verification status based on AI results
-    const allScoresGood = 
+    const allScoresGood =
       (!aiResults.livenessScore || aiResults.livenessScore > 0.7) &&
       (!aiResults.profileScore || aiResults.profileScore > 0.8) &&
       (!aiResults.ocrData || aiResults.ocrData.confidence > 0.85);
-    
+
     updateData.verification_status = allScoresGood ? 'verified' : 'pending';
     updateData.ai_processing_status = 'completed';
-    
+
     await db('user_verifications')
       .where('id', verificationId)
       .update(updateData);
@@ -618,22 +628,22 @@ export default class UserVerificationService {
    */
   static async updateVerification(userId: string, verificationId: string, data: UpdateVerificationRequest): Promise<UserVerification> {
     const db = getDatabase();
-    
+
     console.log(`🔍 Debug: Checking verification ${verificationId} for user ${userId}`);
-    
+
     // Check if the verification exists and belongs to the user
     const existing = await db('user_verifications')
       .where({ id: verificationId, user_id: userId })
       .first();
-    
+
     console.log(`🔍 Debug: Database query result:`, existing ? 'Found' : 'Not found');
-    
+
     if (!existing) {
       // Let's check if the verification exists at all (for debugging)
       const anyVerification = await db('user_verifications')
         .where({ id: verificationId })
         .first();
-      
+
       if (anyVerification) {
         console.log(`🔍 Debug: Verification exists but belongs to user ${anyVerification.user_id}, not ${userId}`);
         throw new Error(`Verification not found or access denied. Verification belongs to user ${anyVerification.user_id}, but you are user ${userId}`);
@@ -665,7 +675,7 @@ export default class UserVerificationService {
     if (data.documentImageUrl !== undefined) {
       updateData.document_image_url = data.documentImageUrl;
     }
-    
+
     // Global address fields
     if (data.street_address !== undefined) {
       updateData.street_address = data.street_address;
@@ -682,7 +692,7 @@ export default class UserVerificationService {
     if (data.country !== undefined) {
       updateData.country = data.country;
     }
-    
+
     // Legacy address fields
     if (data.addressLine !== undefined) {
       updateData.address_line = data.addressLine;
@@ -690,7 +700,7 @@ export default class UserVerificationService {
     if (data.district !== undefined) {
       updateData.district = data.district;
     }
-    
+
     if (data.selfieImageUrl !== undefined) {
       updateData.selfie_image_url = data.selfieImageUrl;
     }
@@ -702,7 +712,7 @@ export default class UserVerificationService {
     let livenessScore = null;
     let aiProfileScore = null;
     let verificationStatus = 'pending';
-    
+
     // Process OCR if document image is provided
     if (data.documentImageUrl && ['national_id', 'passport', 'driving_license'].includes(data.verificationType || existing.verification_type)) {
       try {
@@ -714,7 +724,7 @@ export default class UserVerificationService {
         console.error('OCR processing failed:', error);
       }
     }
-    
+
     // Process liveness check if selfie image is provided
     if (data.selfieImageUrl && (data.verificationType === 'selfie' || existing.verification_type === 'selfie')) {
       try {
@@ -726,28 +736,28 @@ export default class UserVerificationService {
         console.error('Liveness check failed:', error);
       }
     }
-    
+
     // Compare document and selfie images for similarity using AI
     const docUrl = data.documentImageUrl || existing.document_image_url;
     const selfieUrl = data.selfieImageUrl || existing.selfie_image_url;
-    
+
     // CRITICAL: Check document number uniqueness BEFORE face comparison
     // This prevents wasting resources on face comparison if document is already used
     if (docUrl && selfieUrl) {
       // This is the actual submission point - both document and selfie are present
       const documentNumberToCheck = data.documentNumber || existing.document_number;
       const verificationTypeToCheck = data.verificationType || existing.verification_type;
-      
+
       // Only check for document types that have document numbers
       if (documentNumberToCheck && ['national_id', 'passport', 'driving_license'].includes(verificationTypeToCheck)) {
         console.log(`🔍 Checking document number uniqueness before face comparison: ${documentNumberToCheck}`);
-        
+
         const isUsed = await UserVerificationService.isDocumentNumberAlreadyUsed(
           documentNumberToCheck,
           verificationTypeToCheck,
           userId // Exclude current user's verifications
         );
-        
+
         if (isUsed) {
           // STOP PROCESS - Don't proceed with face comparison
           console.error(`❌ Document number ${documentNumberToCheck} is already used - STOPPING face comparison process`);
@@ -757,32 +767,32 @@ export default class UserVerificationService {
             `Each document can only be verified once. Please upload a different document to continue the verification process.`
           );
         }
-        
+
         console.log(`✅ Document number ${documentNumberToCheck} is unique - proceeding with face comparison`);
       }
     }
-    
+
     // Only proceed with face comparison if document number check passed (or not applicable)
     if (docUrl && selfieUrl)
       try {
         console.log('🔍 Starting AI image comparison (face-api.js)...');
         console.log(`🔍 Document URL: ${docUrl}`);
         console.log(`🔍 Selfie URL: ${selfieUrl}`);
-        
+
         // Use face-api.js for image comparison
         const aiComparisonResult = await compareFacesFaceApi(docUrl, selfieUrl);
-        
+
         aiProfileScore = aiComparisonResult.similarity;
         updateData.ai_profile_score = aiProfileScore;
         updateData.ai_processing_status = 'completed';
-        
+
         console.log(`🔍 AI comparison completed:`, {
           similarity: aiComparisonResult.similarity,
           isMatch: aiComparisonResult.isMatch,
           distance: aiComparisonResult.distance,
           method: 'face-api.js'
         });
-        
+
         // Determine verification status based on AI comparison results
         if (aiComparisonResult.isMatch && aiComparisonResult.similarity > 0.75) {
           verificationStatus = 'verified';
@@ -794,7 +804,7 @@ export default class UserVerificationService {
           verificationStatus = 'pending';
           console.log('⚠️ AI verification inconclusive - keeping status as pending');
         }
-        
+
         // Add AI comparison details to notes
         const aiNotes = `AI Comparison (face-api.js): Similarity ${(aiComparisonResult.similarity * 100).toFixed(1)}%, Distance ${aiComparisonResult.distance.toFixed(3)}`;
         updateData.notes = aiNotes;
@@ -804,13 +814,13 @@ export default class UserVerificationService {
 
     // Set verification status based on similarity comparison
     updateData.verification_status = verificationStatus;
-    
+
     // If verified, set verification metadata
     if (verificationStatus === 'verified') {
       updateData.verified_by = userId; // Self-verified through AI
       updateData.verified_at = new Date();
       updateData.notes = 'Auto-verified through image similarity comparison';
-      
+
       // If AI auto-verifies, also update user's KYC and phone verification status
       // since we now have all verified information
       const isFullyVerified = await UserVerificationService.isUserFullyKycVerified(userId);
@@ -844,11 +854,11 @@ export default class UserVerificationService {
   static async getVerificationById(verificationId: string): Promise<UserVerification> {
     const db = getDatabase();
     const row = await db('user_verifications').where({ id: verificationId }).first();
-    
+
     if (!row) {
       throw new Error('Verification not found');
     }
-    
+
     return UserVerificationService.fromDb(row);
   }
 
@@ -857,7 +867,7 @@ export default class UserVerificationService {
    */
   static async cancelVerification(verificationId: string): Promise<void> {
     const db = getDatabase();
-    
+
     await db('user_verifications')
       .where('id', verificationId)
       .update({
@@ -894,11 +904,11 @@ export default class UserVerificationService {
    */
   static async verifyPhoneOtp(userId: string, newPhoneNumber: string, otp: string): Promise<void> {
     const db = getDatabase();
-    
+
     // Check if we're in development/demo mode
     const isDemoMode = process.env.NODE_ENV === 'demo' || process.env.NODE_ENV === 'development';
     const DEMO_OTP = '123456'; // Universal demo OTP code
-    
+
     // In demo mode, accept the demo OTP without checking database
     if (isDemoMode && otp === DEMO_OTP) {
       console.log('='.repeat(60));
@@ -907,7 +917,7 @@ export default class UserVerificationService {
       console.log(`Phone: ${newPhoneNumber}`);
       console.log(`Demo OTP: ${DEMO_OTP} ✓`);
       console.log('='.repeat(60));
-      
+
       // Update phone number in user_verifications (latest verification)
       await db('user_verifications')
         .where({ user_id: userId })
@@ -920,7 +930,7 @@ export default class UserVerificationService {
         .where('phone', newPhoneNumber)
         .andWhereNot('id', userId)
         .first();
-      
+
       if (existingUserWithPhone) {
         console.warn(`⚠️ [Demo Mode] Phone ${newPhoneNumber} already in use, but allowing for demo purposes`);
       }
@@ -933,7 +943,7 @@ export default class UserVerificationService {
       console.log(`✅ [Demo Mode] Phone verified for user ${userId}`);
       return;
     }
-    
+
     // Production mode or real OTP: Check database
     const record = await db('phone_verification_otps')
       .where({ user_id: userId, phone_number: newPhoneNumber, otp_code: otp, verified: false })

@@ -22,19 +22,20 @@ export const corsMiddleware = cors({
     console.debug(`[CORS] Checking origin: ${origin} against allowed: ${config.cors.origin.join(', ')}`);
 
 
-    // In development, allow localhost and common development origins
-    if (config.nodeEnv === 'development') {
-      const devOrigins = [
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:5173',
-        'http://localhost:8080',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:8080',
-      ];
-      if (devOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+    // Explicitly allow requested frontend domains regardless of environment
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:5173',
+      'http://localhost:8080',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:8080',
+      'http://38.242.224.199:8080',
+      'http://38.242.224.199',
+    ];
+
+    if (allowedOrigins.includes(origin) || config.nodeEnv === 'development') {
+      return callback(null, true);
     }
 
     // Allow same-domain requests (different ports on same IP)

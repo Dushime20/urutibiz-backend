@@ -18,8 +18,9 @@ COPY package*.json ./
 # Install ALL dependencies (including dev for ts-node)
 RUN npm ci
 
-# Copy source code and migrations
+# Copy source code, scripts, and migrations
 COPY src ./src
+COPY scripts ./scripts
 COPY database ./database
 COPY knexfile.js ./
 COPY tsconfig.json ./

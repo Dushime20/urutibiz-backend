@@ -51,16 +51,16 @@ async function checkColumnExists(tableName: string, columnName: string): Promise
 async function verifyBookingsTable() {
   const db = getDatabase();
   console.log('\n📋 Verifying bookings table structure...\n');
-  
+
   const tableExists = await db.schema.hasTable('bookings');
   if (!tableExists) {
     console.log('⚠️  bookings table does not exist!');
     return { missing: REQUIRED_BOOKINGS_COLUMNS, exists: false, existing: [] };
   }
-  
+
   const missingColumns: string[] = [];
   const existingColumns: string[] = [];
-  
+
   for (const column of REQUIRED_BOOKINGS_COLUMNS) {
     const exists = await checkColumnExists('bookings', column);
     if (exists) {
@@ -71,23 +71,23 @@ async function verifyBookingsTable() {
       console.log(`   ❌ ${column} - MISSING`);
     }
   }
-  
+
   return { missing: missingColumns, exists: true, existing: existingColumns };
 }
 
 async function verifyProductsTable() {
   const db = getDatabase();
   console.log('\n📋 Verifying products table structure...\n');
-  
+
   const tableExists = await db.schema.hasTable('products');
   if (!tableExists) {
     console.log('⚠️  products table does not exist!');
     return { missing: REQUIRED_PRODUCTS_COLUMNS, exists: false, existing: [] };
   }
-  
+
   const missingColumns: string[] = [];
   const existingColumns: string[] = [];
-  
+
   for (const column of REQUIRED_PRODUCTS_COLUMNS) {
     const exists = await checkColumnExists('products', column);
     if (exists) {
@@ -98,32 +98,32 @@ async function verifyProductsTable() {
       console.log(`   ❌ ${column} - MISSING`);
     }
   }
-  
+
   return { missing: missingColumns, exists: true, existing: existingColumns };
 }
 
 async function checkMigrationStatus() {
   const db = getDatabase();
-  
+
   // Check if knex_migrations table exists
   const migrationsTableExists = await db.schema.hasTable('knex_migrations');
-  
+
   if (!migrationsTableExists) {
     console.log('⚠️  knex_migrations table does not exist - this is a fresh database');
     return { tableExists: false, migrations: [] };
   }
-  
+
   // Get all migrations
   const migrations = await db('knex_migrations')
     .orderBy('id', 'asc')
     .select('*');
-  
+
   return { tableExists: true, migrations };
 }
 
 async function runMigrations() {
   console.log('\n🚀 Running all pending migrations...\n');
-  
+
   try {
     // Use knex CLI to run migrations
     execSync('npx knex migrate:latest', {
@@ -131,7 +131,7 @@ async function runMigrations() {
       stdio: 'inherit',
       env: process.env
     });
-    
+
     console.log('\n✅ Migrations completed successfully!\n');
     return true;
   } catch (error: any) {
@@ -144,18 +144,18 @@ async function main() {
   console.log('╔════════════════════════════════════════════════════════════╗');
   console.log('║     UrutiBiz - Complete Migration & Verification Script    ║');
   console.log('╚════════════════════════════════════════════════════════════╝\n');
-  
+
   try {
     // Step 1: Connect to database
     console.log('📡 Step 1: Connecting to database...');
     await connectDatabase();
     const db = getDatabase();
     console.log('✅ Database connected\n');
-    
+
     // Step 2: Check migration status
     console.log('📊 Step 2: Checking migration status...');
     const migrationStatus = await checkMigrationStatus();
-    
+
     if (migrationStatus.tableExists) {
       console.log(`   Found ${migrationStatus.migrations.length} completed migrations`);
       if (migrationStatus.migrations.length > 0) {
@@ -164,45 +164,45 @@ async function main() {
     } else {
       console.log('   No migration history found');
     }
-    
+
     // Step 3: Verify table structures (before migrations)
     console.log('\n🔍 Step 3: Checking table structures (before migrations)...');
-    
+
     console.log('\n   📦 Checking bookings table...');
     const beforeBookingsStatus = await verifyBookingsTable();
     if (beforeBookingsStatus.missing.length > 0) {
       console.log(`\n⚠️  Found ${beforeBookingsStatus.missing.length} missing columns in bookings table`);
     }
-    
+
     console.log('\n   📦 Checking products table...');
     const beforeProductsStatus = await verifyProductsTable();
     if (beforeProductsStatus.missing.length > 0) {
       console.log(`\n⚠️  Found ${beforeProductsStatus.missing.length} missing columns in products table`);
     }
-    
+
     // Step 4: Run migrations
     console.log('\n🔄 Step 4: Running all pending migrations...');
     const migrationSuccess = await runMigrations();
-    
+
     if (!migrationSuccess) {
       console.error('\n❌ Migrations failed! Please check the error messages above.');
       process.exit(1);
     }
-    
+
     // Step 5: Verify table structures (after migrations)
     console.log('\n🔍 Step 5: Verifying table structures (after migrations)...');
-    
+
     console.log('\n   📦 Checking bookings table...');
     const afterBookingsStatus = await verifyBookingsTable();
-    
+
     console.log('\n   📦 Checking products table...');
     const afterProductsStatus = await verifyProductsTable();
-    
+
     // Step 6: Summary
     console.log('\n╔════════════════════════════════════════════════════════════╗');
     console.log('║                    MIGRATION SUMMARY                     ║');
     console.log('╚════════════════════════════════════════════════════════════╝\n');
-    
+
     // Bookings table summary
     if (afterBookingsStatus.missing.length === 0) {
       console.log('✅ All required columns exist in bookings table!');
@@ -215,7 +215,7 @@ async function main() {
       console.log('\n💡 If columns are still missing, the migration may have failed.');
       console.log('   Check the migration output above for errors.');
     }
-    
+
     // Products table summary
     if (afterProductsStatus.missing.length === 0) {
       console.log('\n✅ All required columns exist in products table!');
@@ -230,20 +230,20 @@ async function main() {
       console.log('   - 20250120_add_view_count_to_products.ts');
       console.log('   - 20250723_add_review_count_to_products.ts');
     }
-    
+
     // Check for critical columns
     const criticalBookingsColumns = ['owner_confirmed', 'owner_confirmation_status'];
-    const missingCriticalBookings = criticalBookingsColumns.filter(col => 
+    const missingCriticalBookings = criticalBookingsColumns.filter(col =>
       afterBookingsStatus.missing.includes(col)
     );
-    
+
     const criticalProductsColumns = ['view_count'];
-    const missingCriticalProducts = criticalProductsColumns.filter(col => 
+    const missingCriticalProducts = criticalProductsColumns.filter(col =>
       afterProductsStatus.missing.includes(col)
     );
-    
+
     let hasCriticalIssues = false;
-    
+
     if (missingCriticalBookings.length > 0) {
       console.log('\n❌ CRITICAL: Missing owner confirmation columns in bookings table!');
       console.log('   These are required for booking creation to work.');
@@ -256,7 +256,7 @@ async function main() {
     } else {
       console.log('\n✅ All critical columns (owner_confirmed, owner_confirmation_status) exist in bookings!');
     }
-    
+
     if (missingCriticalProducts.length > 0) {
       console.log('\n❌ CRITICAL: Missing view_count column in products table!');
       console.log('   This will cause errors when fetching products.');
@@ -269,17 +269,17 @@ async function main() {
     } else {
       console.log('\n✅ All critical columns (view_count) exist in products!');
     }
-    
+
     if (hasCriticalIssues) {
       process.exit(1);
     }
-    
+
     console.log('\n🎉 Migration process completed successfully!');
     console.log('\n📝 Next steps:');
     console.log('   1. Test booking creation');
     console.log('   2. Verify all features work as expected');
     console.log('   3. Check application logs for any issues\n');
-    
+
   } catch (error: any) {
     console.error('\n❌ Fatal error during migration process:');
     console.error(`   ${error.message}`);

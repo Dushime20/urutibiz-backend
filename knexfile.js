@@ -1,4 +1,10 @@
 require('dotenv').config();
+try {
+  require('ts-node/register');
+  require('tsconfig-paths/register');
+} catch (e) {
+  // Ignore errors in production if TS support is not needed/available
+}
 const path = require('path');
 
 /**
@@ -18,7 +24,7 @@ module.exports = {
   migrations: {
     directory: path.join(__dirname, 'database', 'migrations'),
     tableName: 'knex_migrations',
-    extension: 'js',
+    loadExtensions: ['.js', '.ts'],
   },
   seeds: {
     directory: path.join(__dirname, 'database', 'seeds'),

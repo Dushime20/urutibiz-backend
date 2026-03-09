@@ -7,8 +7,8 @@ WORKDIR /app
 # Install dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        curl \
-        ca-certificates && \
+    curl \
+    ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -19,6 +19,7 @@ COPY package*.json ./
 RUN npm ci
 
 # Copy source code and migrations
+COPY src ./src
 COPY database ./database
 COPY knexfile.js ./
 COPY tsconfig.json ./
@@ -27,4 +28,4 @@ COPY tsconfig.json ./
 ENV NODE_ENV=production
 
 # Run migrations
-CMD ["npm", "run", "db:migrate"]
+CMD ["npm", "run", "db:migrate:all"]
